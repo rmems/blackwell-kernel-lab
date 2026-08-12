@@ -89,12 +89,17 @@ def synthetic_loop(steps: int, base_ms: float, profile: str) -> dict:
         think = base_ms * scale * (2.5 if cold else 0.8) + (i * 1.5)
         tool = base_ms * scale * 0.4
         decode_tokens = 8 if cold else 4
-        tpot = 12.0 * scale if cold else 8.0 * scale
-        ttft = think * 0.6
+        planned = think + tool
 
         t0 = time.perf_counter()
-        time.sleep(min(think + tool, 50) / 1000.0)
+        # Cap sleep for CI friendliness; reported timings must track actual wall.
+        time.sleep(min(planned, 50) / 1000.0)
         wall = (time.perf_counter() - t0) * 1000.0
+
+        think_share = (think / planned) if planned > 0 else 0.5
+        ttft = wall * think_share
+        residual = max(wall - ttft, 0.0)
+        tpot = residual / decode_tokens if decode_tokens else residual
 
         tool_loop_ms.append(wall)
         ttft_ms.append(ttft)

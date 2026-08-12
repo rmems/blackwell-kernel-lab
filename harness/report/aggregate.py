@@ -34,9 +34,9 @@ def row_from(path: Path) -> dict:
     schema = data.get("schema_version")
     if schema != SUPPORTED_SCHEMA:
         raise ValueError(f"unsupported schema_version={schema!r} (want {SUPPORTED_SCHEMA})")
-    metrics = data.get("metrics")
-    if metrics is None:
-        metrics = {}
+    if "metrics" not in data:
+        raise ValueError("missing metrics object")
+    metrics = data["metrics"]
     if not isinstance(metrics, dict):
         raise ValueError("metrics must be an object")
     workload = data.get("workload") if isinstance(data.get("workload"), dict) else {}

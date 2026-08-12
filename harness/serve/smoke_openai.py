@@ -29,22 +29,31 @@ def run_id(label: str) -> str:
     return f"{stamp}-{safe}-{uuid.uuid4().hex[:8]}"
 
 
-def probe_vram() -> dict:
-    out = {"vram_used_mb": None, "vram_free_mb": None, "vram_total_mb": None}
+def probe_gpu() -> dict:
+    """Probe name + memory via nvidia-smi (portable across hosts)."""
+    out = {
+        "gpu_name": None,
+        "vram_used_mb": None,
+        "vram_free_mb": None,
+        "vram_total_mb": None,
+        "driver": None,
+    }
     try:
         raw = subprocess.check_output(
             [
                 "nvidia-smi",
-                "--query-gpu=memory.used,memory.free,memory.total",
+                "--query-gpu=name,memory.used,memory.free,memory.total,driver_version",
                 "--format=csv,noheader,nounits",
             ],
             text=True,
             timeout=10,
         ).strip()
-        used, free, total = [float(x.strip()) for x in raw.split(",")]
-        out["vram_used_mb"] = int(used)
-        out["vram_free_mb"] = int(free)
-        out["vram_total_mb"] = int(total)
+        name, used, free, total, driver = [x.strip() for x in raw.split(",")]
+        out["gpu_name"] = name
+        out["vram_used_mb"] = int(float(used))
+        out["vram_free_mb"] = int(float(free))
+        out["vram_total_mb"] = int(float(total))
+        out["driver"] = driver
     except (FileNotFoundError, subprocess.SubprocessError, ValueError):
         pass
     return out
@@ -112,7 +121,13 @@ def chat_completion(
                 msg = choices[0].get("message") if isinstance(choices[0], dict) else {}
                 if not isinstance(msg, dict):
                     msg = {}
-                text = msg.get("content") or ""
+                content = msg.get("content")
+                if content is None:
+                    text = ""
+                elif isinstance(content, str):
+                    text = content
+                else:
+                    return _err_result(t0, f"message.content is {type(content).__name__}, expected str")
                 usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
                 return {
                     "ok": True,
@@ -152,8 +167,13 @@ def chat_completion(
                 if not isinstance(delta, dict):
                     continue
                 piece = delta.get("content")
-                if piece:
-                    content_parts.append(piece)
+                if piece is None:
+                    continue
+                if not isinstance(piece, str):
+                    return _err_result(
+                        t0, f"delta.content is {type(piece).__name__}, expected str"
+                    )
+                content_parts.append(piece)
             wall_ms = (time.perf_counter() - t0) * 1000.0
             text = "".join(content_parts)
             return {
@@ -224,7 +244,7 @@ def main() -> int:
             "User: confirm you can call tools by replying with exactly: kernel-smoke-ok"
         )
 
-    vram_before = probe_vram()
+    vram_before = probe_gpu()
     result = chat_completion(
         args.base_url,
         args.model,
@@ -234,7 +254,7 @@ def main() -> int:
         0.0,
         args.stream,
     )
-    vram_after = probe_vram()
+    vram_after = probe_gpu()
 
     used_vals = [
         v
@@ -244,11 +264,17 @@ def main() -> int:
     # Honest label: max of samples, not a continuous peak sampler.
     vram_sample_max = max(used_vals) if used_vals else None
 
-    content_ok = "kernel-smoke-ok" in (result["content"] or "")
+    # Exact smoke token (strip); substring would accept "cannot return kernel-smoke-ok".
+    content_ok = (result["content"] or "").strip() == "kernel-smoke-ok"
     slo_met = bool(result["ok"] and content_ok)
     free_after = vram_after.get("vram_free_mb")
-    if args.min_free_vram_mb > 0 and isinstance(free_after, int):
-        if free_after < args.min_free_vram_mb:
+    if args.min_free_vram_mb > 0:
+        if not isinstance(free_after, int):
+            slo_met = False
+            result["raw_error"] = (
+                (result["raw_error"] or "") + " VRAM probe unavailable; cannot enforce min free"
+            ).strip()
+        elif free_after < args.min_free_vram_mb:
             slo_met = False
             result["raw_error"] = (
                 (result["raw_error"] or "")
@@ -261,9 +287,9 @@ def main() -> int:
         "run_id": rid,
         "timestamp_utc": utc_now(),
         "host": {
-            "gpu_name": "NVIDIA GeForce RTX 5080",
+            "gpu_name": vram_after.get("gpu_name") or vram_before.get("gpu_name"),
             "vram_total_mb": vram_after.get("vram_total_mb") or vram_before.get("vram_total_mb"),
-            "driver": None,
+            "driver": vram_after.get("driver") or vram_before.get("driver"),
             "cuda": None,
         },
         "engine": {
