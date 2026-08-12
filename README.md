@@ -65,16 +65,20 @@ results/        Measurement outputs (gitignored)
 
 See [docs/MISSION.md](docs/MISSION.md) and [docs/RESULTS_SCHEMA.md](docs/RESULTS_SCHEMA.md).
 
-## Milestones
+## Milestones & version bumps
 
-| | Goal |
-|--|------|
-| **M0** | Identity + host baseline for local agents |
-| **M1** | Harness + matrix + inference stack + model cookbook |
-| **M2** | Agents run on-box with measured efficiency baselines |
-| **M3** | Smarter multi-turn / multi-agent / constrained tools |
-| **K0** | Kernel SoT declared; L1 ablations (#16); L3 workspace ready |
-| **CI** | Self-hosted **GPU** Actions runner for this lab |
+GitHub milestones include the **release tag in the title**. Closing a milestone ⇒ cut that tag + GitHub Release (notes = closed issues). Epic [#1](https://github.com/rmems/blackwell-kernel-lab/issues/1) stays open across milestones.
+
+| Milestone | Version | Goal |
+|-----------|---------|------|
+| [**M0** — Lab identity + host baseline](https://github.com/rmems/blackwell-kernel-lab/milestone/1) | **v0.1.0** | AGENTS / recipes / onboarding + 16 GB host baseline |
+| [**M1** — Measure stack](https://github.com/rmems/blackwell-kernel-lab/milestone/2) | **v0.2.0** | Client path, live metrics harness, inference stack, workloads, cookbook, matrix |
+| [**M2** — Agent efficiency baselines](https://github.com/rmems/blackwell-kernel-lab/milestone/3) | **v0.3.0** | Telemetry, single-agent coding/tool baseline, L1 FA × graphs × quant (#16) |
+| [**K0** — Kernel SoT + L3 workspace](https://github.com/rmems/blackwell-kernel-lab/milestone/4) | **v0.4.0** | Forge↔kernel boundary, `kernels/` layout, L3 smoke |
+| [**M3** — Smarter multi-agent agents](https://github.com/rmems/blackwell-kernel-lab/milestone/5) | **v0.5.0** | Packing, prefix/KV, router, multi-agent SLO, constrained tools |
+| [**CI** — Self-hosted GPU runner](https://github.com/rmems/blackwell-kernel-lab/milestone/6) | **patch / v0.x.0-ci** | Secure self-hosted **GPU** Actions runner (may ship mid-stream) |
+
+**Patch** (`v0.N.M+1`): docs, recipes, extra MATRIX rows, fixups inside an open milestone — no new minor.
 
 ## License
 
