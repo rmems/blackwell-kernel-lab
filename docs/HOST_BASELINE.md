@@ -64,9 +64,11 @@ See [AGENT_STACK.md](AGENT_STACK.md) for recipes.
 - Self-hosted **GPU Actions runner** for this repo is **in scope** (see epic CI milestone).  
 - Runner must not starve interactive desktop sessions without a clear policy (power, schedules, labels).
 
-## Optional neuromorphic kernels
+## Kernels (this lab is SoT)
 
-If experiments later depend on myelin PTX:
+Host GPU kernel work (L1–L3) is owned by **this repo** — see [KERNELS.md](KERNELS.md).
+
+If optional neuromorphic experiments later depend on myelin PTX:
 
 - Target **sm_120**; do **not** pin ancient PTX (e.g. 8.5) — `InvalidPtx` class failures.  
-- Kernel SoT remains **outside** this lab (`myelin-accelerator`).
+- `myelin-accelerator` is an optional upstream dep only; **not** the SoT for this host’s kernel lab.

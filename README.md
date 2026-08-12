@@ -1,25 +1,25 @@
 # blackwell-kernel-lab
 
-**Local agent lab on RTX 5080 (Blackwell / sm_120)** — run agents on-box, measure agent-loop KPIs, and experiment with inference efficiency under a **16 GB** VRAM ceiling.
+**GPU kernel + local agent lab on RTX 5080 (Blackwell / sm_120)** — first-party kernel work for this host, plus on-box agents measured under a **16 GB** VRAM ceiling.
 
 ```text
 This host (ShipOfTheseus) · RTX 5080 · ~16 GB GDDR7 · driver 610.x · CUDA 13.3
 ```
 
-## Mission
+## Mission (dual track)
 
-Make **local AI agents** on this machine:
+| Track | Goal |
+|-------|------|
+| **A — GPU kernels (SoT in this repo)** | L1 engine CUDA paths → L2 host scheduling → L3 first-party `.cu` / CUTLASS when L1 proves a gap. See [docs/KERNELS.md](docs/KERNELS.md). |
+| **B — Local agents** | Efficient + smarter coding/tool agents: TTFT/TPOT, tool-loop, prefix/memory, multi-agent SLOs. |
 
-1. **More efficient** — TTFT, TPOT, tool-loop latency, VRAM headroom, energy, multi-agent stability  
-2. **Smarter** — reliable tool calling, prefix/memory reuse, constrained JSON, concurrent-agent SLOs  
-
-This is **not** a Limen-Neural multi-repo verification lab. Upstream neuromorphic crates may appear later as *optional* control-plane experiments only.
+This is **not** a Limen-Neural multi-repo verification lab. Training / fine-tuning stays in **agoge-forger**.
 
 | Activity | Where it lives |
 |----------|----------------|
-| **Local agents + measurement (this repo)** | `rmems/blackwell-kernel-lab` |
+| **GPU kernels + agent measurement (this repo)** | `rmems/blackwell-kernel-lab` |
 | **Model training / fine-tune forge** | [`rmems/agoge-forger`](https://github.com/rmems/agoge-forger) |
-| **Blackwell CUDA kernels (neuromorphic)** | `Limen-Neural/myelin-accelerator` (optional dep) |
+| **Optional neuromorphic kernels (upstream)** | `Limen-Neural/myelin-accelerator` — optional dep only; **not** the SoT for this host’s kernel lab |
 
 ## Quick start
 
@@ -43,10 +43,11 @@ ollama stop "$BKL_MODEL"
 ## Repo layout
 
 ```text
-docs/           Mission, host baseline, stack, models, workloads, schema
+docs/           Mission, host baseline, kernels, stack, models, workloads, schema
 configs/        Engine / agent configs (no secrets)
 harness/        Scripted agent loops + reporting → results/
 recipes/        Human-run playbooks
+kernels/        First-party L3 CUDA / CUTLASS (when landed; see KERNELS.md)
 results/        Measurement outputs (gitignored)
 ```
 
@@ -60,6 +61,7 @@ results/        Measurement outputs (gitignored)
 | VRAM peak + free headroom | 16 GB discipline |
 | Concurrent agents meeting SLO | Multi-agent on one card |
 | Tokens/s and energy class | Efficiency of local serve |
+| Kernel / ablation deltas | L1–L3 experiments (see KERNELS.md) |
 
 See [docs/MISSION.md](docs/MISSION.md) and [docs/RESULTS_SCHEMA.md](docs/RESULTS_SCHEMA.md).
 
@@ -71,6 +73,7 @@ See [docs/MISSION.md](docs/MISSION.md) and [docs/RESULTS_SCHEMA.md](docs/RESULTS
 | **M1** | Harness + matrix + inference stack + model cookbook |
 | **M2** | Agents run on-box with measured efficiency baselines |
 | **M3** | Smarter multi-turn / multi-agent / constrained tools |
+| **K0** | Kernel SoT declared; L1 ablations (#16); L3 workspace ready |
 | **CI** | Self-hosted **GPU** Actions runner for this lab |
 
 ## License

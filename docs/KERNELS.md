@@ -1,6 +1,8 @@
-# Kernels for local agents on RTX 5080
+# Kernels for RTX 5080 (SoT in this repo)
 
-This lab works on **inference/runtime kernels** that make **local agents** faster and more stable on **sm_120 / 16 GB** — not neuromorphic CUDA, and not greenfield attention from day one.
+**`rmems/blackwell-kernel-lab` is the source of truth for GPU kernel work on this host** (sm_120 / 16 GB). That includes measuring engine CUDA paths (L1), host scheduling (L2), and first-party `.cu` / CUTLASS (L3) when L1 proves a gap.
+
+Not neuromorphic-first. Not greenfield attention from day one. Training forge stays in `agoge-forger` (its `cuda/` tree is a stub only).
 
 ## Layers
 
@@ -8,13 +10,13 @@ This lab works on **inference/runtime kernels** that make **local agents** faste
 |-------|---------|------------|
 | **L1** | Use & measure engine CUDA paths (FlashAttn, CUDA graphs, Q4/NVFP4 GEMM, prefix cache) | **Yes — start here** |
 | **L2** | Host scheduling (Green Contexts, dual P/D queues) | After L1 baselines |
-| **L3** | New `.cu` / CUTLASS kernels | Only if L1 leaves a proven gap |
+| **L3** | New `.cu` / CUTLASS kernels **in this repo** | Only if L1 leaves a proven gap |
 
 ## Why not “write CUDA first”?
 
 The high-impact kernels already run **inside** Ollama / llama.cpp (and peers). Writing new device code before measuring FA × graphs × quant is optimizing blind.
 
-**The kernels are CUDA.** First lab code is usually **Python/CLI driving those kernels** and recording agent KPIs.
+**The kernels are CUDA.** First lab code is usually **Python/CLI driving those kernels** and recording agent KPIs. L3 code lands under `kernels/` (or equivalent) here — not under `agoge-forger/cuda/`.
 
 ## Ranked L1 levers (agent loops)
 
