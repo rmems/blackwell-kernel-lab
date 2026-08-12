@@ -1,0 +1,41 @@
+# CPU CI — GitHub-hosted (no GPU). Syntax + synthetic harness only.
+name: ci-cpu
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  harness-cpu:
+    name: Synthetic harness (ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile harness
+        run: |
+          python3 -m py_compile \
+            harness/agent_loop/run_synthetic.py \
+            harness/agent_loop/run_live_metrics.py \
+            harness/serve/smoke_openai.py \
+            harness/serve/openai_compat.py \
+            harness/report/aggregate.py
+
+      - name: Synthetic agent loop
+        run: |
+          python3 harness/agent_loop/run_synthetic.py --out results/
+          python3 harness/report/aggregate.py --results results/
+          test -f results/summary.csv
+          ls -la results/

@@ -37,9 +37,12 @@ python3 harness/agent_loop/run_synthetic.py --out results/
 export BKL_BASE_URL=http://127.0.0.1:11434/v1
 export BKL_MODEL=granite4.1:8b   # or another local model
 python3 harness/serve/smoke_openai.py --out results/ --stream --label cell-A-baseline
+
+# Live multi-phase agent metrics (#10): cold TTFT → tool → resume TTFT
+python3 harness/agent_loop/run_live_metrics.py --out results/ --loops 1
 ollama stop "$BKL_MODEL"
 
-# Docs: docs/KERNELS.md · docs/AGENT_STACK.md · recipes/engine-smoke.md
+# Docs: docs/KERNELS.md · docs/AGENT_STACK.md · docs/CI.md · recipes/
 ```
 
 ## Repo layout
@@ -81,6 +84,8 @@ GitHub milestones include the **release tag in the title**. Closing a milestone 
 | [**CI** — Self-hosted GPU runner](https://github.com/rmems/blackwell-kernel-lab/milestone/6) | **patch / v0.x.0-ci** | Secure self-hosted **GPU** Actions runner (may ship mid-stream) |
 
 **Patch** (`v0.N.M+1`): docs, recipes, extra MATRIX rows, fixups inside an open milestone — no new minor.
+
+**CI split:** CPU workflows → GitHub-hosted `ubuntu-latest`; GPU workflows → self-hosted `ShipOfTheseus` (`CUDA` label). See [docs/CI.md](docs/CI.md).
 
 ## License
 

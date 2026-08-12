@@ -37,8 +37,18 @@ Replaces the old multi-repo Limen verification matrix. Rows are **local agent** 
 
 ```bash
 python3 harness/agent_loop/run_synthetic.py --out results/
+python3 harness/agent_loop/run_live_metrics.py --out results/ --loops 1
 MODEL=/path/to.gguf bash harness/serve/run_l1_ablation.sh
 ```
+
+## Live / smoke rows (M1)
+
+| Profile | Engine | Model | TTFT cold ms | TTFT resume ms | TPOT ms | Tool-loop ms | VRAM peak | Notes | Result |
+|---------|--------|-------|--------------|----------------|---------|--------------|-----------|-------|--------|
+| `live_agent_tool_loop` | ollama | `granite4.1:8b` | **7737** | **211** | **45.8** | **10005** | 14890 | #10 cold load heavy; free VRAM after ~1 GB | [json](results/live-metrics-2026-08-12/20260812T104511Z-live-tool-loop-27f8134b.json) |
+| L1 cell B warm | llama-server 9190 | gemma-4 E2B Q4 | — | **25.1** (warm TTFT) | 4.55 | 311.9 | 4254 | From #16 | [json](results/l1-ablation-2026-08-12/20260812T084828Z-cell-B-fa-on-warm2-8fc4dfd7.json) |
+| L1 cell A warm | llama-server 9190 | gemma-4 E2B Q4 | — | **33.1** | 4.44 | 312.8 | 4190 | FA off | [json](results/l1-ablation-2026-08-12/20260812T084823Z-cell-A-fa-off-warm1-bbad91c1.json) |
+| synthetic | synthetic | n/a | — | — | — | ~profile | n/a | CI cpu path | `results/*synthetic*` |
 
 ## L1 ablation rows (#16 / RM-470) — ShipOfTheseus 2026-08-12
 
