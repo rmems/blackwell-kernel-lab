@@ -1,6 +1,39 @@
+# Measurement outputs
+/results/*
+!/results/.gitkeep
+
+# Models / weights
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.onnx
+/models/
+/weights/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# CUDA intermediate (if any local probes)
 *.i
 *.ii
 *.gpu
 *.ptx
 *.cubin
 *.fatbin
+
+# Secrets / local engine
+.env
+.env.*
+configs/engine.local.env
+*.pem
