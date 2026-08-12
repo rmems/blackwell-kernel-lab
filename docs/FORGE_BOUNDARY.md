@@ -50,12 +50,19 @@ If training needs a custom op: implement or wrap it in **blackwell-kernel-lab**,
 
 ## Where new code goes (decision tree)
 
-```text
-Is it training / fine-tune / preference optimization?
-  → agoge-forger
+**Kernel / custom CUDA wins over training.** A training feature that needs a new
+`.cu`, CUTLASS kernel, or custom CUDA op is **not** an excuse to open a CUDA tree
+under the forge — implement or wrap the op here first (line 49), then consume it
+from `agoge-forger` via artifacts/packages/CLI.
 
+```text
 Is it measuring or writing GPU kernels / agent VRAM-latency on this 5080?
-  → blackwell-kernel-lab
+OR does a training feature need a new custom CUDA / .cu / CUTLASS op?
+  → blackwell-kernel-lab   (kernel test always wins; no forge .cu tree)
+
+Is it training / fine-tune / preference optimization that only uses
+existing engines, packages, or artifacts (no new first-party CUDA)?
+  → agoge-forger
 
 Is it neuromorphic myelin ops only?
   → Limen-Neural/myelin-accelerator (optional dep); still measure here if used on this host
