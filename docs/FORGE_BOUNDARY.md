@@ -37,6 +37,8 @@ Also owns: local agent stack docs, measurement schema, matrix, and self-hosted *
 
 `Limen-Neural/myelin-accelerator` may be an **optional dependency** for niche ops. It is **not** the SoT for this host’s kernel lab.
 
+When those ops are **run or measured on this host**, follow [HOST_BASELINE.md](HOST_BASELINE.md): target **`sm_120`**, and do **not** pin ancient PTX (avoids `InvalidPtx` / load failures on the 5080). Upstream myelin may support other arches; this host’s integration path stays sm_120-clean.
+
 ## How the forge may consume kernels
 
 Prefer **contracts over FFI**:
