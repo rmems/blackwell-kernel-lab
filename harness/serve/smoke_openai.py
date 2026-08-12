@@ -129,11 +129,13 @@ def chat_completion(
                 else:
                     return _err_result(t0, f"message.content is {type(content).__name__}, expected str")
                 usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+                # Non-stream: no first-token timestamp — leave ttft_ms null so TPOT
+                # is not faked as 0.0 (wall - wall).
                 return {
                     "ok": True,
                     "content": text,
                     "wall_ms": wall_ms,
-                    "ttft_ms": wall_ms,
+                    "ttft_ms": None,
                     "completion_tokens": usage.get("completion_tokens"),
                     "prompt_tokens": usage.get("prompt_tokens"),
                     "raw_error": None,
@@ -289,17 +291,21 @@ def main() -> int:
                 + f" free VRAM {free_after} MiB < min {args.min_free_vram_mb}"
             ).strip()
 
-    # Derive TPOT when usage is present: (wall - ttft) / max(completion_tokens - 1, 1).
+    # Derive TPOT only when we have a real first-token timestamp (streaming).
+    # Non-stream leaves ttft_ms null; never emit a misleading 0.0 TPOT.
     tpot_ms_val = None
     ct = result.get("completion_tokens")
     ttft_s = result.get("ttft_ms")
+    wall_s = result.get("wall_ms")
     if (
-        isinstance(ct, int)
+        args.stream
+        and isinstance(ct, int)
         and ct > 0
         and isinstance(ttft_s, (int, float))
-        and isinstance(result.get("wall_ms"), (int, float))
+        and isinstance(wall_s, (int, float))
+        and float(wall_s) > float(ttft_s)
     ):
-        decode_ms = max(float(result["wall_ms"]) - float(ttft_s), 0.0)
+        decode_ms = float(wall_s) - float(ttft_s)
         denom = max(ct - 1, 1)
         tpot_ms_val = decode_ms / denom
 
@@ -336,6 +342,8 @@ def main() -> int:
             "tool_loop_wall_ms": [result["wall_ms"]],
             "ttft_ms": [result["ttft_ms"]] if result["ttft_ms"] is not None else [],
             "tpot_ms": [tpot_ms_val] if tpot_ms_val is not None else [],
+            # aggregate.py CSV column; single-sample smoke → p50 equals the sample.
+            "tpot_p50_ms": tpot_ms_val,
             "tokens_per_s": (1000.0 / tpot_ms_val) if tpot_ms_val and tpot_ms_val > 0 else None,
             "prefix_cache_hit_rate": None,
             # Max of before/after samples — not continuous peak sampling.

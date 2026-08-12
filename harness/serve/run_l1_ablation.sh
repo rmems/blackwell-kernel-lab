@@ -19,19 +19,28 @@ CTX="${CTX:-4096}"
 OUT="${OUT:-results}"
 ENGINE_VER="${ENGINE_VER:-$(llama-server --version 2>&1 | head -1)}"
 API_MODEL=""  # filled after first /v1/models
+SPID=""
 
 kill_server() {
+  # Prefer the child we started.
   if [[ -n "${SPID:-}" ]] && kill -0 "$SPID" 2>/dev/null; then
     kill "$SPID" 2>/dev/null || true
     wait "$SPID" 2>/dev/null || true
   fi
-  # Only match llama-server binary by port; never -f against the whole command line.
-  local pid
-  pid=$(ss -ltnp 2>/dev/null | awk -v p=":${PORT}" '$4 ~ p {print}' | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | head -1)
-  if [[ -n "${pid:-}" ]]; then
-    kill "$pid" 2>/dev/null || true
-    wait "$pid" 2>/dev/null || true
-  fi
+  # Fallback: only kill a listener that is actually llama-server on this port.
+  # Never wait() on foreign PIDs (not our children). Never kill by port alone.
+  local pid comm
+  while read -r pid; do
+    [[ -z "${pid:-}" ]] && continue
+    comm=$(ps -p "$pid" -o comm= 2>/dev/null || true)
+    if [[ "$comm" == *llama-server* ]]; then
+      kill "$pid" 2>/dev/null || true
+    fi
+  done < <(
+    ss -ltnp "sport = :${PORT}" 2>/dev/null \
+      | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' \
+      | sort -u
+  )
   sleep 1
   SPID=""
 }
@@ -44,6 +53,7 @@ start_server() {
   llama-server -m "$MODEL" -ngl "$NGL" -c "$CTX" --port "$PORT" --host "$HOST" -fa "$fa" \
     >"$log" 2>&1 &
   SPID=$!
+  trap kill_server EXIT
   for i in $(seq 1 120); do
     if curl -sf "http://${HOST}:${PORT}/v1/models" >/dev/null 2>&1; then
       API_MODEL=$(curl -sS "http://${HOST}:${PORT}/v1/models" | python3 -c \
@@ -89,5 +99,6 @@ run_cell "cell-B-fa-on" "${COMMON} -fa on"
 run_cell "cell-C-fa-on-graphs-default" "${COMMON} -fa on (cuda_graphs=engine-default no CLI toggle on 9190)"
 
 kill_server
+trap - EXIT
 echo ">> done. Aggregate: python3 harness/report/aggregate.py --results ${OUT}/"
 python3 harness/report/aggregate.py --results "$OUT/" || true
