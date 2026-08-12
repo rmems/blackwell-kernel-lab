@@ -41,14 +41,33 @@ ollama stop "$BKL_MODEL"
 
 ### llama.cpp (`llama-server`) — preferred for kernel flag ablations
 
+ShipOfTheseus measured path (**#16 / RM-470**, 2026-08-12):
+
+| Field | Value |
+|-------|--------|
+| Binary | Homebrew `llama-server` **9190** (`b64739ea3`) |
+| Model | `gemma-4-E2B-it-UD-Q4_K_XL.gguf` (~3.0 GiB GGUF, ~4.6B params class) |
+| Endpoint | `http://127.0.0.1:8080/v1` |
+| GPU layers | `-ngl 99` |
+| Context | `-c 4096` |
+| Flash Attention | **`-fa off`** (cell A) vs **`-fa on`** (cells B/C) — CLI works on this build |
+| CUDA graphs | **No CLI toggle** on 9190 — engine/CUDA default only. Cell C = FA on + graphs=default (honest fallback, not a fake off/on win) |
+| Quant D | No second MXFP4/NVFP4 sibling for this GGUF on host yet — **cell D deferred** |
+
 ```bash
-llama-server --version
-# Example (adjust model path):
-# llama-server -m /path/to/model.gguf -ngl 99 -c 8192 --port 8080
-# Use build docs for flash-attn + CUDA graph flags on your revision
+llama-server --version   # expect 9190 on this host
+# Cell A
+llama-server -m /path/to/gemma-4-E2B-it-UD-Q4_K_XL.gguf -ngl 99 -c 4096 --port 8080 -fa off
+# Cell B/C
+llama-server -m /path/to/gemma-4-E2B-it-UD-Q4_K_XL.gguf -ngl 99 -c 4096 --port 8080 -fa on
+
+export BKL_BASE_URL=http://127.0.0.1:8080/v1
+export BKL_MODEL=gemma-4-E2B-it-UD-Q4_K_XL.gguf
+# Or full matrix:
+# MODEL=/path/to.gguf bash harness/serve/run_l1_ablation.sh
 ```
 
-Document exact flags that work on **sm_120** in `results/*.json` notes and here when known.
+JSON snapshots: `docs/results/l1-ablation-2026-08-12/`.
 
 ## Agent loop shape
 

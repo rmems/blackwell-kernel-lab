@@ -37,7 +37,18 @@ Replaces the old multi-repo Limen verification matrix. Rows are **local agent** 
 
 ```bash
 python3 harness/agent_loop/run_synthetic.py --out results/
-# later: harness scripts for live engines
+MODEL=/path/to.gguf bash harness/serve/run_l1_ablation.sh
 ```
 
-Update this table with links to result files as runs land.
+## L1 ablation rows (#16 / RM-470) — ShipOfTheseus 2026-08-12
+
+Host: RTX 5080 · driver 610.43.03 · CUDA 13.3 · `llama-server` 9190 · model `gemma-4-E2B-it-UD-Q4_K_XL` · profile `agent_shaped_smoke` · warm decode after load · `max_tokens=64`.
+
+| Cell | Engine flags | TTFT ms | TPOT ms | Wall ms | VRAM peak MiB | Notes | Result |
+|------|--------------|---------|---------|---------|---------------|-------|--------|
+| A | `-ngl 99 -c 4096 -fa off` | **33.1** | 4.44 | 312.8 | 4190 | FA forced off | [json](results/l1-ablation-2026-08-12/20260812T084823Z-cell-A-fa-off-warm1-bbad91c1.json) |
+| B | `-ngl 99 -c 4096 -fa on` | **25.1** | 4.55 | 311.9 | 4254 | FA on | [json](results/l1-ablation-2026-08-12/20260812T084828Z-cell-B-fa-on-warm2-8fc4dfd7.json) |
+| C | `-fa on` + graphs=default | **22.4** | 4.35 | 296.5 | 4254 | **No graph CLI** on 9190 — not a true graphs-off baseline | [json](results/l1-ablation-2026-08-12/20260812T084829Z-cell-C-graphs-default-warm-297c2693.json) |
+| D | alt quant | — | — | — | — | **Deferred**: no MXFP4/NVFP4 twin for this GGUF on host | — |
+
+**Takeaways (honest):** On this short agent-shaped prompt + small E2B Q4 model, warm **FA on vs off** is a modest TTFT win (~25 ms vs ~33 ms); wall/TPOT nearly flat. CUDA graphs cannot be ablated independently on llama.cpp **9190** — report engine-default only. Prefer longer prefills / larger models for stronger FA signal in a follow-up.

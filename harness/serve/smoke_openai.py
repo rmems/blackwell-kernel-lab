@@ -129,11 +129,13 @@ def chat_completion(
                 else:
                     return _err_result(t0, f"message.content is {type(content).__name__}, expected str")
                 usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+                # Non-stream: no first-token timestamp — leave ttft_ms null so TPOT
+                # is not faked as 0.0 (wall - wall).
                 return {
                     "ok": True,
                     "content": text,
                     "wall_ms": wall_ms,
-                    "ttft_ms": wall_ms,
+                    "ttft_ms": None,
                     "completion_tokens": usage.get("completion_tokens"),
                     "prompt_tokens": usage.get("prompt_tokens"),
                     "raw_error": None,
@@ -235,6 +237,11 @@ def main() -> int:
         default=int(os.environ.get("BKL_MIN_FREE_VRAM_MB", "0")),
         help="If >0, fail when post-load free VRAM is below this (e.g. 2048)",
     )
+    p.add_argument(
+        "--skip-content-slo",
+        action="store_true",
+        help="Record metrics even when reply is not exactly kernel-smoke-ok (ablations)",
+    )
     args = p.parse_args()
 
     prompt = args.prompt
@@ -266,7 +273,10 @@ def main() -> int:
 
     # Exact smoke token (strip); substring would accept "cannot return kernel-smoke-ok".
     content_ok = (result["content"] or "").strip() == "kernel-smoke-ok"
-    slo_met = bool(result["ok"] and content_ok)
+    if args.skip_content_slo:
+        slo_met = bool(result["ok"])
+    else:
+        slo_met = bool(result["ok"] and content_ok)
     free_after = vram_after.get("vram_free_mb")
     if args.min_free_vram_mb > 0:
         if not isinstance(free_after, int):
@@ -280,6 +290,24 @@ def main() -> int:
                 (result["raw_error"] or "")
                 + f" free VRAM {free_after} MiB < min {args.min_free_vram_mb}"
             ).strip()
+
+    # Derive TPOT only when we have a real first-token timestamp (streaming).
+    # Non-stream leaves ttft_ms null; never emit a misleading 0.0 TPOT.
+    tpot_ms_val = None
+    ct = result.get("completion_tokens")
+    ttft_s = result.get("ttft_ms")
+    wall_s = result.get("wall_ms")
+    if (
+        args.stream
+        and isinstance(ct, int)
+        and ct > 0
+        and isinstance(ttft_s, (int, float))
+        and isinstance(wall_s, (int, float))
+        and float(wall_s) > float(ttft_s)
+    ):
+        decode_ms = float(wall_s) - float(ttft_s)
+        denom = max(ct - 1, 1)
+        tpot_ms_val = decode_ms / denom
 
     rid = run_id(args.label)
     payload = {
@@ -313,8 +341,10 @@ def main() -> int:
         "metrics": {
             "tool_loop_wall_ms": [result["wall_ms"]],
             "ttft_ms": [result["ttft_ms"]] if result["ttft_ms"] is not None else [],
-            "tpot_ms": [],
-            "tokens_per_s": None,
+            "tpot_ms": [tpot_ms_val] if tpot_ms_val is not None else [],
+            # aggregate.py CSV column; single-sample smoke → p50 equals the sample.
+            "tpot_p50_ms": tpot_ms_val,
+            "tokens_per_s": (1000.0 / tpot_ms_val) if tpot_ms_val and tpot_ms_val > 0 else None,
             "prefix_cache_hit_rate": None,
             # Max of before/after samples — not continuous peak sampling.
             "vram_peak_mb": vram_sample_max,
@@ -324,15 +354,20 @@ def main() -> int:
             "vram_after_mb": vram_after.get("vram_used_mb"),
             "wall_ms": result["wall_ms"],
             "ttft_ms_scalar": result["ttft_ms"],
+            "tpot_ms_scalar": tpot_ms_val,
             "completion_tokens": result["completion_tokens"],
             "prompt_tokens": result["prompt_tokens"],
         },
         "slo": {
             "met": slo_met,
             "notes": (
-                "smoke content check"
-                if result["ok"] and content_ok
-                else (result["raw_error"] or "content mismatch / request failed")
+                "request ok (content SLO skipped)"
+                if args.skip_content_slo and result["ok"]
+                else (
+                    "smoke content check"
+                    if result["ok"] and content_ok
+                    else (result["raw_error"] or "content mismatch / request failed")
+                )
             ),
         },
         "notes": (
@@ -347,7 +382,7 @@ def main() -> int:
         ),
         "kernel_campaign": {
             "layer": "L1",
-            "issue": "#12/#16",
+            "issue": "#16",
             "meaning": "Measure engine CUDA paths; not custom .cu",
             "engine_version": args.engine_version,
             "engine_flags": args.engine_flags,

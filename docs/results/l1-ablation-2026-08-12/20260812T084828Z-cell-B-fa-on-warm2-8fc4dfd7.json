@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "run_id": "20260812T084828Z-cell-B-fa-on-warm2-8fc4dfd7",
+  "timestamp_utc": "2026-08-12T08:48:28Z",
+  "host": {
+    "gpu_name": "NVIDIA GeForce RTX 5080",
+    "vram_total_mb": 16303,
+    "driver": "610.43.03",
+    "cuda": null
+  },
+  "engine": {
+    "name": "openai-compat",
+    "version": "version: 9190 (b64739ea3)",
+    "endpoint": "http://127.0.0.1:8080/v1",
+    "label": "cell-B-fa-on-warm2",
+    "flags": "-ngl 99 -c 4096 -fa on"
+  },
+  "model": {
+    "id": "gemma-4-E2B-it-UD-Q4_K_XL.gguf",
+    "quant": "UD-Q4_K_XL",
+    "context_length": null
+  },
+  "workload": {
+    "profile": "agent_shaped_smoke",
+    "concurrency": 1,
+    "steps": 1,
+    "stream": true
+  },
+  "metrics": {
+    "tool_loop_wall_ms": [
+      311.86925699876156
+    ],
+    "ttft_ms": [
+      25.140586993074976
+    ],
+    "tpot_ms": [
+      4.551248730248993
+    ],
+    "tokens_per_s": 219.7199184816452,
+    "prefix_cache_hit_rate": null,
+    "vram_peak_mb": 4254,
+    "vram_sample_note": "max(before, after) samples; not continuous peak",
+    "vram_free_mb": 11624,
+    "vram_before_mb": 4254,
+    "vram_after_mb": 4254,
+    "wall_ms": 311.86925699876156,
+    "ttft_ms_scalar": 25.140586993074976,
+    "tpot_ms_scalar": 4.551248730248993,
+    "completion_tokens": 64,
+    "prompt_tokens": 50
+  },
+  "slo": {
+    "met": true,
+    "notes": "request ok (content SLO skipped)"
+  },
+  "notes": "ok=True content='' stream=True label=cell-B-fa-on-warm2 flags='-ngl 99 -c 4096 -fa on' quant='UD-Q4_K_XL'",
+  "kernel_campaign": {
+    "layer": "L1",
+    "issue": "#16",
+    "meaning": "Measure engine CUDA paths; not custom .cu",
+    "engine_version": "version: 9190 (b64739ea3)",
+    "engine_flags": "-ngl 99 -c 4096 -fa on",
+    "quant": "UD-Q4_K_XL"
+  }
+}
