@@ -39,6 +39,8 @@ Instructions for coding agents working in this repository.
 5. Linear team for issues: **rmems (RM)**; GitHub: **rmems/blackwell-kernel-lab**. Keep GH↔Linear titles/bodies aligned when editing either side.  
 6. Self-hosted **GPU** runner work is **in scope** (not deferred).  
 7. L3 kernels only after L1 leaves a **proven** gap (see KERNELS.md).  
+8. GitHub milestones include the **version in the title** (e.g. `M2 … (v0.3.0)`). Closing a milestone ⇒ tag that version. Patch bumps for in-milestone fixups only. See README “Milestones & version bumps”.  
+9. Every PR: assignee **rmems**, labels, milestone, Development/project when applicable, Linear **RM-*** links. Never commit agent work straight to `main`.
 
 ## Primary stack defaults
 
