@@ -24,7 +24,7 @@ Kernel campaign overview: [KERNELS.md](KERNELS.md) (L1 measure engine CUDA paths
 | Smoke | `python3 harness/serve/smoke_openai.py --stream` → content `kernel-smoke-ok` |
 | Headroom | `ollama stop <model>` after runs; target ≥2 GB free when idle multi-tasking |
 
-**Note:** While a model is loaded, free VRAM can drop hard (observed ~1 GB free mid-run). Always stop models when done.
+**Note:** While a model is loaded, free VRAM can drop hard (observed ~1 GB free mid-run on `granite4.1:8b`). That **violates** the ≥2 GB free multi-task headroom rule while the model is resident. Prefer smaller models for concurrent desktop use, or `ollama stop` between agent sessions. For strict measurement, pass `--min-free-vram-mb 2048` only when free VRAM is part of the SLO.
 
 ## Engines on ShipOfTheseus
 

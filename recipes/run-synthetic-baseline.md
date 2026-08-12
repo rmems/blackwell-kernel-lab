@@ -3,7 +3,7 @@
 No live model required. Validates harness + GPU probe.
 
 ```bash
-cd ~/rmems/blackwell-kernel-lab
+# From the repository root
 python3 harness/agent_loop/run_synthetic.py --out results/ --profile synthetic_react --steps 5
 python3 harness/report/aggregate.py --results results/
 ```

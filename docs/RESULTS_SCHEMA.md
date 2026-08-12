@@ -38,6 +38,9 @@ Harness writes JSON (and optional CSV) under `results/` (gitignored).
     "tool_loop_wall_ms": [120.5, 98.0],
     "ttft_ms": [],
     "tpot_ms": [],
+    "tool_loop_p50_ms": 109.25,
+    "ttft_p50_ms": null,
+    "tpot_p50_ms": null,
     "tokens_per_s": null,
     "prefix_cache_hit_rate": null,
     "vram_peak_mb": null,
@@ -55,8 +58,16 @@ Harness writes JSON (and optional CSV) under `results/` (gitignored).
 
 Columns: `run_id,timestamp_utc,profile,engine,model_id,concurrency,tool_loop_p50_ms,ttft_p50_ms,tpot_p50_ms,vram_peak_mb,notes`
 
+## Metrics notes
+
+| Field | Meaning |
+|-------|---------|
+| `tool_loop_p50_ms` / `ttft_p50_ms` / `tpot_p50_ms` | Median of the corresponding sample lists (emitted by harnesses) |
+| `vram_peak_mb` | **Sample max** (e.g. max of before/after `nvidia-smi`), not continuous peak unless a sampler is added |
+
 ## Rules
 
 - Never commit real `results/*` artifacts with secrets.  
-- One file per run: `results/<run_id>.json`.  
+- One file per run: `results/<run_id>.json` (`run_id` includes a short uuid suffix).  
+- Aggregator only accepts `schema_version: 1` objects.  
 - Bump `schema_version` only with a docs note in this file.  

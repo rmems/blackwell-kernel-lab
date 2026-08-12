@@ -68,6 +68,8 @@ See [AGENT_STACK.md](AGENT_STACK.md) for recipes.
 
 Host GPU kernel work (L1–L3) is owned by **this repo** — see [KERNELS.md](KERNELS.md).
 
+**Architecture:** consumer Blackwell **sm_120** is not datacenter **sm_100**. Do not assume FA4, TMEM, `tcgen05`, or **MIG**. Prefer engine Flash / FA2-class paths and L1 ablations first.
+
 If optional neuromorphic experiments later depend on myelin PTX:
 
 - Target **sm_120**; do **not** pin ancient PTX (e.g. 8.5) — `InvalidPtx` class failures.  

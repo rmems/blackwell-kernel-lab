@@ -12,7 +12,7 @@ Requires [engine-smoke.md](engine-smoke.md) green.
 | Flash Attention | Engine CUDA kernels | Prefill TTFT, KV memory |
 | CUDA graphs | Engine CUDA runtime | Short tool decode TPOT |
 
-**Not:** writing new `.cu` yet. **Not:** FA4/B200 recipes.
+**Not:** writing new `.cu` yet. **Not:** FA4/B200/TMEM recipes. **sm_120 ≠ sm_100** (no MIG either).
 
 ## Cells
 

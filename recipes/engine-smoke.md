@@ -11,13 +11,16 @@ Alternate: `llama-server` (Homebrew) once a GGUF path is chosen.
 ## Smoke
 
 ```bash
-cd ~/rmems/blackwell-kernel-lab
+# From the repository root (clone path may differ)
+cd /path/to/blackwell-kernel-lab
 
 # Optional: source configs/engine.local.env
 export BKL_BASE_URL=http://127.0.0.1:11434/v1
-export BKL_MODEL=granite4.1:8b   # ~5–10GB class; leave headroom
+export BKL_MODEL=granite4.1:8b   # ~5–10GB class; may leave <2GB free while loaded
 
-python3 harness/serve/smoke_openai.py --out results/
+python3 harness/serve/smoke_openai.py --out results/ --stream
+# Optional SLO: require free VRAM after run (fails if model still holds memory)
+# python3 harness/serve/smoke_openai.py --out results/ --stream --min-free-vram-mb 2048
 ```
 
 Or raw curl:

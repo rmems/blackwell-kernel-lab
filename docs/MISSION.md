@@ -32,11 +32,11 @@ On the RTX 5080 workstation:
 ## Success
 
 - [x] README/epic describe dual mission (kernels SoT + agent lab), not Limen verification  
-- [ ] Backlog issues match dual track; pure Limen-smoke items cancelled/parked  
-- [ ] Host baseline is agent + 16 GB oriented  
-- [ ] Harness runs a synthetic agent loop → JSON  
-- [ ] Documented path to run a local agent on this 5080  
-- [ ] L1 kernel ablation path documented and runnable (#16 / RM-470)  
+- [x] Host baseline doc (agent + 16 GB oriented) — `docs/HOST_BASELINE.md`  
+- [x] Harness runs a synthetic agent loop → JSON  
+- [x] Documented path to run a local agent / engine smoke on this 5080  
+- [x] L1 kernel ablation path documented (`recipes/kernel-ablation.md`; fill #16 cells)  
+- [ ] Backlog issues fully filled with measured MATRIX rows  
 - [ ] L3 workspace / smoke path exists when first first-party kernel is accepted  
 - [ ] Self-hosted **GPU** CI runner tracked as active work  
 

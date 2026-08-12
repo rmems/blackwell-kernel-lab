@@ -9,10 +9,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
 import subprocess
 import time
 import urllib.error
 import urllib.request
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,7 +26,7 @@ def utc_now() -> str:
 def run_id(label: str) -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     safe = "".join(c if c.isalnum() or c in "-_" else "-" for c in label)[:40]
-    return f"{stamp}-{safe}"
+    return f"{stamp}-{safe}-{uuid.uuid4().hex[:8]}"
 
 
 def probe_vram() -> dict:
@@ -48,6 +50,18 @@ def probe_vram() -> dict:
     return out
 
 
+def _err_result(t0: float, msg: str) -> dict:
+    return {
+        "ok": False,
+        "content": "",
+        "wall_ms": (time.perf_counter() - t0) * 1000.0,
+        "ttft_ms": None,
+        "completion_tokens": None,
+        "prompt_tokens": None,
+        "raw_error": msg,
+    }
+
+
 def chat_completion(
     base_url: str,
     model: str,
@@ -58,13 +72,17 @@ def chat_completion(
     stream: bool,
 ) -> dict:
     url = base_url.rstrip("/") + "/chat/completions"
-    body = {
+    body: dict = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": max_tokens,
         "temperature": temperature,
         "stream": stream,
     }
+    if stream:
+        # OpenAI-compatible servers that support it may return usage on the final chunk.
+        body["stream_options"] = {"include_usage": True}
+
     data = json.dumps(body).encode("utf-8")
     headers = {"Content-Type": "application/json"}
     if api_key:
@@ -75,26 +93,37 @@ def chat_completion(
     ttft_ms = None
     content_parts: list[str] = []
     completion_tokens = None
+    prompt_tokens = None
 
     try:
         with urllib.request.urlopen(req, timeout=300) as resp:
             if not stream:
-                payload = json.loads(resp.read().decode("utf-8"))
+                raw = resp.read().decode("utf-8")
+                try:
+                    payload = json.loads(raw)
+                except json.JSONDecodeError as e:
+                    return _err_result(t0, f"JSONDecodeError: {e}")
+                if not isinstance(payload, dict):
+                    return _err_result(t0, "response is not a JSON object")
                 wall_ms = (time.perf_counter() - t0) * 1000.0
-                msg = (payload.get("choices") or [{}])[0].get("message") or {}
+                choices = payload.get("choices")
+                if not isinstance(choices, list) or not choices:
+                    return _err_result(t0, "missing choices[]")
+                msg = choices[0].get("message") if isinstance(choices[0], dict) else {}
+                if not isinstance(msg, dict):
+                    msg = {}
                 text = msg.get("content") or ""
-                usage = payload.get("usage") or {}
+                usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
                 return {
                     "ok": True,
                     "content": text,
                     "wall_ms": wall_ms,
-                    "ttft_ms": wall_ms,  # non-stream: no separate TTFT
+                    "ttft_ms": wall_ms,
                     "completion_tokens": usage.get("completion_tokens"),
                     "prompt_tokens": usage.get("prompt_tokens"),
                     "raw_error": None,
                 }
 
-            # SSE stream
             first = True
             for raw_line in resp:
                 line = raw_line.decode("utf-8", errors="replace").strip()
@@ -107,10 +136,21 @@ def chat_completion(
                     chunk = json.loads(data_s)
                 except json.JSONDecodeError:
                     continue
+                if not isinstance(chunk, dict):
+                    continue
                 if first:
                     ttft_ms = (time.perf_counter() - t0) * 1000.0
                     first = False
-                delta = (chunk.get("choices") or [{}])[0].get("delta") or {}
+                usage = chunk.get("usage")
+                if isinstance(usage, dict):
+                    completion_tokens = usage.get("completion_tokens", completion_tokens)
+                    prompt_tokens = usage.get("prompt_tokens", prompt_tokens)
+                choices = chunk.get("choices")
+                if not isinstance(choices, list) or not choices:
+                    continue
+                delta = choices[0].get("delta") if isinstance(choices[0], dict) else {}
+                if not isinstance(delta, dict):
+                    continue
                 piece = delta.get("content")
                 if piece:
                     content_parts.append(piece)
@@ -122,30 +162,18 @@ def chat_completion(
                 "wall_ms": wall_ms,
                 "ttft_ms": ttft_ms if ttft_ms is not None else wall_ms,
                 "completion_tokens": completion_tokens,
-                "prompt_tokens": None,
+                "prompt_tokens": prompt_tokens,
                 "raw_error": None,
             }
     except urllib.error.HTTPError as e:
         err = e.read().decode("utf-8", errors="replace")[:500]
-        return {
-            "ok": False,
-            "content": "",
-            "wall_ms": (time.perf_counter() - t0) * 1000.0,
-            "ttft_ms": None,
-            "completion_tokens": None,
-            "prompt_tokens": None,
-            "raw_error": f"HTTP {e.code}: {err}",
-        }
+        return _err_result(t0, f"HTTP {e.code}: {err}")
     except urllib.error.URLError as e:
-        return {
-            "ok": False,
-            "content": "",
-            "wall_ms": (time.perf_counter() - t0) * 1000.0,
-            "ttft_ms": None,
-            "completion_tokens": None,
-            "prompt_tokens": None,
-            "raw_error": str(e.reason),
-        }
+        return _err_result(t0, str(e.reason))
+    except (TimeoutError, socket.timeout) as e:
+        return _err_result(t0, f"timeout: {e}")
+    except (json.JSONDecodeError, KeyError, IndexError, TypeError, AttributeError) as e:
+        return _err_result(t0, f"{type(e).__name__}: {e}")
 
 
 def main() -> int:
@@ -165,6 +193,27 @@ def main() -> int:
         "--agent-prompt",
         action="store_true",
         help="Use a short agent-shaped prompt (system-like tools blurb + user)",
+    )
+    p.add_argument(
+        "--engine-version",
+        default=os.environ.get("BKL_ENGINE_VERSION"),
+        help="Optional engine binary/version string for ablation provenance",
+    )
+    p.add_argument(
+        "--engine-flags",
+        default=os.environ.get("BKL_ENGINE_FLAGS"),
+        help="Optional flags string for ablation provenance",
+    )
+    p.add_argument(
+        "--quant",
+        default=os.environ.get("BKL_QUANT"),
+        help="Optional quant label for ablation provenance",
+    )
+    p.add_argument(
+        "--min-free-vram-mb",
+        type=int,
+        default=int(os.environ.get("BKL_MIN_FREE_VRAM_MB", "0")),
+        help="If >0, fail when post-load free VRAM is below this (e.g. 2048)",
     )
     args = p.parse_args()
 
@@ -187,6 +236,25 @@ def main() -> int:
     )
     vram_after = probe_vram()
 
+    used_vals = [
+        v
+        for v in (vram_before.get("vram_used_mb"), vram_after.get("vram_used_mb"))
+        if isinstance(v, int)
+    ]
+    # Honest label: max of samples, not a continuous peak sampler.
+    vram_sample_max = max(used_vals) if used_vals else None
+
+    content_ok = "kernel-smoke-ok" in (result["content"] or "")
+    slo_met = bool(result["ok"] and content_ok)
+    free_after = vram_after.get("vram_free_mb")
+    if args.min_free_vram_mb > 0 and isinstance(free_after, int):
+        if free_after < args.min_free_vram_mb:
+            slo_met = False
+            result["raw_error"] = (
+                (result["raw_error"] or "")
+                + f" free VRAM {free_after} MiB < min {args.min_free_vram_mb}"
+            ).strip()
+
     rid = run_id(args.label)
     payload = {
         "schema_version": 1,
@@ -200,13 +268,14 @@ def main() -> int:
         },
         "engine": {
             "name": "openai-compat",
-            "version": None,
+            "version": args.engine_version,
             "endpoint": args.base_url,
             "label": args.label,
+            "flags": args.engine_flags,
         },
         "model": {
             "id": args.model,
-            "quant": None,
+            "quant": args.quant,
             "context_length": None,
         },
         "workload": {
@@ -221,30 +290,42 @@ def main() -> int:
             "tpot_ms": [],
             "tokens_per_s": None,
             "prefix_cache_hit_rate": None,
-            "vram_peak_mb": vram_after.get("vram_used_mb"),
-            "vram_free_mb": vram_after.get("vram_free_mb"),
+            # Max of before/after samples — not continuous peak sampling.
+            "vram_peak_mb": vram_sample_max,
+            "vram_sample_note": "max(before, after) samples; not continuous peak",
+            "vram_free_mb": free_after,
             "vram_before_mb": vram_before.get("vram_used_mb"),
+            "vram_after_mb": vram_after.get("vram_used_mb"),
             "wall_ms": result["wall_ms"],
             "ttft_ms_scalar": result["ttft_ms"],
             "completion_tokens": result["completion_tokens"],
             "prompt_tokens": result["prompt_tokens"],
         },
         "slo": {
-            "met": result["ok"] and "kernel-smoke-ok" in (result["content"] or ""),
-            "notes": "smoke content check" if result["ok"] else result["raw_error"],
+            "met": slo_met,
+            "notes": (
+                "smoke content check"
+                if result["ok"] and content_ok
+                else (result["raw_error"] or "content mismatch / request failed")
+            ),
         },
         "notes": (
-            "ok={} content={!r} stream={} label={}".format(
+            "ok={} content={!r} stream={} label={} flags={!r} quant={!r}".format(
                 result["ok"],
                 (result["content"] or "")[:120],
                 args.stream,
                 args.label,
+                args.engine_flags,
+                args.quant,
             )
         ),
         "kernel_campaign": {
             "layer": "L1",
             "issue": "#12/#16",
             "meaning": "Measure engine CUDA paths; not custom .cu",
+            "engine_version": args.engine_version,
+            "engine_flags": args.engine_flags,
+            "quant": args.quant,
         },
     }
 
@@ -253,12 +334,13 @@ def main() -> int:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {path}")
     print(
-        f"ok={result['ok']} wall_ms={result['wall_ms']:.1f} "
+        f"ok={result['ok']} slo_met={slo_met} wall_ms={result['wall_ms']:.1f} "
         f"ttft_ms={result['ttft_ms']} "
-        f"vram_used={vram_after.get('vram_used_mb')} free={vram_after.get('vram_free_mb')}"
+        f"vram_used_after={vram_after.get('vram_used_mb')} free={free_after}"
     )
     if result["raw_error"]:
         print(f"error: {result['raw_error']}")
+    if not slo_met:
         return 1
     return 0
 

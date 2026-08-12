@@ -11,6 +11,7 @@ import json
 import statistics
 import subprocess
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -20,8 +21,9 @@ def utc_now() -> str:
 
 
 def run_id(profile: str) -> str:
+    # Second precision + short uuid so concurrent/same-second runs never collide.
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    return f"{stamp}-{profile}"
+    return f"{stamp}-{profile}-{uuid.uuid4().hex[:8]}"
 
 
 def probe_gpu() -> dict:
@@ -54,7 +56,6 @@ def probe_gpu() -> dict:
         )
         for line in nvcc.splitlines():
             if "release" in line.lower():
-                # e.g. Cuda compilation tools, release 13.3, V13.3.73
                 parts = line.split("release")
                 if len(parts) > 1:
                     host["cuda"] = parts[1].split(",")[0].strip()
@@ -64,23 +65,35 @@ def probe_gpu() -> dict:
     return host
 
 
-def synthetic_loop(steps: int, base_ms: float) -> dict:
+def _profile_scale(profile: str) -> float:
+    """Distinct synthetic cost shapes per profile (not label-only)."""
+    if profile == "synthetic_plan_exec":
+        return 1.6  # heavier cold prefill
+    if profile == "coding_tool":
+        return 1.25  # medium tool/result size
+    return 1.0  # synthetic_react
+
+
+def synthetic_loop(steps: int, base_ms: float, profile: str) -> dict:
     """Simulate think→tool→think with cold first step + short resumes."""
+    if steps < 1:
+        raise ValueError("steps must be >= 1")
+
+    scale = _profile_scale(profile)
     tool_loop_ms: list[float] = []
     ttft_ms: list[float] = []
     tpot_ms: list[float] = []
 
     for i in range(steps):
-        # Cold prefill is slower; resume steps are shorter
         cold = i == 0
-        think = base_ms * (2.5 if cold else 0.8) + (i * 1.5)
-        tool = base_ms * 0.4
+        think = base_ms * scale * (2.5 if cold else 0.8) + (i * 1.5)
+        tool = base_ms * scale * 0.4
         decode_tokens = 8 if cold else 4
-        tpot = 12.0 if cold else 8.0
+        tpot = 12.0 * scale if cold else 8.0 * scale
         ttft = think * 0.6
 
         t0 = time.perf_counter()
-        time.sleep(min(think + tool, 50) / 1000.0)  # cap sleep for CI friendliness
+        time.sleep(min(think + tool, 50) / 1000.0)
         wall = (time.perf_counter() - t0) * 1000.0
 
         tool_loop_ms.append(wall)
@@ -101,6 +114,29 @@ def synthetic_loop(steps: int, base_ms: float) -> dict:
     }
 
 
+def merge_loops(loops: list[dict]) -> dict:
+    """Merge concurrent serial agent loops into one metrics blob."""
+    tool_loop: list[float] = []
+    ttft: list[float] = []
+    tpot: list[float] = []
+    for loop in loops:
+        tool_loop.extend(loop["tool_loop_wall_ms"])
+        ttft.extend(loop["ttft_ms"])
+        tpot.extend(loop["tpot_ms"])
+    return {
+        "tool_loop_wall_ms": tool_loop,
+        "ttft_ms": ttft,
+        "tpot_ms": tpot,
+        "tokens_per_s": None,
+        "prefix_cache_hit_rate": loops[0]["prefix_cache_hit_rate"] if loops else None,
+        "vram_peak_mb": None,
+        "vram_free_mb": None,
+        "tool_loop_p50_ms": statistics.median(tool_loop) if tool_loop else None,
+        "ttft_p50_ms": statistics.median(ttft) if ttft else None,
+        "tpot_p50_ms": statistics.median(tpot) if tpot else None,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -113,21 +149,39 @@ def main() -> int:
         "--profile",
         default="synthetic_react",
         choices=["synthetic_react", "synthetic_plan_exec", "coding_tool"],
-        help="Workload profile name",
+        help="Workload profile name (changes synthetic cost shape)",
     )
-    parser.add_argument("--steps", type=int, default=5, help="Agent loop steps")
+    parser.add_argument("--steps", type=int, default=5, help="Agent loop steps (>= 1)")
     parser.add_argument(
         "--base-ms",
         type=float,
         default=5.0,
         help="Base synthetic latency scale (ms)",
     )
-    parser.add_argument("--concurrency", type=int, default=1)
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=1,
+        help="Number of sequential agent sessions to simulate (>= 1)",
+    )
     args = parser.parse_args()
+
+    if args.steps < 1:
+        parser.error("--steps must be >= 1")
+    if args.concurrency < 1:
+        parser.error("--concurrency must be >= 1")
+    if args.base_ms < 0:
+        parser.error("--base-ms must be >= 0")
 
     args.out.mkdir(parents=True, exist_ok=True)
     rid = run_id(args.profile)
-    metrics = synthetic_loop(args.steps, args.base_ms)
+
+    # Concurrency is sequential multi-session simulation (not true parallelism).
+    loops = [
+        synthetic_loop(args.steps, args.base_ms, args.profile)
+        for _ in range(args.concurrency)
+    ]
+    metrics = merge_loops(loops)
 
     payload = {
         "schema_version": 1,
@@ -136,7 +190,7 @@ def main() -> int:
         "host": probe_gpu(),
         "engine": {
             "name": "synthetic",
-            "version": "harness-0.1",
+            "version": "harness-0.2",
             "endpoint": None,
         },
         "model": {
@@ -147,6 +201,7 @@ def main() -> int:
         "workload": {
             "profile": args.profile,
             "concurrency": args.concurrency,
+            "concurrency_mode": "sequential_sessions",
             "steps": args.steps,
         },
         "metrics": {
@@ -162,7 +217,10 @@ def main() -> int:
             "tpot_p50_ms": metrics["tpot_p50_ms"],
         },
         "slo": {"met": None, "notes": "Synthetic run; SLOs not applied"},
-        "notes": "Synthetic agent loop without live LLM",
+        "notes": (
+            f"Synthetic agent loop without live LLM; "
+            f"profile={args.profile} concurrency={args.concurrency} sequential"
+        ),
     }
 
     out_path = args.out / f"{rid}.json"
