@@ -52,30 +52,33 @@ If training needs a custom op: implement or wrap it in **blackwell-kernel-lab**,
 
 ## Where new code goes (decision tree)
 
-**Kernel / custom CUDA wins over training.** A training feature that needs a new
-`.cu`, CUTLASS kernel, or custom CUDA op is **not** an excuse to open a CUDA tree
-under the forge — implement or wrap the op here first (line 49), then consume it
-from `agoge-forger` via artifacts/packages/CLI.
+Evaluate **top to bottom**. First matching branch wins.
+
+1. **Myelin / neuromorphic upstream ops take precedence** over the generic “kernel on this 5080” branch — implement or extend in `Limen-Neural/myelin-accelerator`; measure/integrate on this host here (sm_120 rules in [HOST_BASELINE.md](HOST_BASELINE.md)).
+2. **Non-myelin custom CUDA wins over training.** A training feature that needs a new `.cu`, CUTLASS kernel, or custom CUDA op is **not** an excuse to open a CUDA tree under the forge — implement or wrap the op **here** first, then consume it from `agoge-forger` via artifacts/packages/CLI.
 
 ```text
-Is it measuring or writing GPU kernels / agent VRAM-latency on this 5080?
-OR does a training feature need a new custom CUDA / .cu / CUTLASS op?
-  → blackwell-kernel-lab   (kernel test always wins; no forge .cu tree)
+Is it neuromorphic / myelin-class ops (SNN, niche myelin kernels)?
+  → Limen-Neural/myelin-accelerator (optional dep)
+  → still measure / integrate on this host in blackwell-kernel-lab (sm_120; no ancient PTX)
+
+Is it measuring or writing non-myelin GPU kernels / agent VRAM-latency on this 5080?
+OR does a training feature need a new custom CUDA / .cu / CUTLASS op (not myelin)?
+  → blackwell-kernel-lab   (kernel SoT; no forge .cu tree)
 
 Is it training / fine-tune / preference optimization that only uses
 existing engines, packages, or artifacts (no new first-party CUDA)?
   → agoge-forger
-
-Is it neuromorphic myelin ops only?
-  → Limen-Neural/myelin-accelerator (optional dep); still measure here if used on this host
 ```
 
-## sm_120 hard rules (both sides)
+## Host rules for **this** RTX 5080 (not global forge policy)
 
-- **sm_120 ≠ sm_100** — no FA4 / TMEM / `tcgen05` B200 recipes.  
+These apply to **work targeting this machine** (this lab, and any forge job that **runs or measures on ShipOfTheseus / RTX 5080**). They do **not** ban other GPUs (e.g. B200) in `agoge-forger` training recipes elsewhere.
+
+- On this host: **sm_120 ≠ sm_100** — no FA4 / TMEM / `tcgen05` B200 recipes **for this card**.  
 - **No MIG** on this consumer card.  
-- **~16 GB** VRAM ceiling for agent + kernel experiments.  
-- Training multi-GPU strategy lives in the **forge**, not by forking kernel ownership.
+- **~16 GB** VRAM ceiling for agent + kernel experiments **here**.  
+- Training multi-GPU strategy lives in the **forge**; kernel SoT for this host still does not move into `agoge-forger/cuda/`.
 
 ## Checklist for PRs
 
