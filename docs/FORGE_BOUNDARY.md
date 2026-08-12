@@ -48,7 +48,7 @@ Prefer **contracts over FFI**:
 3. **Documented CLI** — engine flags and smoke scripts agents can re-run.  
 4. **Avoid** ad-hoc copies of `.cu` into the forge “for convenience.”
 
-If training needs a custom op: implement or wrap it in **blackwell-kernel-lab**, then consume the artifact from agoge-forger.
+If training needs a **non-myelin** custom CUDA op: implement or wrap it in **blackwell-kernel-lab**, then consume the artifact from agoge-forger. Neuromorphic / myelin ops stay in `myelin-accelerator` (see decision tree).
 
 ## Where new code goes (decision tree)
 
