@@ -82,7 +82,8 @@ These apply to **work targeting this machine** (this lab, and any forge job that
 
 ## Checklist for PRs
 
-- [ ] New `.cu` / CUTLASS → this repo under `kernels/` (after L1 gap is real).  
+- [ ] New **non-myelin** `.cu` / CUTLASS → this repo under `kernels/` (after L1 gap is real).  
+- [ ] New **myelin / neuromorphic** kernel → `Limen-Neural/myelin-accelerator`; measure/integrate on this host here only.  
 - [ ] New SFT/DPO/trainer change → agoge-forger.  
 - [ ] Cross-repo need → artifact or doc contract, not a second CUDA tree.  
 - [ ] Linear: **RM** issues for this lab; keep GH↔Linear twins aligned.
