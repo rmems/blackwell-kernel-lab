@@ -4,6 +4,8 @@
 
 Not neuromorphic-first. Not greenfield attention from day one. Training forge stays in `agoge-forger` (its `cuda/` tree is a stub only).
 
+**Boundary contract (agents must follow):** [FORGE_BOUNDARY.md](FORGE_BOUNDARY.md) — where `.cu` lands, what the forge may consume, decision tree.
+
 ## Layers
 
 | Layer | Meaning | First work |

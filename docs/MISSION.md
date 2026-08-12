@@ -14,7 +14,7 @@ On the RTX 5080 workstation:
 | Non-goal | Owner instead |
 |----------|----------------|
 | Multi-repo Limen CUDA “does it build?” matrix | Retired from this epic |
-| **Model training / fine-tuning forge** | **`rmems/agoge-forger`** (confirmed) |
+| **Model training / fine-tuning forge** | **`rmems/agoge-forger`** (confirmed) — see [FORGE_BOUNDARY.md](FORGE_BOUNDARY.md) |
 | Cloud multi-tenant agent SaaS | Out of scope |
 | Blind L3 kernel writing without L1 baselines | Deferred until measured gap |
 

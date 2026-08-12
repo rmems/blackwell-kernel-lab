@@ -21,6 +21,8 @@ This is **not** a Limen-Neural multi-repo verification lab. Training / fine-tuni
 | **Model training / fine-tune forge** | [`rmems/agoge-forger`](https://github.com/rmems/agoge-forger) |
 | **Optional neuromorphic kernels (upstream)** | `Limen-Neural/myelin-accelerator` — optional dep only; **not** the SoT for this host’s kernel lab |
 
+**Boundary contract:** [docs/FORGE_BOUNDARY.md](docs/FORGE_BOUNDARY.md) — new `.cu` here; training in the forge; no second CUDA tree under `agoge-forger/cuda/`.
+
 ## Quick start
 
 ```bash
