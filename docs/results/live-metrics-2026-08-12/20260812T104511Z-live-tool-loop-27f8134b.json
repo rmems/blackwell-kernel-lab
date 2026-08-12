@@ -28,7 +28,9 @@
       "cold_prefill",
       "short_decode",
       "resume_prefill"
-    ]
+    ],
+    "steps_requested": 1,
+    "protocol_ok": null
   },
   "metrics": {
     "ttft_cold_ms": [
@@ -53,7 +55,7 @@
     "ttft_p50_ms": 3974.0149659919553,
     "tpot_p50_ms": 45.793788572182436,
     "tool_loop_p50_ms": 10005.326408994733,
-    "tpot_p95_ms": 46.275417753393846,
+    "tpot_p95_ms": null,
     "tokens_per_s": 21.83702268755839,
     "prefix_cache_hit_rate": null,
     "vram_peak_mb": 14890,
@@ -61,13 +63,14 @@
     "vram_free_mb": 989,
     "vram_before_mb": 2058,
     "vram_after_mb": 14890,
-    "wall_total_ms": 10005.32933899376
+    "wall_total_ms": 10005.32933899376,
+    "ttft_warm_ms": []
   },
   "slo": {
     "met": true,
     "notes": "ok"
   },
-  "notes": "cold_content='TOOL name=run_shell args={\"cmd\":\"ls\"}' resume_content='The project root contains configuration files (`AGENTS.md`, `README.md`), documentation directories (`docs`), a harness directory, and recipe files under `recipes`.' loops=1",
+  "notes": "cold_content='TOOL name=run_shell args={\"cmd\":\"ls\"}' resume_content='The project root contains configuration files (`AGENTS.md`, `README.md`), documentation directories (`docs`), a harness directory, and recipe files under `recipes`.' loops=1 fixture: tpot_p95 withheld (<5 samples); engine set to ollama",
   "kernel_campaign": {
     "layer": "L1",
     "issue": "#10",

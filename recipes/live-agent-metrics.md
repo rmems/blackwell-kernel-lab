@@ -16,10 +16,14 @@ export BKL_MODEL=granite4.1:8b
 ## Run
 
 ```bash
+export BKL_ENGINE=ollama   # or llama-server — recorded in results JSON
 python3 harness/agent_loop/run_live_metrics.py --out results/ --loops 1
-# more samples for p50/p95:
+# more samples: cycle 0 = cold; later cycles are warm (not labeled cold)
 python3 harness/agent_loop/run_live_metrics.py --out results/ --loops 3 --label live-tool-loop
+# fail hard if model ignores TOOL protocol:
+python3 harness/agent_loop/run_live_metrics.py --out results/ --require-tool-protocol
 python3 harness/report/aggregate.py --results results/
+# fixtures for MATRIX may be copied under docs/results/ (sanitized, intentional)
 ```
 
 ## What is measured

@@ -1,6 +1,7 @@
 """Minimal OpenAI-compatible chat client for lab harnesses (#3, #10).
 
-Streaming path records TTFT (first SSE data chunk). No third-party deps.
+Streaming path records TTFT at the **first non-empty content token**.
+No third-party deps.
 """
 
 from __future__ import annotations
@@ -91,7 +92,6 @@ def chat_completion(
                     "raw_error": None,
                 }
 
-            first = True
             for raw_line in resp:
                 line = raw_line.decode("utf-8", errors="replace").strip()
                 if not line.startswith("data:"):
@@ -105,9 +105,6 @@ def chat_completion(
                     continue
                 if not isinstance(chunk, dict):
                     continue
-                if first:
-                    ttft_ms = (time.perf_counter() - t0) * 1000.0
-                    first = False
                 usage = chunk.get("usage")
                 if isinstance(usage, dict):
                     completion_tokens = usage.get("completion_tokens", completion_tokens)
@@ -123,13 +120,19 @@ def chat_completion(
                     continue
                 if not isinstance(piece, str):
                     return _err(f"delta.content is {type(piece).__name__}, expected str")
+                # TTFT = first non-empty content token (ignore role-only chunks).
+                if ttft_ms is None and piece:
+                    ttft_ms = (time.perf_counter() - t0) * 1000.0
                 content_parts.append(piece)
             wall_ms = (time.perf_counter() - t0) * 1000.0
+            text = "".join(content_parts)
+            if not text and ttft_ms is None:
+                return _err("stream ended without content tokens")
             return {
                 "ok": True,
-                "content": "".join(content_parts),
+                "content": text,
                 "wall_ms": wall_ms,
-                "ttft_ms": ttft_ms if ttft_ms is not None else wall_ms,
+                "ttft_ms": ttft_ms,
                 "completion_tokens": completion_tokens,
                 "prompt_tokens": prompt_tokens,
                 "raw_error": None,
@@ -145,7 +148,9 @@ def chat_completion(
         return _err(f"{type(e).__name__}: {e}")
 
 
-def derive_tpot_ms(wall_ms: float | None, ttft_ms: float | None, completion_tokens: int | None) -> float | None:
+def derive_tpot_ms(
+    wall_ms: float | None, ttft_ms: float | None, completion_tokens: int | None
+) -> float | None:
     if (
         not isinstance(completion_tokens, int)
         or completion_tokens <= 0
@@ -155,3 +160,15 @@ def derive_tpot_ms(wall_ms: float | None, ttft_ms: float | None, completion_toke
         return None
     decode_ms = max(float(wall_ms) - float(ttft_ms), 0.0)
     return decode_ms / max(completion_tokens - 1, 1)
+
+
+def infer_engine_name(base_url: str, explicit: str | None) -> str:
+    """Prefer explicit BKL_ENGINE / --engine-name; else guess from URL."""
+    if explicit and explicit not in ("", "openai-compat"):
+        return explicit
+    u = (base_url or "").lower()
+    if "11434" in u or "ollama" in u:
+        return "ollama"
+    if "8080" in u or "llama" in u:
+        return "llama-server"
+    return explicit or "openai-compat"

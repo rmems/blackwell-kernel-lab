@@ -24,11 +24,12 @@ Re-register / label docs: [GitHub self-hosted runners](https://docs.github.com/e
 
 ## Security (self-hosted)
 
-1. **Fork PRs never run on the GPU host** — `ci-gpu` trust gate skips when `head.repo != this repo`.  
-2. Prefer **not** using secrets that can be exfiltrated by untrusted PR code on self-hosted.  
-3. Optional live smoke (`vars.BKL_GPU_LIVE_SMOKE=1`) only when Ollama is intentionally left up.  
-4. Desktop share: GPU jobs may compete with interactive agents — keep `concurrency` cancel-in-progress.  
-5. Do not store model weights or API keys in the runner work dir long-term.
+1. **Fork PRs never run on the GPU host** — trust gate job runs on **GitHub-hosted** `ubuntu-latest` and sets `allow=false` when `head.repo != this repo`. The self-hosted job is skipped entirely (no checkout of fork code on the GPU box).  
+2. Actions are **pinned to commit SHAs** (not floating tags) in workflow files.  
+3. Prefer **not** using secrets that can be exfiltrated by untrusted PR code on self-hosted.  
+4. Optional live smoke (`vars.BKL_GPU_LIVE_SMOKE=1`) only when Ollama is intentionally left up.  
+5. Desktop share: GPU jobs may compete with interactive agents — keep `concurrency` cancel-in-progress.  
+6. Do not store model weights or API keys in the runner work dir long-term.
 
 ## Local equivalents
 

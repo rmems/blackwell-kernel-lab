@@ -1,15 +1,14 @@
 # GPU CI — self-hosted runner on ShipOfTheseus (RTX 5080).
 # CPU-only jobs stay on ubuntu-latest (ci-cpu.yml).
 #
-# Security: do not enable "run on every fork PR" without an approval gate.
-# Prefer main + workflow_dispatch + labeled PR from trusted maintainers.
+# Security: fork PRs never schedule self-hosted jobs (trust gate on GitHub-hosted).
+# Prefer main + workflow_dispatch + same-repo PRs only on the GPU host.
 name: ci-gpu
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-  # Pull requests from the same repo only (not untrusted forks on the GPU host).
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
@@ -22,7 +21,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Guard: never schedule GPU work for fork PRs (untrusted code on self-hosted).
+  # Gate runs on GitHub-hosted only — never execute untrusted fork PR code on GPU host.
   gate:
     name: Trust gate
     runs-on: ubuntu-latest
@@ -48,7 +47,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: GPU presence
         run: |
@@ -69,7 +68,6 @@ jobs:
           python3 harness/agent_loop/run_synthetic.py --out results/
           python3 harness/report/aggregate.py --results results/
 
-      # Optional live smoke: set repo variable BKL_GPU_LIVE_SMOKE=1 and ensure Ollama is up.
       - name: Live engine smoke (optional)
         if: ${{ vars.BKL_GPU_LIVE_SMOKE == '1' }}
         env:
