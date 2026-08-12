@@ -1,7 +1,7 @@
 # Host baseline — local agents on RTX 5080
 
 **Host:** ShipOfTheseus (personal workstation)  
-**Refresh:** 2026-08-11  
+**Refresh:** 2026-08-12T09:50Z (live `nvidia-smi` / `nvcc` on this machine)
 
 ## GPU
 
@@ -10,11 +10,11 @@
 | GPU | NVIDIA GeForce **RTX 5080** |
 | VRAM | **16303 MiB** (~16 GB) |
 | Compute capability | **12.0** (`sm_120`, Blackwell consumer) |
-| Driver | **610.43.03** (verify with `nvidia-smi`) |
-| Persistence | Prefer Persistence-M **On** for long agent runs |
+| Driver | **610.43.03** |
+| Persistence | **Enabled** (`Persistence-M On`) |
 
 ```bash
-nvidia-smi --query-gpu=name,memory.total,compute_cap,driver_version --format=csv
+nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free,compute_cap,driver_version,persistence_mode --format=csv
 ```
 
 ## CUDA toolkit
@@ -22,11 +22,25 @@ nvidia-smi --query-gpu=name,memory.total,compute_cap,driver_version --format=csv
 | Item | Value |
 |------|--------|
 | Toolkit | **CUDA 13.3** (`/usr/local/cuda`) |
-| `nvcc` | 13.3.x |
+| `nvcc` | **13.3.73** (V13.3.73) |
 
 ```bash
 nvcc --version
 ```
+
+## Idle vs loaded VRAM (measured 2026-08-12)
+
+| State | Used MiB | Free MiB | Notes |
+|-------|----------|----------|-------|
+| **Idle-ish** (no chat model resident; Ollama daemon may still hold a small footprint) | ~**2068** | ~**13811** | After `ollama stop` on chat models |
+| **Loaded** `granite4.1:8b` (smoke class) | ~**14261** | ~**1617** | **Violates ≥2 GB free** while model is resident |
+| Embedding model left loaded (`qwen3-embedding:8b` observed) | ~**13967** | ~**1911** | Same class of headroom pressure |
+
+**Rules that follow from the numbers:**
+
+1. Prefer **`ollama stop <model>`** between agent sessions when multi-tasking / desktop share.  
+2. For strict free-VRAM SLO in smoke: `--min-free-vram-mb 2048` only when the model will not stay loaded.  
+3. Smaller models or stop-between-runs are required to meet the ≥2 GB free multi-task rule **while** a 5–10 GB-class model is hot.
 
 ## 16 GB agent VRAM rules
 
@@ -53,15 +67,15 @@ Rough budget sketch:
 
 | Engine | Path / note |
 |--------|-------------|
-| **Ollama** | `/usr/local/bin/ollama` |
-| **llama-server** | Homebrew: `/home/linuxbrew/.linuxbrew/bin/llama-server` |
+| **Ollama** | `/usr/local/bin/ollama` · `0.30.x` · `http://127.0.0.1:11434/v1` |
+| **llama-server** | Homebrew: `/home/linuxbrew/.linuxbrew/bin/llama-server` · **9190** |
 
-See [AGENT_STACK.md](AGENT_STACK.md) for recipes.
+See [AGENT_STACK.md](AGENT_STACK.md) for recipes and L1 flags.
 
 ## Multi-agent / CI notes
 
 - Consumer card: no MIG partitioning.  
-- Self-hosted **GPU Actions runner** for this repo is **in scope** (see epic CI milestone).  
+- Self-hosted **GPU Actions runner** for this repo is **in scope** (milestone **CI**).  
 - Runner must not starve interactive desktop sessions without a clear policy (power, schedules, labels).
 
 ## Kernels (this lab is SoT)
