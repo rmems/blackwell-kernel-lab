@@ -4,6 +4,8 @@
 
 Not neuromorphic-first. Not greenfield attention from day one. Training forge stays in `agoge-forger` (its `cuda/` tree is a stub only).
 
+**Boundary contract (agents must follow):** [FORGE_BOUNDARY.md](FORGE_BOUNDARY.md) — where `.cu` lands, what the forge may consume, decision tree.
+
 ## Layers
 
 | Layer | Meaning | First work |
@@ -28,12 +30,15 @@ The high-impact kernels already run **inside** Ollama / llama.cpp (and peers). W
 
 Hard rule: **sm_120 ≠ sm_100**. No FA4/TMEM assumptions. No MIG.
 
-## First campaign
+## Campaign status
 
-| Issue | Role |
-|-------|------|
-| #12 / RM-476 | Engine up — unlocks GPU kernels |
-| #16 / RM-470 | **Main kernel experiment:** FA × graphs × quant ablations |
-| #10 / RM-184 | Record TTFT/TPOT/VRAM for each cell |
+| Issue | Role | Status |
+|-------|------|--------|
+| #12 / RM-476 | Engine up — unlocks GPU kernels | Done |
+| #16 / RM-470 | L1 FA × graphs × quant ablations | Done (graphs = engine-default on llama.cpp 9190; D deferred) |
+| #20 / RM-486 | Forge ↔ kernel boundary contract | This doc set |
+| #19 / RM-487 | L3 `kernels/` workspace layout | Next |
+| #21 / RM-488 | L3 smoke + GPU CI hook | After #19 |
+| #10 / RM-184 | Live agent metrics harness | Open (M1) |
 
-See [recipes/kernel-ablation.md](../recipes/kernel-ablation.md) and [recipes/engine-smoke.md](../recipes/engine-smoke.md).
+See [recipes/kernel-ablation.md](../recipes/kernel-ablation.md), [recipes/engine-smoke.md](../recipes/engine-smoke.md), [FORGE_BOUNDARY.md](FORGE_BOUNDARY.md).

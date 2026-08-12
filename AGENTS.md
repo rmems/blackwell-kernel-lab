@@ -22,6 +22,8 @@ Instructions for coding agents working in this repository.
 | SFT / QLoRA / post-training ladder | `rmems/agoge-forger` |
 | Optional neuromorphic upstream | `Limen-Neural/myelin-accelerator` (dep only) |
 
+Full rules: [docs/FORGE_BOUNDARY.md](docs/FORGE_BOUNDARY.md).
+
 ## Hardware constraints (hard)
 
 - GPU: **RTX 5080**, compute **sm_120**, **~16 GB** VRAM  
