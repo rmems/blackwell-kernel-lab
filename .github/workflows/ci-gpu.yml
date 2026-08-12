@@ -48,6 +48,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          # Self-hosted: do not leave GITHUB_TOKEN in git config for later steps.
+          persist-credentials: false
 
       - name: GPU presence
         run: |

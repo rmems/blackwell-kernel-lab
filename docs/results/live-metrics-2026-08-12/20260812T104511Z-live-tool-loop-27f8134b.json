@@ -30,7 +30,7 @@
       "resume_prefill"
     ],
     "steps_requested": 1,
-    "protocol_ok": null
+    "protocol_ok": false
   },
   "metrics": {
     "ttft_cold_ms": [
@@ -52,7 +52,7 @@
     ],
     "ttft_cold_p50_ms": 7737.219434988219,
     "ttft_resume_p50_ms": 210.8104969956912,
-    "ttft_p50_ms": 3974.0149659919553,
+    "ttft_p50_ms": 7737.219434988219,
     "tpot_p50_ms": 45.793788572182436,
     "tool_loop_p50_ms": 10005.326408994733,
     "tpot_p95_ms": null,
@@ -67,10 +67,10 @@
     "ttft_warm_ms": []
   },
   "slo": {
-    "met": true,
-    "notes": "ok"
+    "met": false,
+    "notes": "historical fixture: protocol not re-validated under strict TOOL line; metrics preserved for cold/resume comparison"
   },
-  "notes": "cold_content='TOOL name=run_shell args={\"cmd\":\"ls\"}' resume_content='The project root contains configuration files (`AGENTS.md`, `README.md`), documentation directories (`docs`), a harness directory, and recipe files under `recipes`.' loops=1 fixture: tpot_p95 withheld (<5 samples); engine set to ollama",
+  "notes": "cold_content='TOOL name=run_shell args={\"cmd\":\"ls\"}' resume_content='The project root contains configuration files (`AGENTS.md`, `README.md`), documentation directories (`docs`), a harness directory, and recipe files under `recipes`.' loops=1 fixture: tpot_p95 withheld (<5 samples); engine set to ollama | fixture honesty pass (receiving-code-review)",
   "kernel_campaign": {
     "layer": "L1",
     "issue": "#10",

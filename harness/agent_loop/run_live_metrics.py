@@ -100,11 +100,19 @@ USER_RESUME = (
     "Do not call tools again."
 )
 
-TOOL_RE = re.compile(r"TOOL\s+name\s*=\s*run_shell", re.IGNORECASE)
+# Full single-line protocol: TOOL name=run_shell args={...}
+# Rejects prose like "I cannot issue TOOL name=run_shell" and name=run_shell_extra.
+TOOL_LINE_RE = re.compile(
+    r"^\s*TOOL\s+name\s*=\s*run_shell\s+args\s*=\s*\{.+\}\s*$",
+    re.IGNORECASE,
+)
 
 
 def looks_like_tool_call(text: str) -> bool:
-    return bool(TOOL_RE.search(text or ""))
+    for line in (text or "").splitlines():
+        if TOOL_LINE_RE.match(line.strip()):
+            return True
+    return False
 
 
 def p50(xs: list[float]) -> float | None:
@@ -112,12 +120,13 @@ def p50(xs: list[float]) -> float | None:
 
 
 def p95_or_none(xs: list[float]) -> float | None:
-    """Empirical-ish p95 only with enough samples; else None (no exclusive extrapolate)."""
+    """Nearest-rank p95 only with enough samples; else None (no exclusive extrapolate)."""
     if len(xs) < 5:
         return None
-    # Inclusive nearest-rank at 95%.
     ordered = sorted(xs)
-    idx = min(len(ordered) - 1, max(0, int(round(0.95 * (len(ordered) - 1)))))
+    # nearest-rank: ceil(0.95 * n) - 1  ==  (95*n + 99)//100 - 1
+    idx = (95 * len(ordered) + 99) // 100 - 1
+    idx = min(max(idx, 0), len(ordered) - 1)
     return float(ordered[idx])
 
 
@@ -304,7 +313,8 @@ def main() -> int:
             "ttft_cold_p50_ms": p50(cold_ttfts),
             "ttft_warm_p50_ms": p50(warm_ttfts),
             "ttft_resume_p50_ms": p50(resume_ttfts),
-            "ttft_p50_ms": p50(cold_ttfts + warm_ttfts + resume_ttfts),
+            # Aggregate ttft_p50 is cold-only so CSV does not mix cold+resume phases.
+            "ttft_p50_ms": p50(cold_ttfts),
             "tpot_p50_ms": p50(tpots),
             "tpot_p95_ms": p95_or_none(tpots),
             "tool_loop_p50_ms": p50(tool_loops),

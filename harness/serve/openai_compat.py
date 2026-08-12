@@ -6,6 +6,7 @@ No third-party deps.
 
 from __future__ import annotations
 
+import http.client
 import json
 import socket
 import time
@@ -144,6 +145,8 @@ def chat_completion(
         return _err(str(e.reason))
     except (TimeoutError, socket.timeout) as e:
         return _err(f"timeout: {e}")
+    except (http.client.IncompleteRead, ConnectionResetError, BrokenPipeError, OSError) as e:
+        return _err(f"stream interrupted: {type(e).__name__}: {e}")
     except (json.JSONDecodeError, KeyError, IndexError, TypeError, AttributeError) as e:
         return _err(f"{type(e).__name__}: {e}")
 
@@ -151,15 +154,16 @@ def chat_completion(
 def derive_tpot_ms(
     wall_ms: float | None, ttft_ms: float | None, completion_tokens: int | None
 ) -> float | None:
+    # Need ≥2 completion tokens for a real inter-token interval.
     if (
         not isinstance(completion_tokens, int)
-        or completion_tokens <= 0
+        or completion_tokens < 2
         or not isinstance(ttft_ms, (int, float))
         or not isinstance(wall_ms, (int, float))
     ):
         return None
     decode_ms = max(float(wall_ms) - float(ttft_ms), 0.0)
-    return decode_ms / max(completion_tokens - 1, 1)
+    return decode_ms / (completion_tokens - 1)
 
 
 def infer_engine_name(base_url: str, explicit: str | None) -> str:

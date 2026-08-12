@@ -45,9 +45,9 @@ MODEL=/path/to.gguf bash harness/serve/run_l1_ablation.sh
 
 Columns match cold → tool → resume. Do **not** put single-turn L1 smokes here.
 
-| Profile | Engine | Model | TTFT cold ms | TTFT resume ms | TPOT ms | Tool-loop ms | VRAM peak | Notes | Result |
-|---------|--------|-------|--------------|----------------|---------|--------------|-----------|-------|--------|
-| `live_agent_tool_loop` | ollama | `granite4.1:8b` | **7737** | **211** | **45.8** | **10005** | 14890 | cold load heavy; free after ~1 GB; protocol soft | [fixture](results/live-metrics-2026-08-12/20260812T104511Z-live-tool-loop-27f8134b.json) |
+| Profile | Engine | Model | TTFT cold ms | TTFT resume ms | TPOT p50 ms | Tool-loop ms | VRAM peak | Notes | Result |
+|---------|--------|-------|--------------|----------------|-------------|--------------|-----------|-------|--------|
+| `live_agent_tool_loop` | ollama | `granite4.1:8b` | **7737** | **211** | **45.8** | **10005** | 14890 | cold load heavy; free after ~1 GB; historical fixture (protocol not re-validated) | [fixture](results/live-metrics-2026-08-12/20260812T104511Z-live-tool-loop-27f8134b.json) |
 
 ## Warm single-turn L1 rows (#16) — separate columns
 
