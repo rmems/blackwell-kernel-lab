@@ -63,7 +63,11 @@ Columns: `run_id,timestamp_utc,profile,engine,model_id,concurrency,tool_loop_p50
 | Field | Meaning |
 |-------|---------|
 | `tool_loop_p50_ms` / `ttft_p50_ms` / `tpot_p50_ms` | Median of the corresponding sample lists (emitted by harnesses) |
+| `ttft_cold_ms` / `ttft_resume_ms` | Live multi-phase harness (#10): first turn vs after tool-result append |
+| `ttft_cold_p50_ms` / `ttft_resume_p50_ms` | Medians of those lists |
 | `vram_peak_mb` | **Sample max** (e.g. max of before/after `nvidia-smi`), not continuous peak unless a sampler is added |
+
+Live agent path: `harness/agent_loop/run_live_metrics.py` · recipe [live-agent-metrics.md](../recipes/live-agent-metrics.md).
 
 ## Rules
 

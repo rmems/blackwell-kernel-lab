@@ -1,0 +1,81 @@
+# GPU CI — self-hosted runner on ShipOfTheseus (RTX 5080).
+# CPU-only jobs stay on ubuntu-latest (ci-cpu.yml).
+#
+# Security: fork PRs never schedule self-hosted jobs (trust gate on GitHub-hosted).
+# Prefer main + workflow_dispatch + same-repo PRs only on the GPU host.
+name: ci-gpu
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gpu-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Gate runs on GitHub-hosted only — never execute untrusted fork PR code on GPU host.
+  gate:
+    name: Trust gate
+    runs-on: ubuntu-latest
+    outputs:
+      allow: ${{ steps.check.outputs.allow }}
+    steps:
+      - id: check
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ] && \
+             [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            echo "allow=false" >> "$GITHUB_OUTPUT"
+            echo "Fork PR — skip self-hosted GPU"
+          else
+            echo "allow=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  gpu-smoke:
+    name: Host GPU probe + synthetic
+    needs: gate
+    if: needs.gate.outputs.allow == 'true'
+    # Labels on registered runner ShipOfTheseus (see docs/CI.md).
+    runs-on: [self-hosted, Linux, X64, CUDA]
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          # Self-hosted: do not leave GITHUB_TOKEN in git config for later steps.
+          persist-credentials: false
+
+      - name: GPU presence
+        run: |
+          nvidia-smi --query-gpu=name,driver_version,memory.total,memory.free --format=csv
+          command -v nvcc && nvcc --version | tail -2 || echo "nvcc not on PATH (ok for harness-only)"
+
+      - name: Compile harness
+        run: |
+          python3 -m py_compile \
+            harness/agent_loop/run_synthetic.py \
+            harness/agent_loop/run_live_metrics.py \
+            harness/serve/smoke_openai.py \
+            harness/serve/openai_compat.py \
+            harness/report/aggregate.py
+
+      - name: Synthetic harness (no model)
+        run: |
+          python3 harness/agent_loop/run_synthetic.py --out results/
+          python3 harness/report/aggregate.py --results results/
+
+      - name: Live engine smoke (optional)
+        if: ${{ vars.BKL_GPU_LIVE_SMOKE == '1' }}
+        env:
+          BKL_BASE_URL: http://127.0.0.1:11434/v1
+          BKL_MODEL: granite4.1:8b
+        run: |
+          python3 harness/serve/smoke_openai.py --out results/ --stream --label ci-gpu-smoke \
+            --skip-content-slo || echo "::warning::live smoke failed (engine down?)"

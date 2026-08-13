@@ -37,8 +37,25 @@ Replaces the old multi-repo Limen verification matrix. Rows are **local agent** 
 
 ```bash
 python3 harness/agent_loop/run_synthetic.py --out results/
+python3 harness/agent_loop/run_live_metrics.py --out results/ --loops 1
 MODEL=/path/to.gguf bash harness/serve/run_l1_ablation.sh
 ```
+
+## Live multi-phase rows (M1 / #10)
+
+Columns match cold → tool → resume. Do **not** put single-turn L1 smokes here.
+
+| Profile | Engine | Model | TTFT cold ms | TTFT resume ms | TPOT p50 ms | Tool-loop p50 ms | VRAM peak | Notes | Result |
+|---------|--------|-------|--------------|----------------|-------------|------------------|-----------|-------|--------|
+| `live_agent_tool_loop` | ollama | `granite4.1:8b` | **7737** | **211** | **45.8** | **10005** | 14890 | cold load heavy; free after ~1 GB; TPOT p50 aggregates cold+resume samples; historical fixture (protocol not re-validated) | [fixture](results/live-metrics-2026-08-12/20260812T104511Z-live-tool-loop-27f8134b.json) |
+
+## Warm single-turn L1 rows (#16) — separate columns
+
+| Profile | Engine | Model | Warm TTFT ms | Request wall ms | TPOT ms | VRAM peak | Notes | Result |
+|---------|--------|-------|--------------|-----------------|---------|-----------|-------|--------|
+| `agent_shaped_smoke` cell B | llama-server 9190 | gemma-4 E2B Q4 | **25.1** | 311.9 | 4.55 | 4254 | FA on; not a resume/tool-loop | [json](results/l1-ablation-2026-08-12/20260812T084828Z-cell-B-fa-on-warm2-8fc4dfd7.json) |
+| `agent_shaped_smoke` cell A | llama-server 9190 | gemma-4 E2B Q4 | **33.1** | 312.8 | 4.44 | 4190 | FA off | [json](results/l1-ablation-2026-08-12/20260812T084823Z-cell-A-fa-off-warm1-bbad91c1.json) |
+| synthetic | synthetic | n/a | — | ~profile | — | n/a | CI cpu path | `results/*synthetic*` |
 
 ## L1 ablation rows (#16 / RM-470) — ShipOfTheseus 2026-08-12
 

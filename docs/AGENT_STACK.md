@@ -12,7 +12,8 @@ Kernel campaign overview: [KERNELS.md](KERNELS.md) (L1 measure engine CUDA paths
 | Inference (alt) | **llama-server** (Homebrew) | Better FA/graph flag control for #16 ablations |
 | Inference (optional M2) | vLLM / SGLang / imp | Only if sm_120 install is clean |
 | Agent | Coding / tool agent via **OpenAI-compatible** HTTP | Local agent loops |
-| Measure | `harness/serve/smoke_openai.py` → `results/` | TTFT/wall/VRAM |
+| Measure | `smoke_openai.py` + `run_live_metrics.py` → `results/` | Smoke TTFT + cold/resume tool-loop |
+| Client | `harness/serve/openai_compat.py` | OpenAI-compatible streaming (#3) |
 
 ## Primary engine decision (ShipOfTheseus)
 
