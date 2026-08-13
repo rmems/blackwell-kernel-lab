@@ -145,7 +145,8 @@ def chat_completion(
         return _err(str(e.reason))
     except (TimeoutError, socket.timeout) as e:
         return _err(f"timeout: {e}")
-    except (http.client.IncompleteRead, ConnectionResetError, BrokenPipeError, OSError) as e:
+    except (http.client.HTTPException, ConnectionResetError, BrokenPipeError, OSError) as e:
+        # HTTPException covers IncompleteRead, BadStatusLine, RemoteDisconnected, etc.
         return _err(f"stream interrupted: {type(e).__name__}: {e}")
     except (json.JSONDecodeError, KeyError, IndexError, TypeError, AttributeError) as e:
         return _err(f"{type(e).__name__}: {e}")
