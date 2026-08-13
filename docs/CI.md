@@ -37,11 +37,17 @@ Re-register / label docs: [GitHub self-hosted runners](https://docs.github.com/e
 # Same as ci-cpu
 python3 -m py_compile harness/agent_loop/*.py harness/serve/*.py harness/report/*.py
 python3 harness/agent_loop/run_synthetic.py --out results/
+cmake -S kernels -B build/kernels-cpu -DBKL_ENABLE_CUDA=OFF
 
 # Live metrics (#10) — needs Ollama/llama-server
 export BKL_BASE_URL=http://127.0.0.1:11434/v1
 export BKL_MODEL=granite4.1:8b
 python3 harness/agent_loop/run_live_metrics.py --out results/ --loops 1
+
+# L3 CUDA smoke (#19 / #21)
+cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON
+cmake --build build/kernels -j
+./build/kernels/src/bkl_device_hello
 ```
 
 ## Issue
