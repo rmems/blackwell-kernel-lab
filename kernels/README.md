@@ -51,6 +51,16 @@ cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=OFF
 # configures successfully; no kernel targets
 ```
 
+Unsupported host compiler (not recommended):
+
+```bash
+# Only if you must use system gcc 16+
+cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON \
+  -DBKL_ALLOW_UNSUPPORTED_HOST_COMPILER=ON
+```
+
+Without g++-13/14/15 and without that opt-in, configure **fails** (no silent `-allow-unsupported-compiler`).
+
 ## CPU CI
 
 `ci-cpu.yml` configures with `-DBKL_ENABLE_CUDA=OFF` (skip path). GPU build/run is on self-hosted `ci-gpu` (see [docs/CI.md](../docs/CI.md)).

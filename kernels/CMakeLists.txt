@@ -5,7 +5,10 @@ cmake_minimum_required(VERSION 3.24)
 project(blackwell_kernels LANGUAGES CXX)
 
 option(BKL_ENABLE_CUDA "Build CUDA kernels (requires nvcc + toolkit)" ON)
-# CUDA 13.3 host-compiler cap: system gcc 16 is too new; prefer gcc-15 if present.
+# CUDA 13.3 supports host GCC 6.x–15.x only. Prefer g++-15 when present.
+option(BKL_ALLOW_UNSUPPORTED_HOST_COMPILER
+  "Opt in to -allow-unsupported-compiler (e.g. system gcc 16). Default OFF."
+  OFF)
 set(BKL_CUDA_HOST_COMPILER "" CACHE FILEPATH "Host C++ compiler for nvcc")
 
 if(NOT BKL_ENABLE_CUDA)
@@ -35,12 +38,20 @@ endif()
 
 if(BKL_CUDA_HOST_COMPILER AND EXISTS "${BKL_CUDA_HOST_COMPILER}")
   set(CMAKE_CUDA_HOST_COMPILER "${BKL_CUDA_HOST_COMPILER}" CACHE FILEPATH "" FORCE)
-  # Also help nvcc via flags if CMake still probes with system gcc.
-  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -allow-unsupported-compiler -ccbin=${BKL_CUDA_HOST_COMPILER}")
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -ccbin=${BKL_CUDA_HOST_COMPILER}")
   message(STATUS "CUDA host compiler: ${BKL_CUDA_HOST_COMPILER}")
-else()
+elseif(BKL_ALLOW_UNSUPPORTED_HOST_COMPILER)
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -allow-unsupported-compiler")
-  message(STATUS "CUDA host compiler: system default (+ -allow-unsupported-compiler)")
+  message(WARNING
+    "BKL_ALLOW_UNSUPPORTED_HOST_COMPILER=ON — using system host compiler "
+    "with -allow-unsupported-compiler (not official for CUDA 13.3 + gcc 16).")
+else()
+  message(FATAL_ERROR
+    "No supported CUDA host compiler (g++-13/14/15) found.\n"
+    "  Install: brew install gcc@15\n"
+    "  Or set:  -DBKL_CUDA_HOST_COMPILER=/path/to/g++-15\n"
+    "  Or skip: -DBKL_ENABLE_CUDA=OFF\n"
+    "  Opt-in unsupported: -DBKL_ALLOW_UNSUPPORTED_HOST_COMPILER=ON")
 endif()
 
 include(CheckLanguage)

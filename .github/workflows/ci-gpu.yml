@@ -84,9 +84,15 @@ jobs:
           if [ -x /usr/local/cuda/bin/nvcc ]; then
             CMAKE_ARGS+=(-DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc)
           fi
+          if [ -z "$HOST_CXX" ]; then
+            echo "Need g++-15/14 for CUDA 13.3 host compiler (see kernels/README.md)"
+            exit 1
+          fi
           cmake "${CMAKE_ARGS[@]}"
           cmake --build build/kernels -j"$(nproc 2>/dev/null || echo 4)"
           ./build/kernels/src/bkl_device_hello | tee /tmp/bkl_device_hello.out
+          # This lab's self-hosted runner is ShipOfTheseus / RTX 5080 (sm_120).
+          grep -Fq "device0: NVIDIA GeForce RTX 5080 compute 12.0" /tmp/bkl_device_hello.out
           grep -q "bkl device_hello sm_120 ok" /tmp/bkl_device_hello.out
 
       - name: Live engine smoke (optional)

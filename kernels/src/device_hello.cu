@@ -31,6 +31,11 @@ int main() {
   std::printf("device0: %s compute %d.%d\n", prop.name, prop.major, prop.minor);
 
   bkl_hello_kernel<<<1, 1>>>();
+  err = cudaGetLastError();
+  if (err != cudaSuccess) {
+    std::fprintf(stderr, "kernel launch failed: %s\n", cudaGetErrorString(err));
+    return 1;
+  }
   err = cudaDeviceSynchronize();
   if (err != cudaSuccess) {
     std::fprintf(stderr, "kernel failed: %s\n", cudaGetErrorString(err));
