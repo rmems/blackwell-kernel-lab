@@ -66,8 +66,11 @@ python3 harness/serve/smoke_openai.py --out results/ --stream --skip-content-slo
   --engine-flags "-ngl 99 -c 4096 -fa on" --engine-version "llama-server 9190"
 ```
 
-Recorded as `workload.profile = live_coding_tool_cold_only` (single turn, no resume phase). For the full
-cold→tool→resume loop use `run_live_metrics.py --profile …` against the same server.
+`--profile` also takes that profile's `max_tokens` (96 for `live_coding_tool`, 160 for
+`live_plan_exec`) so the ablation decode cap matches the live row. Override with `--max-tokens`
+or `BKL_MAX_TOKENS`. Recorded as `workload.profile = live_coding_tool_cold_only` (single turn,
+no resume phase). For the full cold→tool→resume loop use `run_live_metrics.py --profile …`
+against the same server.
 
 ## Success for #16
 

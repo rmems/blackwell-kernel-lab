@@ -86,6 +86,21 @@ def probe_gpu() -> dict:
     return out
 
 
+def _ollama_name_matches(requested: str, candidate: object) -> bool:
+    """Ollama /api/ps often reports name as tag:latest; callers usually omit :latest."""
+    if not isinstance(candidate, str) or not requested:
+        return False
+    req = requested.strip()
+    cand = candidate.strip()
+    if req == cand:
+        return True
+
+    def _strip_latest(tag: str) -> str:
+        return tag[: -len(":latest")] if tag.endswith(":latest") else tag
+
+    return _strip_latest(req) == _strip_latest(cand)
+
+
 def probe_ollama_residency(base_url: str, model: str) -> dict | None:
     """Ollama-only: /api/ps → how much of the loaded model actually sits in VRAM.
 
@@ -115,7 +130,10 @@ def probe_ollama_residency(base_url: str, model: str) -> dict | None:
     for entry in entries:
         if not isinstance(entry, dict):
             continue
-        if model not in (entry.get("name"), entry.get("model")):
+        if not (
+            _ollama_name_matches(model, entry.get("name"))
+            or _ollama_name_matches(model, entry.get("model"))
+        ):
             continue
         size = entry.get("size")
         size_vram = entry.get("size_vram")

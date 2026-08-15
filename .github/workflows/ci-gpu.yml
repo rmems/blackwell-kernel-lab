@@ -67,6 +67,23 @@ jobs:
             harness/serve/openai_compat.py \
             harness/report/aggregate.py
 
+      - name: Harness metric invariants
+        run: |
+          python3 - <<'PY'
+          from harness.serve.openai_compat import derive_tpot_ms
+          from harness.agent_loop import profiles
+          from harness.agent_loop.run_live_metrics import _ollama_name_matches
+
+          assert derive_tpot_ms(100.0, 50.0, 1) is None, "single-token TPOT must be None"
+          assert derive_tpot_ms(100.0, 50.0, 2) == 50.0
+          assert profiles.get("live_plan_exec")["max_tokens"] == 160
+          assert "live_coding_tool" in profiles.names()
+          assert "run_shell" in profiles.cold_prompt("live_agent_tool_loop")
+          assert _ollama_name_matches("granite4.1:8b-ctx8k", "granite4.1:8b-ctx8k:latest")
+          assert not _ollama_name_matches("granite4.1:8b", "phi4:14b")
+          print("ok")
+          PY
+
       - name: Synthetic harness (no model)
         run: |
           python3 harness/agent_loop/run_synthetic.py --out results/

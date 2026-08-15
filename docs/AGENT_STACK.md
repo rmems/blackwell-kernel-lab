@@ -21,7 +21,7 @@ Kernel campaign overview: [KERNELS.md](KERNELS.md) (L1 measure engine CUDA paths
 |-------|--------|
 | Engine | **Ollama 0.30.x** |
 | Endpoint | `http://127.0.0.1:11434/v1` |
-| Smoke model | `granite4.1:8b` (present locally; ~5–10 GB class) |
+| Smoke model | `granite4.1:8b` present locally; **pin `num_ctx 8192`** (`granite4.1:8b-ctx8k`) for any number you quote |
 | Smoke | `python3 harness/serve/smoke_openai.py --stream` → content `kernel-smoke-ok` |
 | Headroom | `ollama stop <model>` after runs; target ≥2 GB free when idle multi-tasking |
 

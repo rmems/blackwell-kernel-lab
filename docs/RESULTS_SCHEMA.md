@@ -75,7 +75,7 @@ Older runs omit these; the aggregator ignores them.
 | Field | Written by | Meaning |
 |-------|------------|---------|
 | `workload.profile` | all | Profile name — live: `live_agent_tool_loop` / `live_coding_tool` / `live_plan_exec`; smoke: `<name>_cold_only`, `agent_shaped_smoke`, `engine_smoke` |
-| `workload.max_tokens` / `workload.tool_name` | `run_live_metrics.py` | Profile decode cap and expected tool name (`null` = no tool protocol) |
+| `workload.max_tokens` / `workload.tool_name` | `run_live_metrics.py`; smoke writes `max_tokens` | Profile decode cap and expected tool name (`null` = no tool protocol). Smoke `--profile` uses the profile cap unless `--max-tokens` / `BKL_MAX_TOKENS` overrides. |
 | `workload.protocol_ok` | `run_live_metrics.py` | `true`/`false`, or `null` when the profile has no tool protocol |
 | `model.residency` | `run_live_metrics.py` (Ollama only) | `{size_mb, size_vram_mb, resident_pct, fully_gpu_resident, context_length, quantization_level, parameter_size}` from `/api/ps`; `null` on other engines |
 | `metrics.phases[]` | `run_live_metrics.py` | `{cycle, cold, cold_prefill{…}, resume_prefill{…}, tool_loop_wall_ms}`; each phase has `ttft_ms`, `wall_ms`, `decode_ms`, `tpot_ms`, `prompt_tokens`, `completion_tokens` |

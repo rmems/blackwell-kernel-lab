@@ -24,6 +24,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from harness.agent_loop import profiles  # noqa: E402
+from harness.serve.openai_compat import derive_tpot_ms  # noqa: E402
 
 
 def utc_now() -> str:
@@ -148,7 +149,6 @@ def chat_completion(
                     "raw_error": None,
                 }
 
-            first = True
             for raw_line in resp:
                 line = raw_line.decode("utf-8", errors="replace").strip()
                 if not line.startswith("data:"):
@@ -162,9 +162,6 @@ def chat_completion(
                     continue
                 if not isinstance(chunk, dict):
                     continue
-                if first:
-                    ttft_ms = (time.perf_counter() - t0) * 1000.0
-                    first = False
                 usage = chunk.get("usage")
                 if isinstance(usage, dict):
                     completion_tokens = usage.get("completion_tokens", completion_tokens)
@@ -182,6 +179,11 @@ def chat_completion(
                     return _err_result(
                         t0, f"delta.content is {type(piece).__name__}, expected str"
                     )
+                # Same contract as openai_compat: first non-empty content token.
+                # Role-only / usage-only chunks must not stamp TTFT; never fake
+                # a missing TTFT as wall_ms (that makes TPOT look like 0).
+                if ttft_ms is None and piece:
+                    ttft_ms = (time.perf_counter() - t0) * 1000.0
                 content_parts.append(piece)
             wall_ms = (time.perf_counter() - t0) * 1000.0
             text = "".join(content_parts)
@@ -189,7 +191,7 @@ def chat_completion(
                 "ok": True,
                 "content": text,
                 "wall_ms": wall_ms,
-                "ttft_ms": ttft_ms if ttft_ms is not None else wall_ms,
+                "ttft_ms": ttft_ms,
                 "completion_tokens": completion_tokens,
                 "prompt_tokens": prompt_tokens,
                 "raw_error": None,
@@ -213,7 +215,15 @@ def main() -> int:
     p.add_argument("--api-key", default=os.environ.get("BKL_API_KEY") or None)
     p.add_argument("--label", default="engine-smoke")
     p.add_argument("--stream", action="store_true", help="SSE stream for TTFT")
-    p.add_argument("--max-tokens", type=int, default=int(os.environ.get("BKL_MAX_TOKENS", "64")))
+    p.add_argument(
+        "--max-tokens",
+        type=int,
+        default=None,
+        help=(
+            "Decode cap. Default: the named profile's max_tokens when --profile "
+            "is set, else BKL_MAX_TOKENS or 64"
+        ),
+    )
     p.add_argument(
         "--prompt",
         default="Reply with exactly: kernel-smoke-ok",
@@ -230,7 +240,8 @@ def main() -> int:
         help=(
             "Use a named workload profile's cold-prefill turn as the prompt "
             "(docs/WORKLOADS.md). Single turn only — no resume phase. "
-            "Takes precedence over --agent-prompt/--prompt."
+            "Takes precedence over --agent-prompt/--prompt. Also takes the "
+            "profile's max_tokens unless --max-tokens / BKL_MAX_TOKENS is set."
         ),
     )
     p.add_argument(
@@ -274,6 +285,21 @@ def main() -> int:
         if not args.skip_content_slo:
             p.error("--profile prompts do not emit kernel-smoke-ok; pass --skip-content-slo")
 
+    env_max_tokens = os.environ.get("BKL_MAX_TOKENS")
+    if args.max_tokens is not None:
+        max_tokens = args.max_tokens
+    elif env_max_tokens:
+        try:
+            max_tokens = int(env_max_tokens)
+        except ValueError:
+            p.error(f"BKL_MAX_TOKENS is not an int: {env_max_tokens!r}")
+    elif args.profile:
+        max_tokens = profiles.get(args.profile)["max_tokens"]
+    else:
+        max_tokens = 64
+    if max_tokens < 1:
+        p.error("--max-tokens must be >= 1")
+
     if args.profile:
         workload_profile = f"{args.profile}_cold_only"
     elif args.agent_prompt:
@@ -287,7 +313,7 @@ def main() -> int:
         args.model,
         args.api_key,
         prompt,
-        args.max_tokens,
+        max_tokens,
         0.0,
         args.stream,
     )
@@ -321,23 +347,15 @@ def main() -> int:
                 + f" free VRAM {free_after} MiB < min {args.min_free_vram_mb}"
             ).strip()
 
-    # Derive TPOT only when we have a real first-token timestamp (streaming).
-    # Non-stream leaves ttft_ms null; never emit a misleading 0.0 TPOT.
-    tpot_ms_val = None
-    ct = result.get("completion_tokens")
-    ttft_s = result.get("ttft_ms")
-    wall_s = result.get("wall_ms")
-    if (
-        args.stream
-        and isinstance(ct, int)
-        and ct > 0
-        and isinstance(ttft_s, (int, float))
-        and isinstance(wall_s, (int, float))
-        and float(wall_s) > float(ttft_s)
-    ):
-        decode_ms = float(wall_s) - float(ttft_s)
-        denom = max(ct - 1, 1)
-        tpot_ms_val = decode_ms / denom
+    # Same TPOT contract as the live harness: need a real first-token timestamp
+    # and ≥2 completion tokens. Single-token replies must not invent a rate.
+    tpot_ms_val = (
+        derive_tpot_ms(
+            result.get("wall_ms"), result.get("ttft_ms"), result.get("completion_tokens")
+        )
+        if args.stream
+        else None
+    )
 
     rid = run_id(args.label)
     payload = {
@@ -367,6 +385,7 @@ def main() -> int:
             "concurrency": 1,
             "steps": 1,
             "stream": args.stream,
+            "max_tokens": max_tokens,
             "phases": ["cold_prefill", "short_decode"],
         },
         "metrics": {
@@ -427,7 +446,8 @@ def main() -> int:
     print(f"wrote {path}")
     print(
         f"ok={result['ok']} slo_met={slo_met} wall_ms={result['wall_ms']:.1f} "
-        f"ttft_ms={result['ttft_ms']} "
+        f"ttft_ms={result['ttft_ms']} tpot_ms={tpot_ms_val} "
+        f"max_tokens={max_tokens} "
         f"vram_used_after={vram_after.get('vram_used_mb')} free={free_after}"
     )
     if result["raw_error"]:
