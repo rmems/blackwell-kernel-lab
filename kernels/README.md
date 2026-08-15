@@ -59,7 +59,9 @@ cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON \
   -DBKL_ALLOW_UNSUPPORTED_HOST_COMPILER=ON
 ```
 
-Without g++-13/14/15 and without that opt-in, configure **fails** (no silent `-allow-unsupported-compiler`).
+CUDA **13.3** official host GCC range is **6.x–15.x**. This tree auto-discovers `g++-15` … `g++-6` (and Homebrew `g++-15`). Explicit overrides: `CMAKE_CUDA_HOST_COMPILER`, `CUDAHOSTCXX`, or `-DBKL_CUDA_HOST_COMPILER=…`.
+
+Without a supported host and without the opt-in above, configure **fails** (no silent `-allow-unsupported-compiler`).
 
 ## CPU CI
 

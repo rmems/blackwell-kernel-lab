@@ -22,36 +22,60 @@ if(NOT CMAKE_CUDA_COMPILER)
   endif()
 endif()
 
-# Prefer a host compiler CUDA 13.3 accepts (gcc ≤ 15).
-if(BKL_CUDA_HOST_COMPILER STREQUAL "" OR BKL_CUDA_HOST_COMPILER STREQUAL "BKL_CUDA_HOST_COMPILER-NOTFOUND")
-  foreach(_cc
-      "/home/linuxbrew/.linuxbrew/bin/g++-15"
-      "/usr/bin/g++-15"
-      "/usr/bin/g++-14"
-      "/usr/bin/g++-13")
-    if(EXISTS "${_cc}")
-      set(BKL_CUDA_HOST_COMPILER "${_cc}" CACHE FILEPATH "Host C++ compiler for nvcc" FORCE)
-      break()
-    endif()
-  endforeach()
-endif()
+# Host compiler precedence (CUDA 13.3: GCC 6.x–15.x):
+#   1) CMAKE_CUDA_HOST_COMPILER already set (e.g. -D… or prior cache)
+#   2) CUDAHOSTCXX env
+#   3) -DBKL_CUDA_HOST_COMPILER=…
+#   4) auto-discover g++-15 … g++-6
+#   5) BKL_ALLOW_UNSUPPORTED_HOST_COMPILER opt-in, else FATAL
+#
+# Do not FORCE-overwrite an explicit host compiler. CMAKE_CUDA_HOST_COMPILER is
+# enough for nvcc — do not also inject -ccbin into CMAKE_CUDA_FLAGS.
 
-if(BKL_CUDA_HOST_COMPILER AND EXISTS "${BKL_CUDA_HOST_COMPILER}")
-  set(CMAKE_CUDA_HOST_COMPILER "${BKL_CUDA_HOST_COMPILER}" CACHE FILEPATH "" FORCE)
-  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -ccbin=${BKL_CUDA_HOST_COMPILER}")
-  message(STATUS "CUDA host compiler: ${BKL_CUDA_HOST_COMPILER}")
-elseif(BKL_ALLOW_UNSUPPORTED_HOST_COMPILER)
-  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -allow-unsupported-compiler")
-  message(WARNING
-    "BKL_ALLOW_UNSUPPORTED_HOST_COMPILER=ON — using system host compiler "
-    "with -allow-unsupported-compiler (not official for CUDA 13.3 + gcc 16).")
+if(CMAKE_CUDA_HOST_COMPILER AND EXISTS "${CMAKE_CUDA_HOST_COMPILER}")
+  message(STATUS "CUDA host compiler (CMAKE_CUDA_HOST_COMPILER): ${CMAKE_CUDA_HOST_COMPILER}")
+elseif(DEFINED ENV{CUDAHOSTCXX} AND EXISTS "$ENV{CUDAHOSTCXX}")
+  set(CMAKE_CUDA_HOST_COMPILER "$ENV{CUDAHOSTCXX}" CACHE FILEPATH "Host C++ compiler for nvcc")
+  message(STATUS "CUDA host compiler (CUDAHOSTCXX): ${CMAKE_CUDA_HOST_COMPILER}")
 else()
-  message(FATAL_ERROR
-    "No supported CUDA host compiler (g++-13/14/15) found.\n"
-    "  Install: brew install gcc@15\n"
-    "  Or set:  -DBKL_CUDA_HOST_COMPILER=/path/to/g++-15\n"
-    "  Or skip: -DBKL_ENABLE_CUDA=OFF\n"
-    "  Opt-in unsupported: -DBKL_ALLOW_UNSUPPORTED_HOST_COMPILER=ON")
+  if(BKL_CUDA_HOST_COMPILER STREQUAL "" OR BKL_CUDA_HOST_COMPILER STREQUAL "BKL_CUDA_HOST_COMPILER-NOTFOUND")
+    # Prefer newer supported compilers first (15 … 6).
+    foreach(_cc
+        "/home/linuxbrew/.linuxbrew/bin/g++-15"
+        "/usr/bin/g++-15"
+        "/usr/bin/g++-14"
+        "/usr/bin/g++-13"
+        "/usr/bin/g++-12"
+        "/usr/bin/g++-11"
+        "/usr/bin/g++-10"
+        "/usr/bin/g++-9"
+        "/usr/bin/g++-8"
+        "/usr/bin/g++-7"
+        "/usr/bin/g++-6")
+      if(EXISTS "${_cc}")
+        set(BKL_CUDA_HOST_COMPILER "${_cc}" CACHE FILEPATH "Host C++ compiler for nvcc")
+        break()
+      endif()
+    endforeach()
+  endif()
+
+  if(BKL_CUDA_HOST_COMPILER AND EXISTS "${BKL_CUDA_HOST_COMPILER}")
+    set(CMAKE_CUDA_HOST_COMPILER "${BKL_CUDA_HOST_COMPILER}" CACHE FILEPATH "Host C++ compiler for nvcc")
+    message(STATUS "CUDA host compiler: ${CMAKE_CUDA_HOST_COMPILER}")
+  elseif(BKL_ALLOW_UNSUPPORTED_HOST_COMPILER)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -allow-unsupported-compiler")
+    message(WARNING
+      "BKL_ALLOW_UNSUPPORTED_HOST_COMPILER=ON — using system host compiler "
+      "with -allow-unsupported-compiler (not official for CUDA 13.3 + gcc 16).")
+  else()
+    message(FATAL_ERROR
+      "No supported CUDA host compiler (g++ 6–15) found.\n"
+      "  Install: brew install gcc@15\n"
+      "  Or set:  -DBKL_CUDA_HOST_COMPILER=/path/to/g++-15\n"
+      "  Or set:  -DCMAKE_CUDA_HOST_COMPILER=… / CUDAHOSTCXX=…\n"
+      "  Or skip: -DBKL_ENABLE_CUDA=OFF\n"
+      "  Opt-in unsupported: -DBKL_ALLOW_UNSUPPORTED_HOST_COMPILER=ON")
+  endif()
 endif()
 
 include(CheckLanguage)
