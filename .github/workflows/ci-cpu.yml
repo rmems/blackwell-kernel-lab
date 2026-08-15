@@ -49,5 +49,6 @@ jobs:
           test -f kernels/README.md
           test -f kernels/CMakeLists.txt
           test -f kernels/src/device_hello.cu
+          test -f kernels/src/graph_launch_bench.cu
           cmake -S kernels -B build/kernels-cpu -DBKL_ENABLE_CUDA=OFF
           # No GPU targets required; configure must succeed without nvcc.

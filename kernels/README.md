@@ -10,7 +10,7 @@
 | **L2** | Host scheduling (queues, isolation, later Green Context notes) | docs + harness when landed |
 | **L3** | First-party `.cu` / CUTLASS **in this tree** | `kernels/` |
 
-Do **not** land production L3 ops until L1 leaves a **proven** gap. This tree is the **on-ramp**: layout, CMake, and a minimal device smoke.
+Do **not** land production L3 ops until L1 leaves a **proven** gap. Hello is the on-ramp. `#30` is the first measured kernel: CUDA graph vs eager launch (llama.cpp 9190 has no graph CLI — #16).
 
 ## Hard rules (this host)
 
@@ -27,7 +27,8 @@ kernels/
   CMakeLists.txt      # top-level; skips cleanly without CUDA
   src/
     CMakeLists.txt
-    device_hello.cu   # minimal L3 smoke (#21)
+    device_hello.cu         # minimal L3 smoke (#21)
+    graph_launch_bench.cu   # CUDA graph vs eager launch (#30)
 ```
 
 ## Build (GPU host)
@@ -40,8 +41,10 @@ cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON \
   -DBKL_CUDA_HOST_COMPILER=/home/linuxbrew/.linuxbrew/bin/g++-15
 cmake --build build/kernels -j"$(nproc)"
 ./build/kernels/src/bkl_device_hello
+./build/kernels/src/bkl_graph_launch_bench
 # expect: device0: NVIDIA GeForce RTX 5080 compute 12.0
 #         bkl device_hello sm_120 ok
+#         bkl graph_launch_bench sm_120 ok
 ```
 
 Force skip (CPU / no toolkit):
@@ -75,3 +78,5 @@ Without a supported host and without the opt-in above, configure **fails** (no s
 
 - #19 / RM-487 — workspace layout  
 - #21 / RM-488 — device smoke + GPU CI hook  
+- #30 — CUDA graph vs eager launch bench  
+ 
