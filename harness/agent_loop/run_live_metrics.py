@@ -7,6 +7,10 @@ Phases (AgentServe-shaped):
   3. Resume        — tool result appended → ttft_resume_ms
   4. tool_loop     — wall for each completed cold→resume cycle
 
+Workload text comes from a named profile (`--profile`, see
+`harness/agent_loop/profiles.py` / docs/WORKLOADS.md). Per-cycle phase timings are
+written to `metrics.phases`.
+
 Writes schema v1 JSON under results/. Requires a live engine (Ollama / llama-server).
 """
 
@@ -15,11 +19,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
+import socket
 import statistics
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +34,7 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from harness.agent_loop import profiles  # noqa: E402
 from harness.serve.openai_compat import (  # noqa: E402
     chat_completion,
     derive_tpot_ms,
@@ -79,40 +86,78 @@ def probe_gpu() -> dict:
     return out
 
 
-SYSTEM = (
-    "You are a local coding agent on RTX 5080. Tools: read_file, run_shell. "
-    "When you need a tool, reply with a single line: TOOL name=<tool> args=<json>. "
-    "Otherwise answer briefly."
-)
+def probe_ollama_residency(base_url: str, model: str) -> dict | None:
+    """Ollama-only: /api/ps → how much of the loaded model actually sits in VRAM.
 
-USER_COLD = (
-    "List files in the project root using a tool call. "
-    "Use: TOOL name=run_shell args={\"cmd\":\"ls\"}"
-)
+    Returns None for other engines / when the endpoint is unavailable. This is the
+    machine-checkable evidence behind "fully GPU-resident" claims (#13).
+    """
+    root = base_url.rstrip("/")
+    if root.endswith("/v1"):
+        root = root[: -len("/v1")]
+    try:
+        with urllib.request.urlopen(root + "/api/ps", timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except (
+        urllib.error.URLError,
+        TimeoutError,
+        socket.timeout,
+        json.JSONDecodeError,
+        OSError,
+        ValueError,
+    ):
+        return None
+    if not isinstance(data, dict):
+        return None
+    entries = data.get("models")
+    if not isinstance(entries, list):
+        return None
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if model not in (entry.get("name"), entry.get("model")):
+            continue
+        size = entry.get("size")
+        size_vram = entry.get("size_vram")
+        if not isinstance(size, int) or not isinstance(size_vram, int) or size <= 0:
+            return None
+        pct = round(100.0 * size_vram / size, 2)
+        details = entry.get("details") if isinstance(entry.get("details"), dict) else {}
+        return {
+            "source": "ollama /api/ps",
+            "size_mb": round(size / (1024 * 1024)),
+            "size_vram_mb": round(size_vram / (1024 * 1024)),
+            "resident_pct": pct,
+            "fully_gpu_resident": size_vram == size,
+            "context_length": entry.get("context_length"),
+            "quantization_level": details.get("quantization_level"),
+            "parameter_size": details.get("parameter_size"),
+        }
+    return None
 
-TOOL_RESULT = (
-    "TOOL_RESULT name=run_shell ok=true\n"
-    "stdout:\nAGENTS.md\nREADME.md\ndocs\nharness\nrecipes\n"
-)
 
-USER_RESUME = (
-    "Tool result above. Summarize the listing in one short sentence. "
-    "Do not call tools again."
-)
-
-# Full single-line protocol: TOOL name=run_shell args={...}
-# Rejects prose like "I cannot issue TOOL name=run_shell" and name=run_shell_extra.
-TOOL_LINE_RE = re.compile(
-    r"^\s*TOOL\s+name\s*=\s*run_shell\s+args\s*=\s*\{.+\}\s*$",
-    re.IGNORECASE,
-)
-
-
-def looks_like_tool_call(text: str) -> bool:
+def looks_like_tool_call(text: str, pattern) -> bool:
     for line in (text or "").splitlines():
-        if TOOL_LINE_RE.match(line.strip()):
+        if pattern.match(line.strip()):
             return True
     return False
+
+
+def phase_record(result: dict, tpot: float | None) -> dict:
+    """One phase (cold or resume) as prefill + decode timings."""
+    ttft = result.get("ttft_ms")
+    wall = result.get("wall_ms")
+    decode_ms = None
+    if isinstance(ttft, (int, float)) and isinstance(wall, (int, float)):
+        decode_ms = max(float(wall) - float(ttft), 0.0)
+    return {
+        "ttft_ms": ttft,
+        "wall_ms": wall,
+        "decode_ms": decode_ms,
+        "tpot_ms": tpot,
+        "prompt_tokens": result.get("prompt_tokens"),
+        "completion_tokens": result.get("completion_tokens"),
+    }
 
 
 def p50(xs: list[float]) -> float | None:
@@ -137,7 +182,18 @@ def main() -> int:
     p.add_argument("--model", default=os.environ.get("BKL_MODEL", "granite4.1:8b"))
     p.add_argument("--api-key", default=os.environ.get("BKL_API_KEY") or None)
     p.add_argument("--label", default="live-agent-metrics")
-    p.add_argument("--max-tokens", type=int, default=int(os.environ.get("BKL_MAX_TOKENS", "96")))
+    p.add_argument(
+        "--profile",
+        default=os.environ.get("BKL_PROFILE", profiles.DEFAULT_PROFILE),
+        choices=profiles.names(),
+        help="Workload profile (docs/WORKLOADS.md); fixes prompts and max_tokens",
+    )
+    p.add_argument(
+        "--max-tokens",
+        type=int,
+        default=None,
+        help="Override the profile's max_tokens (env BKL_MAX_TOKENS)",
+    )
     p.add_argument(
         "--engine-name",
         default=os.environ.get("BKL_ENGINE"),
@@ -154,7 +210,7 @@ def main() -> int:
     p.add_argument(
         "--require-tool-protocol",
         action="store_true",
-        help="Fail cycle if cold reply lacks TOOL name=run_shell",
+        help="Fail cycle if the cold reply lacks the profile's TOOL line (profiles with a tool only)",
     )
     p.add_argument(
         "--allow-missing-tpot",
@@ -166,6 +222,22 @@ def main() -> int:
         print("loops must be >= 1", file=sys.stderr)
         return 2
 
+    profile = profiles.get(args.profile)
+    tool_name = profile["tool_name"]
+    tool_re = profiles.tool_line_re(tool_name) if tool_name else None
+    env_max_tokens = os.environ.get("BKL_MAX_TOKENS")
+    if args.max_tokens is not None:
+        max_tokens = args.max_tokens
+    elif env_max_tokens:
+        try:
+            max_tokens = int(env_max_tokens)
+        except ValueError:
+            p.error(f"BKL_MAX_TOKENS is not an int: {env_max_tokens!r}")
+    else:
+        max_tokens = profile["max_tokens"]
+    if max_tokens < 1:
+        p.error("--max-tokens must be >= 1")
+
     require_tpot = not args.allow_missing_tpot
     engine_name = infer_engine_name(args.base_url, args.engine_name)
 
@@ -175,18 +247,20 @@ def main() -> int:
     tpots: list[float] = []
     tool_loops: list[float] = []
     protocol_ok_flags: list[bool] = []
+    phases: list[dict] = []
     errors: list[str] = []
     last_cold_content = ""
     last_resume_content = ""
     completed = 0
+    residency = None
 
     vram_before = probe_gpu()
     loop_t0 = time.perf_counter()
 
     for i in range(args.loops):
         messages: list[dict[str, str]] = [
-            {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": USER_COLD},
+            {"role": "system", "content": profile["system"]},
+            {"role": "user", "content": profile["user_cold"]},
         ]
         cycle_t0 = time.perf_counter()
         cold = chat_completion(
@@ -194,12 +268,15 @@ def main() -> int:
             args.model,
             messages,
             api_key=args.api_key,
-            max_tokens=args.max_tokens,
+            max_tokens=max_tokens,
             stream=True,
         )
         if not cold["ok"]:
             errors.append(f"cold[{i}]: {cold['raw_error']}")
             break
+        if residency is None and engine_name == "ollama":
+            # Probe while the model is loaded (cycle 0 has just paid the load cost).
+            residency = probe_ollama_residency(args.base_url, args.model)
         if isinstance(cold.get("ttft_ms"), (int, float)):
             if i == 0:
                 cold_ttfts.append(float(cold["ttft_ms"]))
@@ -209,21 +286,22 @@ def main() -> int:
         if tpot is not None:
             tpots.append(tpot)
         last_cold_content = (cold.get("content") or "")[:200]
-        proto = looks_like_tool_call(cold.get("content") or "")
-        protocol_ok_flags.append(proto)
-        if not proto:
-            msg = f"cold[{i}]: missing TOOL name=run_shell in reply"
-            if args.require_tool_protocol:
-                errors.append(msg)
-                break
-            # Soft: still measure resume with simulated tool result, but note protocol miss.
-            errors.append(msg + " (soft; continuing)")
+        if tool_re is not None:
+            proto = looks_like_tool_call(cold.get("content") or "", tool_re)
+            protocol_ok_flags.append(proto)
+            if not proto:
+                msg = f"cold[{i}]: missing TOOL name={tool_name} in reply"
+                if args.require_tool_protocol:
+                    errors.append(msg)
+                    break
+                # Soft: still measure resume with simulated tool result, but note protocol miss.
+                errors.append(msg + " (soft; continuing)")
 
         messages.append({"role": "assistant", "content": cold["content"] or ""})
         messages.append(
             {
                 "role": "user",
-                "content": f"{TOOL_RESULT}\n\n{USER_RESUME}",
+                "content": f"{profile['tool_result']}\n\n{profile['user_resume']}",
             }
         )
         resume = chat_completion(
@@ -231,7 +309,7 @@ def main() -> int:
             args.model,
             messages,
             api_key=args.api_key,
-            max_tokens=args.max_tokens,
+            max_tokens=max_tokens,
             stream=True,
         )
         if not resume["ok"]:
@@ -245,7 +323,18 @@ def main() -> int:
         if tpot_r is not None:
             tpots.append(tpot_r)
         last_resume_content = (resume.get("content") or "")[:200]
-        tool_loops.append((time.perf_counter() - cycle_t0) * 1000.0)
+        cycle_wall = (time.perf_counter() - cycle_t0) * 1000.0
+        tool_loops.append(cycle_wall)
+        phases.append(
+            {
+                "cycle": i,
+                "cold": i == 0,
+                # Cycle 0 pays model load + no prefix cache; later cycles are warm.
+                "cold_prefill": phase_record(cold, tpot),
+                "resume_prefill": phase_record(resume, tpot_r),
+                "tool_loop_wall_ms": cycle_wall,
+            }
+        )
         completed += 1
 
     wall_total_ms = (time.perf_counter() - loop_t0) * 1000.0
@@ -258,7 +347,11 @@ def main() -> int:
     vram_peak = max(used_vals) if used_vals else None
 
     hard_errors = [e for e in errors if "(soft" not in e]
-    protocol_all_ok = bool(protocol_ok_flags) and all(protocol_ok_flags)
+    # None = profile has no tool protocol to check (e.g. live_plan_exec).
+    protocol_all_ok = (
+        (bool(protocol_ok_flags) and all(protocol_ok_flags)) if tool_re is not None else None
+    )
+    protocol_gate_ok = protocol_all_ok is not False
     tpot_ok = bool(tpots) or not require_tpot
     ok = (
         not hard_errors
@@ -266,10 +359,10 @@ def main() -> int:
         and bool(cold_ttfts or warm_ttfts)
         and bool(tool_loops)
         and tpot_ok
-        and (protocol_all_ok or not args.require_tool_protocol)
+        and (protocol_gate_ok or not args.require_tool_protocol)
     )
     # Soft protocol miss still fails SLO unless all soft-only and we want honesty:
-    if any("(soft" in e for e in errors) and not protocol_all_ok:
+    if any("(soft" in e for e in errors) and not protocol_gate_ok:
         ok = False
 
     rid = make_run_id(args.label)
@@ -291,16 +384,21 @@ def main() -> int:
         },
         "model": {
             "id": args.model,
-            "quant": args.quant,
-            "context_length": None,
+            "quant": args.quant or (residency or {}).get("quantization_level"),
+            "context_length": (residency or {}).get("context_length"),
+            # Engine-reported weight residency (ollama only); None elsewhere.
+            "residency": residency,
         },
         "workload": {
-            "profile": "live_agent_tool_loop",
+            "profile": args.profile,
+            "profile_description": profile["description"],
             "concurrency": 1,
             "steps": completed,
             "steps_requested": args.loops,
             "stream": True,
+            "max_tokens": max_tokens,
             "phases": ["cold_prefill", "short_decode", "resume_prefill"],
+            "tool_name": tool_name,
             "protocol_ok": protocol_all_ok,
         },
         "metrics": {
@@ -326,6 +424,9 @@ def main() -> int:
             "vram_before_mb": vram_before.get("vram_used_mb"),
             "vram_after_mb": vram_after.get("vram_used_mb"),
             "wall_total_ms": wall_total_ms,
+            # Per-cycle phase breakdown (#14): cold prefill / resume prefill /
+            # short decode, one entry per completed cold→resume cycle.
+            "phases": phases,
         },
         "slo": {
             "met": ok,
@@ -340,7 +441,8 @@ def main() -> int:
             ),
         },
         "notes": (
-            f"cold_content={last_cold_content!r} resume_content={last_resume_content!r} "
+            f"profile={args.profile} cold_content={last_cold_content!r} "
+            f"resume_content={last_resume_content!r} "
             f"completed={completed}/{args.loops} protocol_ok={protocol_all_ok} "
             f"engine={engine_name} tpot_n={len(tpots)}"
         ),
@@ -356,14 +458,15 @@ def main() -> int:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {path}")
     print(
-        f"ok={ok} completed={completed}/{args.loops} "
+        f"ok={ok} profile={args.profile} completed={completed}/{args.loops} "
         f"ttft_cold_p50={payload['metrics']['ttft_cold_p50_ms']} "
         f"ttft_resume_p50={payload['metrics']['ttft_resume_p50_ms']} "
         f"tool_loop_p50={payload['metrics']['tool_loop_p50_ms']} "
         f"tpot_p50={payload['metrics']['tpot_p50_ms']} "
         f"tpot_p95={payload['metrics']['tpot_p95_ms']} "
         f"vram_peak={vram_peak} free={vram_after.get('vram_free_mb')} "
-        f"engine={engine_name} protocol_ok={protocol_all_ok}"
+        f"engine={engine_name} protocol_ok={protocol_all_ok} "
+        f"resident={(residency or {}).get('resident_pct')}%"
     )
     if errors:
         print("notes:", "; ".join(errors))

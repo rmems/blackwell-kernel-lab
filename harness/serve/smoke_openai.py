@@ -11,12 +11,19 @@ import json
 import os
 import socket
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+
+_ROOT = Path(__file__).resolve().parents[2]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from harness.agent_loop import profiles  # noqa: E402
 
 
 def utc_now() -> str:
@@ -217,6 +224,16 @@ def main() -> int:
         help="Use a short agent-shaped prompt (system-like tools blurb + user)",
     )
     p.add_argument(
+        "--profile",
+        default=None,
+        choices=profiles.names(),
+        help=(
+            "Use a named workload profile's cold-prefill turn as the prompt "
+            "(docs/WORKLOADS.md). Single turn only — no resume phase. "
+            "Takes precedence over --agent-prompt/--prompt."
+        ),
+    )
+    p.add_argument(
         "--engine-version",
         default=os.environ.get("BKL_ENGINE_VERSION"),
         help="Optional engine binary/version string for ablation provenance",
@@ -250,6 +267,19 @@ def main() -> int:
             "You are a local coding agent. Tools: read_file, run_shell. "
             "User: confirm you can call tools by replying with exactly: kernel-smoke-ok"
         )
+    if args.profile:
+        # Same cold-prefill text the live harness (#10) sends, so an ablation cell
+        # and a live profile row measure the same prompt.
+        prompt = profiles.cold_prompt(args.profile)
+        if not args.skip_content_slo:
+            p.error("--profile prompts do not emit kernel-smoke-ok; pass --skip-content-slo")
+
+    if args.profile:
+        workload_profile = f"{args.profile}_cold_only"
+    elif args.agent_prompt:
+        workload_profile = "agent_shaped_smoke"
+    else:
+        workload_profile = "engine_smoke"
 
     vram_before = probe_gpu()
     result = chat_completion(
@@ -333,10 +363,11 @@ def main() -> int:
             "context_length": None,
         },
         "workload": {
-            "profile": "engine_smoke" if not args.agent_prompt else "agent_shaped_smoke",
+            "profile": workload_profile,
             "concurrency": 1,
             "steps": 1,
             "stream": args.stream,
+            "phases": ["cold_prefill", "short_decode"],
         },
         "metrics": {
             "tool_loop_wall_ms": [result["wall_ms"]],

@@ -66,6 +66,21 @@ Columns: `run_id,timestamp_utc,profile,engine,model_id,concurrency,tool_loop_p50
 | `ttft_cold_ms` / `ttft_resume_ms` | Live multi-phase harness (#10): first turn vs after tool-result append |
 | `ttft_cold_p50_ms` / `ttft_resume_p50_ms` | Medians of those lists |
 | `vram_peak_mb` | **Sample max** (e.g. max of before/after `nvidia-smi`), not continuous peak unless a sampler is added |
+| `phases[]` | Per-cycle phase breakdown (#14). One entry per completed cold→resume cycle |
+
+## Optional fields (additive, still `schema_version: 1`)
+
+Older runs omit these; the aggregator ignores them.
+
+| Field | Written by | Meaning |
+|-------|------------|---------|
+| `workload.profile` | all | Profile name — live: `live_agent_tool_loop` / `live_coding_tool` / `live_plan_exec`; smoke: `<name>_cold_only`, `agent_shaped_smoke`, `engine_smoke` |
+| `workload.max_tokens` / `workload.tool_name` | `run_live_metrics.py` | Profile decode cap and expected tool name (`null` = no tool protocol) |
+| `workload.protocol_ok` | `run_live_metrics.py` | `true`/`false`, or `null` when the profile has no tool protocol |
+| `model.residency` | `run_live_metrics.py` (Ollama only) | `{size_mb, size_vram_mb, resident_pct, fully_gpu_resident, context_length, quantization_level, parameter_size}` from `/api/ps`; `null` on other engines |
+| `metrics.phases[]` | `run_live_metrics.py` | `{cycle, cold, cold_prefill{…}, resume_prefill{…}, tool_loop_wall_ms}`; each phase has `ttft_ms`, `wall_ms`, `decode_ms`, `tpot_ms`, `prompt_tokens`, `completion_tokens` |
+
+`resident_pct < 100` means part of the model ran on CPU — the run is **not** a GPU kernel measurement.
 
 Live agent path: `harness/agent_loop/run_live_metrics.py` · recipe [live-agent-metrics.md](../recipes/live-agent-metrics.md).
 

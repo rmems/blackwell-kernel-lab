@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "run_id": "20260815T130324Z-cookbook-granite-ctx8k-plan-exec-508725f6",
+  "timestamp_utc": "2026-08-15T13:03:24Z",
+  "host": {
+    "gpu_name": "NVIDIA GeForce RTX 5080",
+    "vram_total_mb": 16303,
+    "driver": "610.43.03",
+    "cuda": null
+  },
+  "engine": {
+    "name": "ollama",
+    "version": "ollama 0.30.6",
+    "endpoint": "http://127.0.0.1:11434/v1",
+    "label": "cookbook-granite-ctx8k-plan-exec"
+  },
+  "model": {
+    "id": "granite4.1:8b-ctx8k",
+    "quant": "Q4_K_M",
+    "context_length": 8192,
+    "residency": {
+      "source": "ollama /api/ps",
+      "size_mb": 6370,
+      "size_vram_mb": 6370,
+      "resident_pct": 100.0,
+      "fully_gpu_resident": true,
+      "context_length": 8192,
+      "quantization_level": "Q4_K_M",
+      "parameter_size": "8.8B"
+    }
+  },
+  "workload": {
+    "profile": "live_plan_exec",
+    "profile_description": "Plan/execute: long cold prefill, medium decode, no tool-call protocol.",
+    "concurrency": 1,
+    "steps": 2,
+    "steps_requested": 2,
+    "stream": true,
+    "max_tokens": 160,
+    "phases": [
+      "cold_prefill",
+      "short_decode",
+      "resume_prefill"
+    ],
+    "tool_name": null,
+    "protocol_ok": null
+  },
+  "metrics": {
+    "ttft_cold_ms": [
+      130.0599470268935
+    ],
+    "ttft_warm_ms": [
+      72.06245500128716
+    ],
+    "ttft_resume_ms": [
+      82.78569503454491,
+      82.24923495436087
+    ],
+    "ttft_ms": [
+      130.0599470268935,
+      72.06245500128716,
+      82.78569503454491,
+      82.24923495436087
+    ],
+    "tpot_ms": [
+      7.353841037556833,
+      7.405487639913097,
+      7.379370509447682,
+      7.393146237611013
+    ],
+    "tool_loop_wall_ms": [
+      1671.6668989975005,
+      1764.0391630120575
+    ],
+    "ttft_cold_p50_ms": 130.0599470268935,
+    "ttft_warm_p50_ms": 72.06245500128716,
+    "ttft_resume_p50_ms": 82.5174649944529,
+    "ttft_p50_ms": 130.0599470268935,
+    "tpot_p50_ms": 7.386258373529348,
+    "tpot_p95_ms": null,
+    "tool_loop_p50_ms": 1717.853031004779,
+    "tokens_per_s": 135.38654477397787,
+    "prefix_cache_hit_rate": null,
+    "vram_peak_mb": 8752,
+    "vram_sample_note": "max(before, after) samples; not continuous peak",
+    "vram_free_mb": 7127,
+    "vram_before_mb": 8752,
+    "vram_after_mb": 8752,
+    "wall_total_ms": 3435.720762994606,
+    "phases": [
+      {
+        "cycle": 0,
+        "cold": true,
+        "cold_prefill": {
+          "ttft_ms": 130.0599470268935,
+          "wall_ms": 1299.32067199843,
+          "decode_ms": 1169.2607249715365,
+          "tpot_ms": 7.353841037556833,
+          "prompt_tokens": 312,
+          "completion_tokens": 160
+        },
+        "resume_prefill": {
+          "ttft_ms": 82.78569503454491,
+          "wall_ms": 371.5997129911557,
+          "decode_ms": 288.81401795661077,
+          "tpot_ms": 7.405487639913097,
+          "prompt_tokens": 542,
+          "completion_tokens": 40
+        },
+        "tool_loop_wall_ms": 1671.6668989975005
+      },
+      {
+        "cycle": 1,
+        "cold": false,
+        "cold_prefill": {
+          "ttft_ms": 72.06245500128716,
+          "wall_ms": 1245.3823660034686,
+          "decode_ms": 1173.3199110021815,
+          "tpot_ms": 7.379370509447682,
+          "prompt_tokens": 312,
+          "completion_tokens": 160
+        },
+        "resume_prefill": {
+          "ttft_ms": 82.24923495436087,
+          "wall_ms": 518.4448629734106,
+          "decode_ms": 436.19562801904976,
+          "tpot_ms": 7.393146237611013,
+          "prompt_tokens": 542,
+          "completion_tokens": 60
+        },
+        "tool_loop_wall_ms": 1764.0391630120575
+      }
+    ]
+  },
+  "slo": {
+    "met": true,
+    "notes": "ok"
+  },
+  "notes": "profile=live_plan_exec cold_content='1. **Prepare JSON Configurations**: Create two JSON files (`flash_attention.json` and `baseline.json`) within the `harness/report/aggregate.py` directory. Each file should contain:\\n   - `\"schema_versi' resume_content='Start a new run of `llama-server` with Flash Attention enabled (`-fa on`) while keeping all other parameters (4096 context length, all layers on GPU) unchanged, and record the time-to-first-token (`tt' completed=2/2 protocol_ok=None engine=ollama tpot_n=4",
+  "kernel_campaign": {
+    "layer": "L1",
+    "issue": "#10",
+    "meaning": "Live agent-phase metrics; not custom .cu"
+  }
+}

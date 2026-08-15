@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "run_id": "20260815T130410Z-cookbook-qwen9b-q8-ctx8k-512-79ba21f4",
+  "timestamp_utc": "2026-08-15T13:04:10Z",
+  "host": {
+    "gpu_name": "NVIDIA GeForce RTX 5080",
+    "vram_total_mb": 16303,
+    "driver": "610.43.03",
+    "cuda": null
+  },
+  "engine": {
+    "name": "ollama",
+    "version": "ollama 0.30.6",
+    "endpoint": "http://127.0.0.1:11434/v1",
+    "label": "cookbook-qwen9b-q8-ctx8k-512"
+  },
+  "model": {
+    "id": "qwen3.5:9b-q8_0-ctx8k",
+    "quant": "Q8_0",
+    "context_length": 8192,
+    "residency": {
+      "source": "ollama /api/ps",
+      "size_mb": 8942,
+      "size_vram_mb": 8942,
+      "resident_pct": 100.0,
+      "fully_gpu_resident": true,
+      "context_length": 8192,
+      "quantization_level": "Q8_0",
+      "parameter_size": "9.7B"
+    }
+  },
+  "workload": {
+    "profile": "live_agent_tool_loop",
+    "profile_description": "Short ReAct tool loop: small cold prefill, one tool result, short decode.",
+    "concurrency": 1,
+    "steps": 2,
+    "steps_requested": 2,
+    "stream": true,
+    "max_tokens": 512,
+    "phases": [
+      "cold_prefill",
+      "short_decode",
+      "resume_prefill"
+    ],
+    "tool_name": "run_shell",
+    "protocol_ok": true
+  },
+  "metrics": {
+    "ttft_cold_ms": [
+      5070.126937003806
+    ],
+    "ttft_warm_ms": [
+      659.6301780082285
+    ],
+    "ttft_resume_ms": [
+      1570.707554987166,
+      1572.0310399774462
+    ],
+    "ttft_ms": [
+      5070.126937003806,
+      659.6301780082285,
+      1570.707554987166,
+      1572.0310399774462
+    ],
+    "tpot_ms": [
+      2.7713685686809613,
+      2.2416874897418793,
+      2.8375229414771583,
+      2.241487132867316
+    ],
+    "tool_loop_wall_ms": [
+      7103.463803010527,
+      2697.1879430348054
+    ],
+    "ttft_cold_p50_ms": 5070.126937003806,
+    "ttft_warm_p50_ms": 659.6301780082285,
+    "ttft_resume_p50_ms": 1571.3692974823061,
+    "ttft_p50_ms": 5070.126937003806,
+    "tpot_p50_ms": 2.5065280292114203,
+    "tpot_p95_ms": null,
+    "tool_loop_p50_ms": 4900.325873022666,
+    "tokens_per_s": 398.9582355935634,
+    "prefix_cache_hit_rate": null,
+    "vram_peak_mb": 12344,
+    "vram_sample_note": "max(before, after) samples; not continuous peak",
+    "vram_free_mb": 3535,
+    "vram_before_mb": 2061,
+    "vram_after_mb": 12344,
+    "wall_total_ms": 9800.671117031015,
+    "phases": [
+      {
+        "cycle": 0,
+        "cold": true,
+        "cold_prefill": {
+          "ttft_ms": 5070.126937003806,
+          "wall_ms": 5211.466734006535,
+          "decode_ms": 141.33979700272903,
+          "tpot_ms": 2.7713685686809613,
+          "prompt_tokens": 86,
+          "completion_tokens": 52
+        },
+        "resume_prefill": {
+          "ttft_ms": 1570.707554987166,
+          "wall_ms": 1891.2688660202548,
+          "decode_ms": 320.5613110330887,
+          "tpot_ms": 2.2416874897418793,
+          "prompt_tokens": 155,
+          "completion_tokens": 144
+        },
+        "tool_loop_wall_ms": 7103.463803010527
+      },
+      {
+        "cycle": 1,
+        "cold": false,
+        "cold_prefill": {
+          "ttft_ms": 659.6301780082285,
+          "wall_ms": 804.3438480235636,
+          "decode_ms": 144.71367001533508,
+          "tpot_ms": 2.8375229414771583,
+          "prompt_tokens": 86,
+          "completion_tokens": 52
+        },
+        "resume_prefill": {
+          "ttft_ms": 1572.0310399774462,
+          "wall_ms": 1892.5636999774724,
+          "decode_ms": 320.5326600000262,
+          "tpot_ms": 2.241487132867316,
+          "prompt_tokens": 155,
+          "completion_tokens": 144
+        },
+        "tool_loop_wall_ms": 2697.1879430348054
+      }
+    ]
+  },
+  "slo": {
+    "met": true,
+    "notes": "ok"
+  },
+  "notes": "profile=live_agent_tool_loop cold_content='TOOL name=run_shell args={\"cmd\":\"ls\"}' resume_content='The project root contains two markdown documents (AGENTS.md, README.md), plus three main directories: docs/, harness/, and recipes/.' completed=2/2 protocol_ok=True engine=ollama tpot_n=4",
+  "kernel_campaign": {
+    "layer": "L1",
+    "issue": "#10",
+    "meaning": "Live agent-phase metrics; not custom .cu"
+  }
+}

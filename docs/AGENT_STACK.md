@@ -27,6 +27,19 @@ Kernel campaign overview: [KERNELS.md](KERNELS.md) (L1 measure engine CUDA paths
 
 **Note:** While a model is loaded, free VRAM can drop hard (observed ~1 GB free mid-run on `granite4.1:8b`). That **violates** the ≥2 GB free multi-task headroom rule while the model is resident. Prefer smaller models for concurrent desktop use, or `ollama stop` between agent sessions. For strict measurement, pass `--min-free-vram-mb 2048` only when free VRAM is part of the SLO.
 
+**Root cause (measured 2026-08-15, #13):** that ~1 GB free came from Ollama loading `granite4.1:8b` at its
+advertised **131072** context — a ~27 GB allocation, 53% offloaded to CPU. Pinning `num_ctx 8192` in a derived
+tag puts the same weights **100% on GPU**: 7131 MiB free, decode 45.1 → 7.35 ms/token.
+
+```bash
+printf 'FROM granite4.1:8b\nPARAMETER num_ctx 8192\n' > /tmp/Modelfile.ctx8k
+ollama create granite4.1:8b-ctx8k -f /tmp/Modelfile.ctx8k   # reuses blobs, no download
+ollama ps   # PROCESSOR must read 100% GPU, not 53%/47% CPU/GPU
+```
+
+`run_live_metrics.py` records this as `model.residency` from `/api/ps`. Numbers from a partially resident model
+are CPU numbers — see [MODELS.md](MODELS.md).
+
 ## Engines on ShipOfTheseus
 
 ### Ollama (primary)
@@ -79,6 +92,10 @@ Local agents are **not** long chatbots:
 3. **Short structured decode** — tool calls / JSON  
 
 Optimize for **tool-loop latency** and **TPOT stability**, not only peak batch tokens/s.
+
+Named versions of these shapes live in `harness/agent_loop/profiles.py` (`live_agent_tool_loop`,
+`live_coding_tool`, `live_plan_exec`) and are shared by the live harness and the #16 smoke — see
+[WORKLOADS.md](WORKLOADS.md).
 
 ## Efficiency levers (measure on this box)
 

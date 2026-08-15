@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "run_id": "20260815T130312Z-cookbook-granite-ctx8k-tool-loop-f8cdbad8",
+  "timestamp_utc": "2026-08-15T13:03:12Z",
+  "host": {
+    "gpu_name": "NVIDIA GeForce RTX 5080",
+    "vram_total_mb": 16303,
+    "driver": "610.43.03",
+    "cuda": null
+  },
+  "engine": {
+    "name": "ollama",
+    "version": "ollama 0.30.6",
+    "endpoint": "http://127.0.0.1:11434/v1",
+    "label": "cookbook-granite-ctx8k-tool-loop"
+  },
+  "model": {
+    "id": "granite4.1:8b-ctx8k",
+    "quant": "Q4_K_M",
+    "context_length": 8192,
+    "residency": {
+      "source": "ollama /api/ps",
+      "size_mb": 6370,
+      "size_vram_mb": 6370,
+      "resident_pct": 100.0,
+      "fully_gpu_resident": true,
+      "context_length": 8192,
+      "quantization_level": "Q4_K_M",
+      "parameter_size": "8.8B"
+    }
+  },
+  "workload": {
+    "profile": "live_agent_tool_loop",
+    "profile_description": "Short ReAct tool loop: small cold prefill, one tool result, short decode.",
+    "concurrency": 1,
+    "steps": 3,
+    "steps_requested": 3,
+    "stream": true,
+    "max_tokens": 96,
+    "phases": [
+      "cold_prefill",
+      "short_decode",
+      "resume_prefill"
+    ],
+    "tool_name": "run_shell",
+    "protocol_ok": true
+  },
+  "metrics": {
+    "ttft_cold_ms": [
+      2439.7159590153024
+    ],
+    "ttft_warm_ms": [
+      78.4175629960373,
+      71.89558102982119
+    ],
+    "ttft_resume_ms": [
+      76.70827198307961,
+      79.66524601215497,
+      76.54080801876262
+    ],
+    "ttft_ms": [
+      2439.7159590153024,
+      78.4175629960373,
+      71.89558102982119,
+      76.70827198307961,
+      79.66524601215497,
+      76.54080801876262
+    ],
+    "tpot_ms": [
+      7.7582630862404285,
+      7.399459242482077,
+      7.342396997652638,
+      7.347999514560357,
+      7.198120166625206,
+      7.355245726295944
+    ],
+    "tool_loop_wall_ms": [
+      2854.383076017257,
+      488.9013119973242,
+      477.8465059935115
+    ],
+    "ttft_cold_p50_ms": 2439.7159590153024,
+    "ttft_warm_p50_ms": 75.15657201292925,
+    "ttft_resume_p50_ms": 76.70827198307961,
+    "ttft_p50_ms": 2439.7159590153024,
+    "tpot_p50_ms": 7.3516226204281505,
+    "tpot_p95_ms": 7.7582630862404285,
+    "tool_loop_p50_ms": 488.9013119973242,
+    "tokens_per_s": 136.02439238669206,
+    "prefix_cache_hit_rate": null,
+    "vram_peak_mb": 8748,
+    "vram_sample_note": "max(before, after) samples; not continuous peak",
+    "vram_free_mb": 7131,
+    "vram_before_mb": 2061,
+    "vram_after_mb": 8748,
+    "wall_total_ms": 3821.157694037538,
+    "phases": [
+      {
+        "cycle": 0,
+        "cold": true,
+        "cold_prefill": {
+          "ttft_ms": 2439.7159590153024,
+          "wall_ms": 2532.8151160501875,
+          "decode_ms": 93.09915703488514,
+          "tpot_ms": 7.7582630862404285,
+          "prompt_tokens": 83,
+          "completion_tokens": 13
+        },
+        "resume_prefill": {
+          "ttft_ms": 76.70827198307961,
+          "wall_ms": 320.89042698498815,
+          "decode_ms": 244.18215500190854,
+          "tpot_ms": 7.399459242482077,
+          "prompt_tokens": 151,
+          "completion_tokens": 34
+        },
+        "tool_loop_wall_ms": 2854.383076017257
+      },
+      {
+        "cycle": 1,
+        "cold": false,
+        "cold_prefill": {
+          "ttft_ms": 78.4175629960373,
+          "wall_ms": 166.52632696786895,
+          "decode_ms": 88.10876397183165,
+          "tpot_ms": 7.342396997652638,
+          "prompt_tokens": 83,
+          "completion_tokens": 13
+        },
+        "resume_prefill": {
+          "ttft_ms": 79.66524601215497,
+          "wall_ms": 322.1492299926467,
+          "decode_ms": 242.48398398049176,
+          "tpot_ms": 7.347999514560357,
+          "prompt_tokens": 151,
+          "completion_tokens": 34
+        },
+        "tool_loop_wall_ms": 488.9013119973242
+      },
+      {
+        "cycle": 2,
+        "cold": false,
+        "cold_prefill": {
+          "ttft_ms": 71.89558102982119,
+          "wall_ms": 158.27302302932367,
+          "decode_ms": 86.37744199950248,
+          "tpot_ms": 7.198120166625206,
+          "prompt_tokens": 83,
+          "completion_tokens": 13
+        },
+        "resume_prefill": {
+          "ttft_ms": 76.54080801876262,
+          "wall_ms": 319.2639169865288,
+          "decode_ms": 242.72310896776617,
+          "tpot_ms": 7.355245726295944,
+          "prompt_tokens": 151,
+          "completion_tokens": 34
+        },
+        "tool_loop_wall_ms": 477.8465059935115
+      }
+    ]
+  },
+  "slo": {
+    "met": true,
+    "notes": "ok"
+  },
+  "notes": "profile=live_agent_tool_loop cold_content='TOOL name=run_shell args={\"cmd\":\"ls\"}' resume_content='The project root contains configuration files (`AGENTS.md`, `README.md`), documentation directories (`docs`), a harness directory, and recipe files under `recipes`.' completed=3/3 protocol_ok=True engine=ollama tpot_n=6",
+  "kernel_campaign": {
+    "layer": "L1",
+    "issue": "#10",
+    "meaning": "Live agent-phase metrics; not custom .cu"
+  }
+}

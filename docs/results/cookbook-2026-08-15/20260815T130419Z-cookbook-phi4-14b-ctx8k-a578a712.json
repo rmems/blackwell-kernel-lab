@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "run_id": "20260815T130419Z-cookbook-phi4-14b-ctx8k-a578a712",
+  "timestamp_utc": "2026-08-15T13:04:19Z",
+  "host": {
+    "gpu_name": "NVIDIA GeForce RTX 5080",
+    "vram_total_mb": 16303,
+    "driver": "610.43.03",
+    "cuda": null
+  },
+  "engine": {
+    "name": "ollama",
+    "version": "ollama 0.30.6",
+    "endpoint": "http://127.0.0.1:11434/v1",
+    "label": "cookbook-phi4-14b-ctx8k"
+  },
+  "model": {
+    "id": "phi4:14b-ctx8k",
+    "quant": "Q4_K_M",
+    "context_length": 8192,
+    "residency": {
+      "source": "ollama /api/ps",
+      "size_mb": 10088,
+      "size_vram_mb": 10088,
+      "resident_pct": 100.0,
+      "fully_gpu_resident": true,
+      "context_length": 8192,
+      "quantization_level": "Q4_K_M",
+      "parameter_size": "14.7B"
+    }
+  },
+  "workload": {
+    "profile": "live_agent_tool_loop",
+    "profile_description": "Short ReAct tool loop: small cold prefill, one tool result, short decode.",
+    "concurrency": 1,
+    "steps": 2,
+    "steps_requested": 2,
+    "stream": true,
+    "max_tokens": 96,
+    "phases": [
+      "cold_prefill",
+      "short_decode",
+      "resume_prefill"
+    ],
+    "tool_name": "run_shell",
+    "protocol_ok": true
+  },
+  "metrics": {
+    "ttft_cold_ms": [
+      3635.3046459844336
+    ],
+    "ttft_warm_ms": [
+      86.82540996233001
+    ],
+    "ttft_resume_ms": [
+      79.40678199520335,
+      82.04388001468033
+    ],
+    "ttft_ms": [
+      3635.3046459844336,
+      86.82540996233001,
+      79.40678199520335,
+      82.04388001468033
+    ],
+    "tpot_ms": [
+      11.578684500515616,
+      11.581486082933326,
+      11.470026653518694,
+      11.526147833339767
+    ],
+    "tool_loop_wall_ms": [
+      4966.063355037477,
+      1409.879525017459
+    ],
+    "ttft_cold_p50_ms": 3635.3046459844336,
+    "ttft_warm_p50_ms": 86.82540996233001,
+    "ttft_resume_p50_ms": 80.72533100494184,
+    "ttft_p50_ms": 3635.3046459844336,
+    "tpot_p50_ms": 11.552416166927692,
+    "tpot_p95_ms": null,
+    "tool_loop_p50_ms": 3187.971440027468,
+    "tokens_per_s": 86.5619785117164,
+    "prefix_cache_hit_rate": null,
+    "vram_peak_mb": 12460,
+    "vram_sample_note": "max(before, after) samples; not continuous peak",
+    "vram_free_mb": 3419,
+    "vram_before_mb": 2061,
+    "vram_after_mb": 12460,
+    "wall_total_ms": 6375.960609992035,
+    "phases": [
+      {
+        "cycle": 0,
+        "cold": true,
+        "cold_prefill": {
+          "ttft_ms": 3635.3046459844336,
+          "wall_ms": 4468.969930021558,
+          "decode_ms": 833.6652840371244,
+          "tpot_ms": 11.578684500515616,
+          "prompt_tokens": 86,
+          "completion_tokens": 73
+        },
+        "resume_prefill": {
+          "ttft_ms": 79.40678199520335,
+          "wall_ms": 496.3402809808031,
+          "decode_ms": 416.9334989855997,
+          "tpot_ms": 11.581486082933326,
+          "prompt_tokens": 216,
+          "completion_tokens": 37
+        },
+        "tool_loop_wall_ms": 4966.063355037477
+      },
+      {
+        "cycle": 1,
+        "cold": false,
+        "cold_prefill": {
+          "ttft_ms": 86.82540996233001,
+          "wall_ms": 912.6673290156759,
+          "decode_ms": 825.8419190533459,
+          "tpot_ms": 11.470026653518694,
+          "prompt_tokens": 86,
+          "completion_tokens": 73
+        },
+        "resume_prefill": {
+          "ttft_ms": 82.04388001468033,
+          "wall_ms": 496.9852020149119,
+          "decode_ms": 414.9413220002316,
+          "tpot_ms": 11.526147833339767,
+          "prompt_tokens": 216,
+          "completion_tokens": 37
+        },
+        "tool_loop_wall_ms": 1409.879525017459
+      }
+    ]
+  },
+  "slo": {
+    "met": true,
+    "notes": "ok"
+  },
+  "notes": "profile=live_agent_tool_loop cold_content='To list files in the project root using the specified tool, here is how you would structure the command:\\n\\n```\\nTOOL name=run_shell args={\"cmd\":\"ls\"}\\n``` \\n\\nThis will execute the `ls` command to display ' resume_content='The project root contains two markdown files (`AGENTS.md`, `README.md`), a directory for documentation (`docs`), and directories named `harness` and `recipes`.' completed=2/2 protocol_ok=True engine=ollama tpot_n=4",
+  "kernel_campaign": {
+    "layer": "L1",
+    "issue": "#10",
+    "meaning": "Live agent-phase metrics; not custom .cu"
+  }
+}

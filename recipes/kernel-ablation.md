@@ -54,6 +54,21 @@ python3 harness/serve/smoke_openai.py --out results/ --stream --skip-content-slo
   --engine-version "llama-server 9190" --quant UD-Q4_K_XL
 ```
 
+## Prefill-heavier cells (#14 profiles)
+
+`--agent-prompt` is a ~40-token prompt — too short for a strong FA signal. Reuse a named workload profile's
+cold-prefill turn instead, so the ablation cell and the live agent row measure the same bytes
+([WORKLOADS.md](../docs/WORKLOADS.md)):
+
+```bash
+python3 harness/serve/smoke_openai.py --out results/ --stream --skip-content-slo \
+  --profile live_coding_tool --label cell-B-fa-on-coding \
+  --engine-flags "-ngl 99 -c 4096 -fa on" --engine-version "llama-server 9190"
+```
+
+Recorded as `workload.profile = live_coding_tool_cold_only` (single turn, no resume phase). For the full
+cold→tool→resume loop use `run_live_metrics.py --profile …` against the same server.
+
 ## Success for #16
 
 - [x] ≥3 cells with TTFT + wall + VRAM (A–C)  
