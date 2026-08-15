@@ -37,8 +37,8 @@ On the RTX 5080 workstation:
 - [x] Documented path to run a local agent / engine smoke on this 5080  
 - [x] L1 kernel ablation path documented (`recipes/kernel-ablation.md`; fill #16 cells)  
 - [ ] Backlog issues fully filled with measured MATRIX rows  
-- [ ] L3 workspace / smoke path exists when first first-party kernel is accepted  
-- [ ] Self-hosted **GPU** CI runner tracked as active work  
+- [x] L3 workspace / smoke path (`kernels/`, `bkl_device_hello`, sm_120)  
+- [x] Self-hosted **GPU** CI runner for this lab (#11 / #27)
 
 ## Research anchors
 

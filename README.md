@@ -42,7 +42,11 @@ python3 harness/serve/smoke_openai.py --out results/ --stream --label cell-A-bas
 python3 harness/agent_loop/run_live_metrics.py --out results/ --loops 1
 ollama stop "$BKL_MODEL"
 
-# Docs: docs/KERNELS.md · docs/AGENT_STACK.md · docs/CI.md · recipes/
+# L3 first-party CUDA smoke (sm_120)
+cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON && cmake --build build/kernels -j
+./build/kernels/src/bkl_device_hello
+
+# Docs: docs/KERNELS.md · kernels/README.md · docs/CI.md · recipes/
 ```
 
 ## Repo layout
@@ -52,7 +56,7 @@ docs/           Mission, host baseline, kernels, stack, models, workloads, schem
 configs/        Engine / agent configs (no secrets)
 harness/        Scripted agent loops + reporting → results/
 recipes/        Human-run playbooks
-kernels/        First-party L3 CUDA / CUTLASS (when landed; see KERNELS.md)
+kernels/        First-party L3 CUDA workspace (sm_120) — see kernels/README.md
 results/        Measurement outputs (gitignored)
 ```
 

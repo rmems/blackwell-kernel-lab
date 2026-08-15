@@ -71,6 +71,35 @@ jobs:
           python3 harness/agent_loop/run_synthetic.py --out results/
           python3 harness/report/aggregate.py --results results/
 
+      - name: L3 device_hello (sm_120)
+        run: |
+          HOST_CXX=""
+          # Prefer newer supported hosts first (CUDA 13.3: g++ 6–15).
+          for c in \
+            /home/linuxbrew/.linuxbrew/bin/g++-15 \
+            /usr/bin/g++-15 \
+            /usr/bin/g++-14 \
+            /usr/bin/g++-13; do
+            if [ -x "$c" ]; then HOST_CXX="$c"; break; fi
+          done
+          CMAKE_ARGS=(-S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON)
+          if [ -n "$HOST_CXX" ]; then
+            CMAKE_ARGS+=(-DBKL_CUDA_HOST_COMPILER="$HOST_CXX")
+          fi
+          if [ -x /usr/local/cuda/bin/nvcc ]; then
+            CMAKE_ARGS+=(-DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc)
+          fi
+          if [ -z "$HOST_CXX" ]; then
+            echo "Need g++-15/14/13 for CUDA 13.3 host compiler (see kernels/README.md)"
+            exit 1
+          fi
+          cmake "${CMAKE_ARGS[@]}"
+          cmake --build build/kernels -j"$(nproc 2>/dev/null || echo 4)"
+          ./build/kernels/src/bkl_device_hello | tee /tmp/bkl_device_hello.out
+          # This lab's self-hosted runner is ShipOfTheseus / RTX 5080 (sm_120).
+          grep -Fq "device0: NVIDIA GeForce RTX 5080 compute 12.0" /tmp/bkl_device_hello.out
+          grep -q "bkl device_hello sm_120 ok" /tmp/bkl_device_hello.out
+
       - name: Live engine smoke (optional)
         if: ${{ vars.BKL_GPU_LIVE_SMOKE == '1' }}
         env:

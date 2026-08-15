@@ -36,9 +36,12 @@ Hard rule: **sm_120 ≠ sm_100**. No FA4/TMEM assumptions. No MIG.
 |-------|------|--------|
 | #12 / RM-476 | Engine up — unlocks GPU kernels | Done |
 | #16 / RM-470 | L1 FA × graphs × quant ablations | Done (graphs = engine-default on llama.cpp 9190; D deferred) |
-| #20 / RM-486 | Forge ↔ kernel boundary contract | This doc set |
-| #19 / RM-487 | L3 `kernels/` workspace layout | Next |
-| #21 / RM-488 | L3 smoke + GPU CI hook | After #19 |
-| #10 / RM-184 | Live agent metrics harness | Open (M1) |
+| #20 / RM-486 | Forge ↔ kernel boundary contract | Done |
+| #10 / RM-184 | Live agent metrics harness | Done (#27) |
+| #11 / RM-182 | Self-hosted GPU Actions runner | Done (#27) |
+| #19 / RM-487 | L3 `kernels/` workspace layout | **This tree** (`kernels/`) |
+| #21 / RM-488 | L3 device-hello smoke + GPU CI | **This tree** (`bkl_device_hello`) |
+
+L3 workspace: [kernels/README.md](../kernels/README.md) · recipe [l3-device-hello.md](../recipes/l3-device-hello.md).
 
 See [recipes/kernel-ablation.md](../recipes/kernel-ablation.md), [recipes/engine-smoke.md](../recipes/engine-smoke.md), [FORGE_BOUNDARY.md](FORGE_BOUNDARY.md).

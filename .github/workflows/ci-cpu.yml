@@ -43,3 +43,11 @@ jobs:
           python3 harness/report/aggregate.py --results results/
           test -f results/summary.csv
           ls -la results/
+
+      - name: Kernels CMake skip path (no CUDA)
+        run: |
+          test -f kernels/README.md
+          test -f kernels/CMakeLists.txt
+          test -f kernels/src/device_hello.cu
+          cmake -S kernels -B build/kernels-cpu -DBKL_ENABLE_CUDA=OFF
+          # No GPU targets required; configure must succeed without nvcc.

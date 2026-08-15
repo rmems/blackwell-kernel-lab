@@ -32,6 +32,9 @@ venv/
 *.cubin
 *.fatbin
 
+# Local CMake builds
+/build/
+
 # Secrets / local engine
 .env
 .env.*
