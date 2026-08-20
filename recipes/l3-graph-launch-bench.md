@@ -27,5 +27,5 @@ Empty kernel ≈ launch overhead. Saxpy is 1M floats — still launch-ish, not a
 
 ## Notes
 
-- Arch: **sm_120** only.  
+- Arch: **sm_120** only. The benchmark exits with status 1 when the GPU compute capability is not 12.0.
 - Not FA4 / not an agent harness.  

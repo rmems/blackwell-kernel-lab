@@ -1,8 +1,10 @@
 // L3: CUDA graph vs eager launch on RTX 5080 (sm_120). Issue #30.
 // Gap: llama.cpp 9190 cannot toggle graphs (#16 cell C) — measure here.
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <vector>
 #include <cuda_runtime.h>
 
 namespace {
@@ -12,6 +14,7 @@ constexpr int kSaxpyIters = 2000;
 constexpr int kChain = 32;
 constexpr int kChainIters = 2000;
 constexpr int kSaxpyN = 1 << 20;  // 1M floats; launch-bound, not a GEMM
+constexpr int kRuns = 3;  // Run each benchmark this many times
 
 #define BKL_CUDA(call)                                                         \
   do {                                                                         \
@@ -39,14 +42,16 @@ float elapsed_ms(cudaEvent_t start, cudaEvent_t stop) {
   return ms;
 }
 
-// Eager launches on `stream`, already warmed.
-float bench_eager_empty(cudaStream_t stream, int iters) {
+// Helper: time a callable (kernel launch body) over a stream.
+// Callable is invoked once per iteration within the timing window.
+template <typename Callable>
+float time_ms(cudaStream_t stream, int iters, Callable&& body) {
   cudaEvent_t start, stop;
   BKL_CUDA(cudaEventCreate(&start));
   BKL_CUDA(cudaEventCreate(&stop));
   BKL_CUDA(cudaEventRecord(start, stream));
   for (int i = 0; i < iters; ++i) {
-    bkl_empty_kernel<<<1, 1, 0, stream>>>();
+    body();
   }
   BKL_CUDA(cudaEventRecord(stop, stream));
   BKL_CUDA(cudaEventSynchronize(stop));
@@ -56,13 +61,20 @@ float bench_eager_empty(cudaStream_t stream, int iters) {
   return ms;
 }
 
-float bench_graph_empty(cudaStream_t stream, int iters) {
+// Helper: capture, instantiate, time replays, cleanup.
+// Capture callable runs once to define the graph; replay runs iters times.
+template <typename CaptureCallable>
+float time_graph_ms(cudaStream_t stream, int iters, CaptureCallable&& capture) {
   BKL_CUDA(cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal));
-  bkl_empty_kernel<<<1, 1, 0, stream>>>();
+  capture();
   cudaGraph_t graph = nullptr;
   BKL_CUDA(cudaStreamEndCapture(stream, &graph));
   cudaGraphExec_t exec = nullptr;
-  BKL_CUDA(cudaGraphInstantiate(&exec, graph, nullptr, nullptr, 0));
+  BKL_CUDA(cudaGraphInstantiate(&exec, graph, 0));
+
+  // Warmup: one untimed replay.
+  BKL_CUDA(cudaGraphLaunch(exec, stream));
+  BKL_CUDA(cudaStreamSynchronize(stream));
 
   cudaEvent_t start, stop;
   BKL_CUDA(cudaEventCreate(&start));
@@ -79,6 +91,31 @@ float bench_graph_empty(cudaStream_t stream, int iters) {
   BKL_CUDA(cudaGraphExecDestroy(exec));
   BKL_CUDA(cudaGraphDestroy(graph));
   return ms;
+}
+
+// Compute median from a vector of floats.
+float median(std::vector<float> values) {
+  if (values.empty()) return 0.0f;
+  std::sort(values.begin(), values.end());
+  const size_t mid = values.size() / 2;
+  if (values.size() % 2 == 0) {
+    return (values[mid - 1] + values[mid]) / 2.0f;
+  }
+  return values[mid];
+}
+
+// Eager launches on `stream`, already warmed.
+float bench_eager_empty(cudaStream_t stream, int iters) {
+  return time_ms(stream, iters, [stream]() {
+    bkl_empty_kernel<<<1, 1, 0, stream>>>();
+    BKL_CUDA(cudaGetLastError());
+  });
+}
+
+float bench_graph_empty(cudaStream_t stream, int iters) {
+  return time_graph_ms(stream, iters, [stream]() {
+    bkl_empty_kernel<<<1, 1, 0, stream>>>();
+  });
 }
 
 dim3 saxpy_grid() {
@@ -90,92 +127,36 @@ float bench_eager_saxpy(cudaStream_t stream, int iters, float a, const float* x,
                         float* y) {
   const dim3 block(256);
   const dim3 grid = saxpy_grid();
-  cudaEvent_t start, stop;
-  BKL_CUDA(cudaEventCreate(&start));
-  BKL_CUDA(cudaEventCreate(&stop));
-  BKL_CUDA(cudaEventRecord(start, stream));
-  for (int i = 0; i < iters; ++i) {
+  return time_ms(stream, iters, [=]() {
     bkl_saxpy_kernel<<<grid, block, 0, stream>>>(kSaxpyN, a, x, y);
-  }
-  BKL_CUDA(cudaEventRecord(stop, stream));
-  BKL_CUDA(cudaEventSynchronize(stop));
-  float ms = elapsed_ms(start, stop);
-  BKL_CUDA(cudaEventDestroy(start));
-  BKL_CUDA(cudaEventDestroy(stop));
-  return ms;
+    BKL_CUDA(cudaGetLastError());
+  });
 }
 
 float bench_eager_empty_chain(cudaStream_t stream, int chain, int iters) {
-  cudaEvent_t start, stop;
-  BKL_CUDA(cudaEventCreate(&start));
-  BKL_CUDA(cudaEventCreate(&stop));
-  BKL_CUDA(cudaEventRecord(start, stream));
-  for (int i = 0; i < iters; ++i) {
+  return time_ms(stream, iters, [stream, chain]() {
     for (int k = 0; k < chain; ++k) {
       bkl_empty_kernel<<<1, 1, 0, stream>>>();
     }
-  }
-  BKL_CUDA(cudaEventRecord(stop, stream));
-  BKL_CUDA(cudaEventSynchronize(stop));
-  float ms = elapsed_ms(start, stop);
-  BKL_CUDA(cudaEventDestroy(start));
-  BKL_CUDA(cudaEventDestroy(stop));
-  return ms;
+    BKL_CUDA(cudaGetLastError());
+  });
 }
 
 float bench_graph_empty_chain(cudaStream_t stream, int chain, int iters) {
-  BKL_CUDA(cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal));
-  for (int k = 0; k < chain; ++k) {
-    bkl_empty_kernel<<<1, 1, 0, stream>>>();
-  }
-  cudaGraph_t graph = nullptr;
-  BKL_CUDA(cudaStreamEndCapture(stream, &graph));
-  cudaGraphExec_t exec = nullptr;
-  BKL_CUDA(cudaGraphInstantiate(&exec, graph, nullptr, nullptr, 0));
-
-  cudaEvent_t start, stop;
-  BKL_CUDA(cudaEventCreate(&start));
-  BKL_CUDA(cudaEventCreate(&stop));
-  BKL_CUDA(cudaEventRecord(start, stream));
-  for (int i = 0; i < iters; ++i) {
-    BKL_CUDA(cudaGraphLaunch(exec, stream));
-  }
-  BKL_CUDA(cudaEventRecord(stop, stream));
-  BKL_CUDA(cudaEventSynchronize(stop));
-  float ms = elapsed_ms(start, stop);
-  BKL_CUDA(cudaEventDestroy(start));
-  BKL_CUDA(cudaEventDestroy(stop));
-  BKL_CUDA(cudaGraphExecDestroy(exec));
-  BKL_CUDA(cudaGraphDestroy(graph));
-  return ms;
+  return time_graph_ms(stream, iters, [stream, chain]() {
+    for (int k = 0; k < chain; ++k) {
+      bkl_empty_kernel<<<1, 1, 0, stream>>>();
+    }
+  });
 }
 
 float bench_graph_saxpy(cudaStream_t stream, int iters, float a, const float* x,
                         float* y) {
   const dim3 block(256);
   const dim3 grid = saxpy_grid();
-  BKL_CUDA(cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal));
-  bkl_saxpy_kernel<<<grid, block, 0, stream>>>(kSaxpyN, a, x, y);
-  cudaGraph_t graph = nullptr;
-  BKL_CUDA(cudaStreamEndCapture(stream, &graph));
-  cudaGraphExec_t exec = nullptr;
-  BKL_CUDA(cudaGraphInstantiate(&exec, graph, nullptr, nullptr, 0));
-
-  cudaEvent_t start, stop;
-  BKL_CUDA(cudaEventCreate(&start));
-  BKL_CUDA(cudaEventCreate(&stop));
-  BKL_CUDA(cudaEventRecord(start, stream));
-  for (int i = 0; i < iters; ++i) {
-    BKL_CUDA(cudaGraphLaunch(exec, stream));
-  }
-  BKL_CUDA(cudaEventRecord(stop, stream));
-  BKL_CUDA(cudaEventSynchronize(stop));
-  float ms = elapsed_ms(start, stop);
-  BKL_CUDA(cudaEventDestroy(start));
-  BKL_CUDA(cudaEventDestroy(stop));
-  BKL_CUDA(cudaGraphExecDestroy(exec));
-  BKL_CUDA(cudaGraphDestroy(graph));
-  return ms;
+  return time_graph_ms(stream, iters, [=]() {
+    bkl_saxpy_kernel<<<grid, block, 0, stream>>>(kSaxpyN, a, x, y);
+  });
 }
 
 }  // namespace
@@ -205,10 +186,19 @@ int main() {
   BKL_CUDA(cudaGetLastError());
   BKL_CUDA(cudaStreamSynchronize(stream));
 
-  const float eager_empty_ms = bench_eager_empty(stream, kEmptyIters);
-  const float graph_empty_ms = bench_graph_empty(stream, kEmptyIters);
-  const float eager_chain_ms = bench_eager_empty_chain(stream, kChain, kChainIters);
-  const float graph_chain_ms = bench_graph_empty_chain(stream, kChain, kChainIters);
+  // Run each benchmark kRuns times, report median.
+  std::vector<float> eager_empty_times, graph_empty_times;
+  std::vector<float> eager_chain_times, graph_chain_times;
+  for (int r = 0; r < kRuns; ++r) {
+    eager_empty_times.push_back(bench_eager_empty(stream, kEmptyIters));
+    graph_empty_times.push_back(bench_graph_empty(stream, kEmptyIters));
+    eager_chain_times.push_back(bench_eager_empty_chain(stream, kChain, kChainIters));
+    graph_chain_times.push_back(bench_graph_empty_chain(stream, kChain, kChainIters));
+  }
+  const float eager_empty_ms = median(eager_empty_times);
+  const float graph_empty_ms = median(graph_empty_times);
+  const float eager_chain_ms = median(eager_chain_times);
+  const float graph_chain_ms = median(graph_chain_times);
 
   float *x = nullptr, *y = nullptr;
   BKL_CUDA(cudaMalloc(&x, sizeof(float) * kSaxpyN));
@@ -219,8 +209,13 @@ int main() {
   BKL_CUDA(cudaGetLastError());
   BKL_CUDA(cudaStreamSynchronize(stream));
 
-  const float eager_saxpy_ms = bench_eager_saxpy(stream, kSaxpyIters, 1.0f, x, y);
-  const float graph_saxpy_ms = bench_graph_saxpy(stream, kSaxpyIters, 1.0f, x, y);
+  std::vector<float> eager_saxpy_times, graph_saxpy_times;
+  for (int r = 0; r < kRuns; ++r) {
+    eager_saxpy_times.push_back(bench_eager_saxpy(stream, kSaxpyIters, 1.0f, x, y));
+    graph_saxpy_times.push_back(bench_graph_saxpy(stream, kSaxpyIters, 1.0f, x, y));
+  }
+  const float eager_saxpy_ms = median(eager_saxpy_times);
+  const float graph_saxpy_ms = median(graph_saxpy_times);
 
   BKL_CUDA(cudaFree(x));
   BKL_CUDA(cudaFree(y));

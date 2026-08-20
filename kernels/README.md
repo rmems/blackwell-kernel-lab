@@ -73,6 +73,7 @@ Without a supported host and without the opt-in above, configure **fails** (no s
 ## Recipe
 
 [recipes/l3-device-hello.md](../recipes/l3-device-hello.md)
+[recipes/l3-graph-launch-bench.md](../recipes/l3-graph-launch-bench.md)
 
 ## Issues
 
