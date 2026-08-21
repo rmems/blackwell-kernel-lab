@@ -21,6 +21,15 @@ COLUMNS = [
     "ttft_p50_ms",
     "tpot_p50_ms",
     "vram_peak_mb",
+    "empty_eager_us_per_launch",
+    "empty_graph_us_per_launch",
+    "empty_speedup",
+    "empty_chain_eager_us_per_kernel",
+    "empty_chain_graph_us_per_kernel",
+    "empty_chain_speedup",
+    "saxpy_eager_us_per_launch",
+    "saxpy_graph_us_per_launch",
+    "saxpy_speedup",
     "notes",
 ]
 
@@ -42,6 +51,14 @@ def row_from(path: Path) -> dict:
     workload = data.get("workload") if isinstance(data.get("workload"), dict) else {}
     engine = data.get("engine") if isinstance(data.get("engine"), dict) else {}
     model = data.get("model") if isinstance(data.get("model"), dict) else {}
+    benchmarks = data.get("benchmarks") if isinstance(data.get("benchmarks"), dict) else {}
+    empty = benchmarks.get("empty") if isinstance(benchmarks.get("empty"), dict) else {}
+    empty_chain = (
+        benchmarks.get("empty_chain")
+        if isinstance(benchmarks.get("empty_chain"), dict)
+        else {}
+    )
+    saxpy = benchmarks.get("saxpy") if isinstance(benchmarks.get("saxpy"), dict) else {}
     return {
         "run_id": data.get("run_id"),
         "timestamp_utc": data.get("timestamp_utc"),
@@ -53,6 +70,15 @@ def row_from(path: Path) -> dict:
         "ttft_p50_ms": metrics.get("ttft_p50_ms"),
         "tpot_p50_ms": metrics.get("tpot_p50_ms"),
         "vram_peak_mb": metrics.get("vram_peak_mb"),
+        "empty_eager_us_per_launch": empty.get("eager_us_per_launch"),
+        "empty_graph_us_per_launch": empty.get("graph_us_per_launch"),
+        "empty_speedup": empty.get("speedup"),
+        "empty_chain_eager_us_per_kernel": empty_chain.get("eager_us_per_kernel"),
+        "empty_chain_graph_us_per_kernel": empty_chain.get("graph_us_per_kernel"),
+        "empty_chain_speedup": empty_chain.get("speedup"),
+        "saxpy_eager_us_per_launch": saxpy.get("eager_us_per_launch"),
+        "saxpy_graph_us_per_launch": saxpy.get("graph_us_per_launch"),
+        "saxpy_speedup": saxpy.get("speedup"),
         "notes": data.get("notes"),
     }
 

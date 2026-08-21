@@ -41,7 +41,15 @@ Hard rule: **sm_120 ≠ sm_100**. No FA4/TMEM assumptions. No MIG.
 | #11 / RM-182 | Self-hosted GPU Actions runner | Done (#27) |
 | #19 / RM-487 | L3 `kernels/` workspace layout | **This tree** (`kernels/`) |
 | #21 / RM-488 | L3 device-hello smoke + GPU CI | **This tree** (`bkl_device_hello`) |
+| #30 | L3 CUDA graph vs eager launch (sm_120) | **This tree** (`bkl_graph_launch_bench`) — synthetic launch-overhead measurement |
 
-L3 workspace: [kernels/README.md](../kernels/README.md) · recipe [l3-device-hello.md](../recipes/l3-device-hello.md).
+Measured on ShipOfTheseus (RTX 5080, CUDA 13.3, 2026-08-20) with the current
+untimed graph warmup and three-run median method: in these **synthetic**
+workloads, wrapping one launch in a graph is slower (empty 0.62×, 1M SAXPY
+0.89×), while capturing a **32-kernel chain** and replaying it is 2.87× versus
+that eager chain. These are not model/decode measurements, so they do not by
+themselves select an inference-engine graph policy or resolve #16.
+
+L3 workspace: [kernels/README.md](../kernels/README.md) · recipe [l3-device-hello.md](../recipes/l3-device-hello.md) · [l3-graph-launch-bench.md](../recipes/l3-graph-launch-bench.md).
 
 See [recipes/kernel-ablation.md](../recipes/kernel-ablation.md), [recipes/engine-smoke.md](../recipes/engine-smoke.md), [FORGE_BOUNDARY.md](FORGE_BOUNDARY.md).

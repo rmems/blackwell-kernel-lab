@@ -99,6 +99,12 @@ jobs:
           # This lab's self-hosted runner is ShipOfTheseus / RTX 5080 (sm_120).
           grep -Fq "device0: NVIDIA GeForce RTX 5080 compute 12.0" /tmp/bkl_device_hello.out
           grep -q "bkl device_hello sm_120 ok" /tmp/bkl_device_hello.out
+          ./build/kernels/src/bkl_graph_launch_bench \
+            --out results/graph-launch-bench.json | tee /tmp/bkl_graph_launch_bench.out
+          grep -Fq "device0: NVIDIA GeForce RTX 5080 compute 12.0" /tmp/bkl_graph_launch_bench.out
+          test -s results/graph-launch-bench.json
+          python3 -m json.tool results/graph-launch-bench.json >/dev/null
+          grep -q "bkl graph_launch_bench sm_120 ok" /tmp/bkl_graph_launch_bench.out
 
       - name: Live engine smoke (optional)
         if: ${{ vars.BKL_GPU_LIVE_SMOKE == '1' }}
