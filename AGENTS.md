@@ -36,7 +36,7 @@ Full rules: [docs/FORGE_BOUNDARY.md](docs/FORGE_BOUNDARY.md).
 5. Self-hosted GPU runner work is in scope.
 6. L3 kernels only after L1 leaves a proven gap (see KERNELS.md).
 7. Milestones include the version in the title; closing one tags that version.
-8. Every PR: assignee **rmems**, labels, milestone, Development/project when applicable, Linear RM links. Never commit agent work straight to `main`.
+8. Every PR: assignee **rmems**, labels, milestone, Development/project when applicable, Linear RM links. Never commit unreviewed work straight to `main`.
 
 ## Primary stack defaults
 
