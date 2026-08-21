@@ -1,0 +1,41 @@
+.github/workflows/ci-gpu.yml
+  s_52d6e291c00818::t_7a66281d212c8f 41-42,58
+recipes/kernel-ablation.md
+  s_52d6e291c00818::t_daede9f37da5e9 3-4,6,8-12,14-15,20,22-24
+docs/KERNELS.md
+  s_52d6e291c00818::t_daede9f37da5e9 3-5,7-8,10,15-16,18,22-25,27,29-33,40,47,49-52,54-56
+docs/CI.md
+  s_52d6e291c00818::t_4ff5a22ea49ed2 4-6,11,16,26-30,38,42-43
+recipes/l3-graph-launch-bench.md
+  s_52d6e291c00818::t_ecbb0673538508 40
+docs/FORGE_BOUNDARY.md
+  s_52d6e291c00818::t_4ff5a22ea49ed2 3,8-9,19-22,24,29,32,34,38,42,44-47,49,51-53,55,57-60,64-68,72-75
+README.md
+  s_52d6e291c00818::t_4e4718460bde63 3-4,10,12-14,16-17,21,25-27,39,47-48,50,53,55-62,64,68-71,75-77,79,82-83,85-86
+.github/workflows/ci-cpu.yml
+  s_52d6e291c00818::t_7a66281d212c8f 1,14-15
+kernels/README.md
+  s_52d6e291c00818::t_7a66281d212c8f 9-10
+docs/HOST_BASELINE.md
+  s_52d6e291c00818::t_4ff5a22ea49ed2 1,9,11,14,18,24,28,30-32,34,37,40,42-44,48-51
+docs/MISSION.md
+  s_52d6e291c00818::t_daede9f37da5e9 1,5-6,11-14,19,25,29-33,37-39
+AGENTS.md
+  s_52d6e291c00818::t_daede9f37da5e9 5,9-12,17,26-28,32-39,44,50-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "507802669027c119b78d22a2a134e55974de173a",
+  "prompts": {},
+  "sessions": {
+    "s_52d6e291c00818": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a021e1-a82e-7d82-bc41-43e030257278",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Raul Montoya Cardenas <montoyaraul34@gmail.com>"
+    }
+  }
+}
