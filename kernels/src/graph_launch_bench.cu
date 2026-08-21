@@ -7,6 +7,7 @@
 #include <chrono>
 #include <ctime>
 #include <filesystem>
+#include <random>
 #include <string>
 #include <vector>
 #include <cuda_runtime.h>
@@ -221,6 +222,8 @@ int main(int argc, char** argv) {
   BKL_CUDA(cudaMalloc(&y, sizeof(float) * kSaxpyN));
   BKL_CUDA(cudaMemset(x, 0, sizeof(float) * kSaxpyN));
   BKL_CUDA(cudaMemset(y, 0, sizeof(float) * kSaxpyN));
+  const float x_sentinel = 1.0f;
+  BKL_CUDA(cudaMemcpy(x, &x_sentinel, sizeof(x_sentinel), cudaMemcpyHostToDevice));
   bkl_saxpy_kernel<<<saxpy_grid(), 256, 0, stream>>>(kSaxpyN, 1.0f, x, y);
   BKL_CUDA(cudaGetLastError());
   BKL_CUDA(cudaStreamSynchronize(stream));
@@ -232,6 +235,18 @@ int main(int argc, char** argv) {
   }
   const float eager_saxpy_ms = median(eager_saxpy_times);
   const float graph_saxpy_ms = median(graph_saxpy_times);
+
+  float saxpy_sentinel = 0.0f;
+  BKL_CUDA(cudaMemcpy(&saxpy_sentinel, y, sizeof(saxpy_sentinel),
+                      cudaMemcpyDeviceToHost));
+  // One eager warmup, plus one untimed graph-exec warmup for each graph run.
+  const float expected_saxpy =
+      1.0f + kRuns * (2.0f * kSaxpyIters + 1.0f);
+  if (saxpy_sentinel != expected_saxpy) {
+    std::fprintf(stderr, "SAXPY validation failed: got %.1f, expected %.1f\\n",
+                 saxpy_sentinel, expected_saxpy);
+    return 1;
+  }
 
   BKL_CUDA(cudaFree(x));
   BKL_CUDA(cudaFree(y));
@@ -267,9 +282,13 @@ int main(int argc, char** argv) {
   gmtime_r(&now_time, &utc);
   char timestamp[32];
   std::strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%SZ", &utc);
+  const unsigned run_suffix = std::random_device{}();
+  char run_id[80];
+  std::snprintf(run_id, sizeof(run_id), "graph-launch-bench-%lld-%08x",
+                static_cast<long long>(milliseconds), run_suffix);
   if (out_path.empty()) {
     out_path = std::filesystem::path("results") /
-               ("graph-launch-bench-" + std::to_string(milliseconds) + ".json");
+               (std::string(run_id) + ".json");
   }
   if (!out_path.parent_path().empty()) {
     std::filesystem::create_directories(out_path.parent_path());
@@ -284,7 +303,7 @@ int main(int argc, char** argv) {
   const double saxpy_speedup = graph_saxpy_us > 0.0 ? eager_saxpy_us / graph_saxpy_us : 0.0;
   std::fprintf(
       out,
-      "{\n  \"schema_version\": 1,\n  \"run_id\": \"graph-launch-bench-%lld\",\n"
+      "{\n  \"schema_version\": 1,\n  \"run_id\": \"%s\",\n"
       "  \"timestamp_utc\": \"%s\",\n"
       "  \"host\": {\"gpu_name\": \"%s\", \"vram_total_mb\": %.0f, \"cuda_runtime_version\": %d},\n"
       "  \"engine\": {\"name\": \"cuda-runtime\", \"version\": null, \"endpoint\": null},\n"
@@ -293,7 +312,7 @@ int main(int argc, char** argv) {
       "  \"metrics\": {\"tool_loop_wall_ms\": [], \"tool_loop_p50_ms\": null, \"ttft_ms\": [], \"ttft_p50_ms\": null, \"tpot_ms\": [], \"tpot_p50_ms\": null, \"tokens_per_s\": null, \"prefix_cache_hit_rate\": null, \"vram_peak_mb\": null, \"vram_free_mb\": null},\n"
       "  \"benchmarks\": {\"empty\": {\"iterations\": %d, \"eager_us_per_launch\": %.4f, \"graph_us_per_launch\": %.4f, \"speedup\": %.4f}, \"empty_chain\": {\"kernels_per_graph\": %d, \"iterations\": %d, \"eager_us_per_kernel\": %.4f, \"graph_us_per_kernel\": %.4f, \"speedup\": %.4f}, \"saxpy\": {\"elements\": %d, \"iterations\": %d, \"eager_us_per_launch\": %.4f, \"graph_us_per_launch\": %.4f, \"speedup\": %.4f}},\n"
       "  \"notes\": \"Synthetic CUDA launch benchmark; not a model or decode workload. Explicit SAXPY buffers use 8 MiB.\"\n}\n",
-      static_cast<long long>(milliseconds), timestamp, prop.name,
+      run_id, timestamp, prop.name,
       static_cast<double>(prop.totalGlobalMem) / (1024.0 * 1024.0), runtime_version,
       kEmptyIters, eager_empty_us, graph_empty_us, empty_speedup, kChain, kChainIters,
       eager_chain_us, graph_chain_us, chain_speedup, kSaxpyN, kSaxpyIters,
