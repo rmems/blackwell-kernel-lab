@@ -4,6 +4,10 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <chrono>
+#include <ctime>
+#include <filesystem>
+#include <string>
 #include <vector>
 #include <cuda_runtime.h>
 
@@ -44,6 +48,10 @@ float elapsed_ms(cudaEvent_t start, cudaEvent_t stop) {
 
 // Helper: time a callable (kernel launch body) over a stream.
 // Callable is invoked once per iteration within the timing window.
+// Check deferred kernel errors only after the stop event has been synchronized.
+// Per-launch cudaGetLastError() adds eager-only host work to launch-bound runs.
+void check_timed_launches() { BKL_CUDA(cudaGetLastError()); }
+
 template <typename Callable>
 float time_ms(cudaStream_t stream, int iters, Callable&& body) {
   cudaEvent_t start, stop;
@@ -55,6 +63,7 @@ float time_ms(cudaStream_t stream, int iters, Callable&& body) {
   }
   BKL_CUDA(cudaEventRecord(stop, stream));
   BKL_CUDA(cudaEventSynchronize(stop));
+  check_timed_launches();
   float ms = elapsed_ms(start, stop);
   BKL_CUDA(cudaEventDestroy(start));
   BKL_CUDA(cudaEventDestroy(stop));
@@ -85,6 +94,7 @@ float time_graph_ms(cudaStream_t stream, int iters, CaptureCallable&& capture) {
   }
   BKL_CUDA(cudaEventRecord(stop, stream));
   BKL_CUDA(cudaEventSynchronize(stop));
+  check_timed_launches();
   float ms = elapsed_ms(start, stop);
   BKL_CUDA(cudaEventDestroy(start));
   BKL_CUDA(cudaEventDestroy(stop));
@@ -108,7 +118,6 @@ float median(std::vector<float> values) {
 float bench_eager_empty(cudaStream_t stream, int iters) {
   return time_ms(stream, iters, [stream]() {
     bkl_empty_kernel<<<1, 1, 0, stream>>>();
-    BKL_CUDA(cudaGetLastError());
   });
 }
 
@@ -129,7 +138,6 @@ float bench_eager_saxpy(cudaStream_t stream, int iters, float a, const float* x,
   const dim3 grid = saxpy_grid();
   return time_ms(stream, iters, [=]() {
     bkl_saxpy_kernel<<<grid, block, 0, stream>>>(kSaxpyN, a, x, y);
-    BKL_CUDA(cudaGetLastError());
   });
 }
 
@@ -138,7 +146,6 @@ float bench_eager_empty_chain(cudaStream_t stream, int chain, int iters) {
     for (int k = 0; k < chain; ++k) {
       bkl_empty_kernel<<<1, 1, 0, stream>>>();
     }
-    BKL_CUDA(cudaGetLastError());
   });
 }
 
@@ -161,7 +168,14 @@ float bench_graph_saxpy(cudaStream_t stream, int iters, float a, const float* x,
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+  std::filesystem::path out_path;
+  if (argc == 3 && std::string(argv[1]) == "--out") {
+    out_path = argv[2];
+  } else if (argc != 1) {
+    std::fprintf(stderr, "usage: %s [--out PATH]\\n", argv[0]);
+    return 2;
+  }
   int count = 0;
   BKL_CUDA(cudaGetDeviceCount(&count));
   if (count < 1) {
@@ -177,6 +191,8 @@ int main() {
                  prop.major, prop.minor);
     return 1;
   }
+  int runtime_version = 0;
+  BKL_CUDA(cudaRuntimeGetVersion(&runtime_version));
 
   cudaStream_t stream = nullptr;
   BKL_CUDA(cudaStreamCreate(&stream));
@@ -241,6 +257,52 @@ int main() {
   std::printf("saxpy n=%d iters=%d  eager_us/launch=%.4f  graph_us/launch=%.4f  speedup=%.2fx\n",
               kSaxpyN, kSaxpyIters, eager_saxpy_us, graph_saxpy_us,
               graph_saxpy_us > 0.0 ? eager_saxpy_us / graph_saxpy_us : 0.0);
+
+  const auto now = std::chrono::system_clock::now();
+  const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+                              now.time_since_epoch())
+                              .count();
+  std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+  std::tm utc{};
+  gmtime_r(&now_time, &utc);
+  char timestamp[32];
+  std::strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%SZ", &utc);
+  if (out_path.empty()) {
+    out_path = std::filesystem::path("results") /
+               ("graph-launch-bench-" + std::to_string(milliseconds) + ".json");
+  }
+  if (!out_path.parent_path().empty()) {
+    std::filesystem::create_directories(out_path.parent_path());
+  }
+  FILE* out = std::fopen(out_path.c_str(), "w");
+  if (out == nullptr) {
+    std::perror(out_path.c_str());
+    return 1;
+  }
+  const double empty_speedup = graph_empty_us > 0.0 ? eager_empty_us / graph_empty_us : 0.0;
+  const double chain_speedup = graph_chain_us > 0.0 ? eager_chain_us / graph_chain_us : 0.0;
+  const double saxpy_speedup = graph_saxpy_us > 0.0 ? eager_saxpy_us / graph_saxpy_us : 0.0;
+  std::fprintf(
+      out,
+      "{\n  \"schema_version\": 1,\n  \"run_id\": \"graph-launch-bench-%lld\",\n"
+      "  \"timestamp_utc\": \"%s\",\n"
+      "  \"host\": {\"gpu_name\": \"%s\", \"vram_total_mb\": %.0f, \"cuda_runtime_version\": %d},\n"
+      "  \"engine\": {\"name\": \"cuda-runtime\", \"version\": null, \"endpoint\": null},\n"
+      "  \"model\": {\"id\": null, \"quant\": null, \"context_length\": null},\n"
+      "  \"workload\": {\"profile\": \"l3_graph_launch_synthetic\", \"concurrency\": 1, \"steps\": null},\n"
+      "  \"metrics\": {\"tool_loop_wall_ms\": [], \"tool_loop_p50_ms\": null, \"ttft_ms\": [], \"ttft_p50_ms\": null, \"tpot_ms\": [], \"tpot_p50_ms\": null, \"tokens_per_s\": null, \"prefix_cache_hit_rate\": null, \"vram_peak_mb\": null, \"vram_free_mb\": null},\n"
+      "  \"benchmarks\": {\"empty\": {\"iterations\": %d, \"eager_us_per_launch\": %.4f, \"graph_us_per_launch\": %.4f, \"speedup\": %.4f}, \"empty_chain\": {\"kernels_per_graph\": %d, \"iterations\": %d, \"eager_us_per_kernel\": %.4f, \"graph_us_per_kernel\": %.4f, \"speedup\": %.4f}, \"saxpy\": {\"elements\": %d, \"iterations\": %d, \"eager_us_per_launch\": %.4f, \"graph_us_per_launch\": %.4f, \"speedup\": %.4f}},\n"
+      "  \"notes\": \"Synthetic CUDA launch benchmark; not a model or decode workload. Explicit SAXPY buffers use 8 MiB.\"\n}\n",
+      static_cast<long long>(milliseconds), timestamp, prop.name,
+      static_cast<double>(prop.totalGlobalMem) / (1024.0 * 1024.0), runtime_version,
+      kEmptyIters, eager_empty_us, graph_empty_us, empty_speedup, kChain, kChainIters,
+      eager_chain_us, graph_chain_us, chain_speedup, kSaxpyN, kSaxpyIters,
+      eager_saxpy_us, graph_saxpy_us, saxpy_speedup);
+  if (std::fclose(out) != 0) {
+    std::perror(out_path.c_str());
+    return 1;
+  }
+  std::printf("wrote %s\n", out_path.c_str());
   std::printf("bkl graph_launch_bench sm_120 ok\n");
   return 0;
 }
