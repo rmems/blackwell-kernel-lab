@@ -6,8 +6,8 @@
 
 | Layer | Meaning | Where |
 |-------|---------|--------|
-| **L1** | Measure engine CUDA paths (FA, graphs, quant, prefix) | `harness/`, `recipes/`, `docs/` |
-| **L2** | Host scheduling (queues, isolation, later Green Context notes) | docs + harness when landed |
+| **L1** | Measure engine CUDA paths (FA, graphs, quant, prefix) | `recipes/`, `docs/`, `results/` |
+| **L2** | Host scheduling (queues, isolation, later Green Context notes) | docs and measured artifacts |
 | **L3** | First-party `.cu` / CUTLASS **in this tree** | `kernels/` |
 
 Do **not** land production L3 ops until L1 leaves a **proven** gap. Hello is the on-ramp. `#30` is the first measured kernel: CUDA graph vs eager launch (llama.cpp 9190 has no graph CLI — #16).
