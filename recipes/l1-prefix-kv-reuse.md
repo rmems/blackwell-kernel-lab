@@ -30,6 +30,11 @@ benchmark, or evidence that a custom KV CUDA kernel is needed.
   recipe deliberately calls `ollama show`, not `ollama pull`.
 - `curl`, `jq`, `nvidia-smi`, `ollama`, and `rg` are available.
 - At least **2 GiB of VRAM remains free while the model is loaded**.
+- The expected full prompt-token count is known. The default `1462` is pinned
+  to the default model and 96-line prefix so silent context truncation fails
+  closed. If either changes, first use a context known to fit comfortably,
+  observe the stable full `prompt_eval_count`, then set
+  `BKL_EXPECTED_PROMPT_TOKENS` to that reviewed value.
 
 The default below uses the already-local model measured on ShipOfTheseus. Set
 `BKL_MODEL` to another already-local model when reproducing elsewhere.
@@ -41,6 +46,7 @@ result, stops the model between cells so every prime starts cold, alternates
 cell order, exercises each cache path once before recording, and stops the
 model again on exit. The prime request is excluded from the measured request.
 Streaming time to first response byte is recorded as the TTFT observable.
+Local API calls have configurable connect and whole-request timeouts.
 
 ```bash
 set -euo pipefail
@@ -49,21 +55,45 @@ set -euo pipefail
 : "${BKL_BASE_URL:=http://127.0.0.1:11434}"
 : "${BKL_NUM_CTX:=8192}"
 : "${BKL_PREFIX_LINES:=96}"
+: "${BKL_EXPECTED_PROMPT_TOKENS:=1462}"
 : "${BKL_RUNS:=3}"
 : "${BKL_MIN_FREE_MIB:=2048}"
+: "${BKL_CONNECT_TIMEOUT:=5}"
+: "${BKL_REQUEST_TIMEOUT:=120}"
 : "${BKL_RESULT_PATH:=results/prefix-kv-reuse.jsonl}"
 
 for tool in curl jq nvidia-smi ollama rg; do
   command -v "$tool" >/dev/null || { echo "missing required tool: $tool" >&2; exit 1; }
 done
 
-[[ "$BKL_RUNS" =~ ^[0-9]+$ && "$BKL_RUNS" -ge 3 ]] || {
-  echo "BKL_RUNS must be an integer >= 3" >&2
+normalize_uint() {
+  local name=$1
+  local raw=$2
+  local minimum=$3
+  [[ "$raw" =~ ^[1-9][0-9]*$ ]] || {
+    echo "$name must be a base-10 integer without leading zeroes" >&2
+    return 1
+  }
+  local value
+  value=$((10#$raw))
+  (( value >= minimum )) || {
+    echo "$name must be >= $minimum" >&2
+    return 1
+  }
+  printf -v "$name" '%d' "$value"
+}
+
+normalize_uint BKL_RUNS "$BKL_RUNS" 3 || exit 1
+normalize_uint BKL_NUM_CTX "$BKL_NUM_CTX" 1 || exit 1
+normalize_uint BKL_PREFIX_LINES "$BKL_PREFIX_LINES" 1 || exit 1
+normalize_uint BKL_EXPECTED_PROMPT_TOKENS "$BKL_EXPECTED_PROMPT_TOKENS" 1 || exit 1
+normalize_uint BKL_MIN_FREE_MIB "$BKL_MIN_FREE_MIB" 2048 || exit 1
+normalize_uint BKL_CONNECT_TIMEOUT "$BKL_CONNECT_TIMEOUT" 1 || exit 1
+normalize_uint BKL_REQUEST_TIMEOUT "$BKL_REQUEST_TIMEOUT" 1 || exit 1
+(( BKL_EXPECTED_PROMPT_TOKENS + 1 <= BKL_NUM_CTX )) || {
+  echo "expected prompt plus one output token does not fit BKL_NUM_CTX" >&2
   exit 1
 }
-[[ "$BKL_NUM_CTX" =~ ^[0-9]+$ && "$BKL_NUM_CTX" -gt 0 ]]
-[[ "$BKL_PREFIX_LINES" =~ ^[0-9]+$ && "$BKL_PREFIX_LINES" -gt 0 ]]
-[[ "$BKL_MIN_FREE_MIB" =~ ^[0-9]+$ && "$BKL_MIN_FREE_MIB" -ge 2048 ]]
 [[ ! -e "$BKL_RESULT_PATH" ]] || {
   echo "refusing to overwrite $BKL_RESULT_PATH" >&2
   exit 1
@@ -73,7 +103,10 @@ ollama show "$BKL_MODEL" >/dev/null || {
   echo "model is not already local: $BKL_MODEL (no automatic pull)" >&2
   exit 1
 }
-curl --silent --show-error --fail "$BKL_BASE_URL/api/tags" >/dev/null
+curl --silent --show-error --fail \
+  --connect-timeout "$BKL_CONNECT_TIMEOUT" \
+  --max-time "$BKL_REQUEST_TIMEOUT" \
+  "$BKL_BASE_URL/api/tags" >/dev/null
 
 free_mib() {
   nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits | head -n 1 | tr -d ' '
@@ -85,7 +118,9 @@ before_free_mib=$(free_mib)
   exit 1
 }
 
-scratch_dir=$(mktemp -d "${TMPDIR:-/tmp}/bkl-prefix-kv.XXXXXX")
+result_dir=$(dirname -- "$BKL_RESULT_PATH")
+mkdir -p -- "$result_dir"
+scratch_dir=$(mktemp -d "$result_dir/.bkl-prefix-kv.XXXXXX")
 tmp_result="$scratch_dir/result.jsonl"
 
 stop_model() {
@@ -120,7 +155,10 @@ request() {
       keep_alive: "5m",
       options: {num_ctx: $num_ctx, num_predict: 1, temperature: 0, seed: 8}}' |
     curl --silent --show-error --fail-with-body \
-      --no-buffer --write-out '%{time_starttransfer}' \
+      --no-buffer \
+      --connect-timeout "$BKL_CONNECT_TIMEOUT" \
+      --max-time "$BKL_REQUEST_TIMEOUT" \
+      --write-out '%{time_starttransfer}' \
       -H 'Content-Type: application/json' \
       --data-binary @- "$BKL_BASE_URL/api/generate" -o "$output")
   jq -se '
@@ -129,6 +167,13 @@ request() {
     ($final.prompt_eval_count | type == "number") and
     ($final.prompt_eval_duration | type == "number")
   ' "$output" >/dev/null
+  local prompt_eval_count
+  prompt_eval_count=$(jq -s \
+    'map(select(.done == true)) | last | .prompt_eval_count' "$output")
+  (( prompt_eval_count == BKL_EXPECTED_PROMPT_TOKENS )) || {
+    echo "prompt token mismatch: expected $BKL_EXPECTED_PROMPT_TOKENS, got $prompt_eval_count; reject possible truncation or tokenizer drift" >&2
+    return 1
+  }
   request_ttft_ms=$(jq -n --arg seconds "$starttransfer_seconds" \
     '$seconds | tonumber * 1000')
 }
@@ -202,6 +247,9 @@ measure_cell() {
     --argjson run "$run" \
     --argjson num_ctx "$BKL_NUM_CTX" \
     --argjson prefix_lines "$BKL_PREFIX_LINES" \
+    --argjson expected_prompt_tokens "$BKL_EXPECTED_PROMPT_TOKENS" \
+    --argjson connect_timeout_seconds "$BKL_CONNECT_TIMEOUT" \
+    --argjson request_timeout_seconds "$BKL_REQUEST_TIMEOUT" \
     --argjson prompt_eval_count "$(jq -s 'map(select(.done == true)) | last | .prompt_eval_count' "$measured_json")" \
     --argjson prompt_eval_ms "$(jq -s 'map(select(.done == true)) | last | .prompt_eval_duration / 1000000' "$measured_json")" \
     --argjson one_token_total_ms "$((finished_ns - started_ns))" \
@@ -213,7 +261,10 @@ measure_cell() {
       engine: {name: "ollama", version: $engine_version},
       model: $model, gpu: $gpu, driver: $driver, processor: $processor,
       options: {num_ctx: $num_ctx, num_predict: 1, temperature: 0, seed: 8,
-                prefix_lines: $prefix_lines},
+                prefix_lines: $prefix_lines,
+                expected_prompt_tokens: $expected_prompt_tokens,
+                connect_timeout_seconds: $connect_timeout_seconds,
+                request_timeout_seconds: $request_timeout_seconds},
       run: $run, cell: $cell,
       ttft_method: "curl time_starttransfer on the streaming response",
       prompt_eval_count: $prompt_eval_count,
@@ -233,12 +284,12 @@ warmup_cell() {
 
   case "$cell" in
     prefix_first)
-      prime_prompt="$static_prefix"$'\n''Warmup alpha: return the digit zero.'
-      measured_prompt="$static_prefix"$'\n''Warmup beta: return the digit zero.'
+      prime_prompt="$static_prefix"$'\n''Alpha request: return the digit zero.'
+      measured_prompt="$static_prefix"$'\n''Beta request: return the digit zero.'
       ;;
     varying_first)
-      prime_prompt='Warmup alpha: return the digit zero.'$'\n'"$static_prefix"
-      measured_prompt='Warmup beta: return the digit zero.'$'\n'"$static_prefix"
+      prime_prompt='Alpha request: return the digit zero.'$'\n'"$static_prefix"
+      measured_prompt='Beta request: return the digit zero.'$'\n'"$static_prefix"
       ;;
   esac
 
@@ -264,8 +315,7 @@ for run in $(seq 1 "$BKL_RUNS"); do
   fi
 done
 
-mkdir -p "$(dirname "$BKL_RESULT_PATH")"
-mv "$tmp_result" "$BKL_RESULT_PATH"
+mv -- "$tmp_result" "$BKL_RESULT_PATH"
 
 summary=$(jq -s '
   def median:
@@ -313,17 +363,17 @@ prompt had `prompt_eval_count=1462`; the duration, not the count, exposed reuse.
 
 | Invocation | Cell order | Prefix-first prompt eval | Varying-first prompt eval | Reduction |
 |---:|---|---:|---:|---:|
-| 1 | prefix → varying | 21.909 ms | 348.938 ms | 93.72% |
-| 2 | varying → prefix | 22.610 ms | 338.768 ms | 93.33% |
-| 3 | prefix → varying | 22.018 ms | 348.129 ms | 93.68% |
-| **Median** | — | **22.018 ms** | **348.129 ms** | **93.68% (15.81×)** |
+| 1 | prefix → varying | 24.931 ms | 351.043 ms | 92.90% |
+| 2 | varying → prefix | 21.951 ms | 355.731 ms | 93.83% |
+| 3 | prefix → varying | 23.369 ms | 349.777 ms | 93.32% |
+| **Median** | — | **23.369 ms** | **351.043 ms** | **93.34% (15.02×)** |
 
-Median streaming TTFT (`curl time_starttransfer`) was 25.831 ms for the resumed
-prefix-first request versus 405.337 ms for varying-first (93.63%, 15.69×).
-Prefix-first cold TTFT was 2,549.651 ms because it includes model load; compare
+Median streaming TTFT (`curl time_starttransfer`) was 26.994 ms for the resumed
+prefix-first request versus 411.945 ms for varying-first (93.45%, 15.26×).
+Prefix-first cold TTFT was 2,363.259 ms because it includes model load; compare
 the two resumed layouts for the prompt-order conclusion. Median outer request
-time through one generated token was 33.077 ms versus 412.652 ms (91.98%,
-12.48×). Loaded-model free VRAM was 3,593 MiB, above the 2 GiB host rule.
+time through one generated token was 35.870 ms versus 422.360 ms (91.51%,
+11.77×). Loaded-model free VRAM was 3,428–3,477 MiB, above the 2 GiB host rule.
 
 The ≥10% per-invocation gate passes in all three invocations. The L1 policy is
 therefore to keep stable policy/tool material at the front and branch on the
