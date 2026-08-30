@@ -55,6 +55,11 @@ jobs:
       - name: GPU presence
         run: |
           nvidia-smi --query-gpu=name,driver_version,memory.total,memory.free --format=csv
+          free_mib="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits | head -n1 | tr -d '[:space:]')"
+          if [ "$free_mib" -lt 2048 ]; then
+            echo "Need at least 2048 MiB free on GPU 0; found ${free_mib} MiB"
+            exit 1
+          fi
           command -v nvcc && nvcc --version | tail -2 || echo "nvcc not on PATH; kernel build requires it"
 
       - name: L3 device_hello (sm_120)

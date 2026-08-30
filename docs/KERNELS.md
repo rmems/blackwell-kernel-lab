@@ -4,6 +4,9 @@
 this host** (sm_120 / 16 GB): engine CUDA paths (L1), host scheduling (L2), and
 first-party `.cu` / CUTLASS (L3) when L1 proves a gap.
 
+Keep at least **2 GiB of VRAM free** before a measurement on this 16 GB host;
+see [HOST_BASELINE.md](HOST_BASELINE.md) for the operational headroom rule.
+
 Not neuromorphic-first. Not greenfield attention from day one. Training remains
 in `agoge-forger` (its `cuda/` tree is a stub only).
 

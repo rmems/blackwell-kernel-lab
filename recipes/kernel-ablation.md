@@ -19,6 +19,6 @@ sm_100**; do not assume MIG or datacenter-only features.
 | Cell | Intent |
 |---|---|
 | A | Baseline engine defaults |
-| B | FlashAttn forced on, if the engine exposes a flag |
-| C | CUDA graphs on or engine-default, if independently configurable |
-| D | Alternate quant (MXFP4/NVFP4), if available |
+| B | FlashAttn on; if no independent flag exists, mark unavailable and record the engine default |
+| C | CUDA graphs on; if no independent flag exists, mark unavailable and record the engine default |
+| D | Alternate quant (MXFP4/NVFP4); if unavailable, mark deferred |
