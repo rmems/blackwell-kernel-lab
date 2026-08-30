@@ -1,0 +1,22 @@
+recipes/l1-prefix-kv-reuse.md
+  s_52d6e291c00818::t_cd660553755b2e 31-32,34,213-214,225,248-249,297,299,327,348
+  s_52d6e291c00818::t_4b931f0cb73260 452-463
+docs/KERNELS.md
+  s_52d6e291c00818::t_4b931f0cb73260 46,60-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "2b32fc6f3ba17d3a2ea934310d2ecea1c6ea2be5",
+  "prompts": {},
+  "sessions": {
+    "s_52d6e291c00818": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a021e1-a82e-7d82-bc41-43e030257278",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Raul Montoya Cardenas <montoyaraul34@gmail.com>"
+    }
+  }
+}
