@@ -124,10 +124,22 @@ jobs:
               assert data["summary"]["ordinary_median_ms"] > 0
               assert data["summary"]["partitioned_median_ms"] > 0
               assert len(data["invocations"]) == 3
+              required_improvement = data["decision"]["required_improvement_percent"]
+              recomputed_gates = []
               for invocation in data["invocations"]:
                   assert invocation["correctness"] is True
                   assert len(invocation["ordinary_gpu_latency_ms"]) == 7
                   assert len(invocation["partitioned_gpu_latency_ms"]) == 7
+                  recomputed_improvement = 100.0 * (
+                      invocation["ordinary_median_ms"]
+                      - invocation["partitioned_median_ms"]
+                  ) / invocation["ordinary_median_ms"]
+                  recomputed_gate = recomputed_improvement >= required_improvement
+                  assert invocation["gate_pass"] is recomputed_gate
+                  recomputed_gates.append(recomputed_gate)
+              passed_all_three = all(recomputed_gates)
+              assert data["decision"]["passed_all_three"] is passed_all_three
+              assert data["decision"]["follow_up_justified"] is passed_all_three
           else:
               assert data["measurement_skipped_reason"]
               assert data["invocations"] == []

@@ -34,7 +34,7 @@ constexpr unsigned int kIndependentInvocations = 3;
 constexpr unsigned int kSamplesPerMode = 7;
 constexpr std::size_t kRequiredHeadroomBytes = 2ULL * 1024ULL * 1024ULL * 1024ULL;
 
-#if defined(CUDA_VERSION) && CUDA_VERSION >= 12040 && \
+#if defined(CUDA_VERSION) && CUDA_VERSION >= 13000 && \
     !defined(BKL_FORCE_NO_GREEN_CONTEXT_API)
 #define BKL_HAS_GREEN_CONTEXT_API 1
 #else
@@ -123,10 +123,10 @@ void set_current_context(CUcontext context, const char* stage) {
 #if BKL_HAS_GREEN_CONTEXT_API
 
 __global__ void background_delay_kernel(unsigned long long delay_cycles,
-                                        int* ready_count,
+                                        int* resident_count,
                                         std::uint64_t* checksums) {
   if (threadIdx.x == 0) {
-    atomicAdd(ready_count, 1);
+    atomicAdd(resident_count, 1);
     __threadfence_system();
   }
 
@@ -144,23 +144,14 @@ __global__ void background_delay_kernel(unsigned long long delay_cycles,
 
   if (threadIdx.x == 0) {
     checksums[blockIdx.x] = state | 1ULL;
+    __threadfence_system();
+    atomicSub(resident_count, 1);
+    __threadfence_system();
   }
 }
 
-__global__ void sensitive_kernel(std::uint32_t seed,
-                                 std::uint32_t* output) {
-  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-  std::uint32_t state = seed ^ (index * 747796405U + 2891336453U);
-  for (unsigned int iteration = 0; iteration < kSensitiveIterations;
-       ++iteration) {
-    state = state * 1664525U + 1013904223U;
-    state ^= state >> 16;
-  }
-  output[index] = state;
-}
-
-std::uint32_t expected_sensitive_value(std::uint32_t seed,
-                                       unsigned int index) {
+__host__ __device__ std::uint32_t sensitive_value(std::uint32_t seed,
+                                                  unsigned int index) {
   std::uint32_t state = seed ^ (index * 747796405U + 2891336453U);
   for (unsigned int iteration = 0; iteration < kSensitiveIterations;
        ++iteration) {
@@ -168,6 +159,17 @@ std::uint32_t expected_sensitive_value(std::uint32_t seed,
     state ^= state >> 16;
   }
   return state;
+}
+
+__global__ void sensitive_kernel(std::uint32_t seed,
+                                 std::uint32_t* output) {
+  const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+  output[index] = sensitive_value(seed, index);
+}
+
+std::uint32_t expected_sensitive_value(std::uint32_t seed,
+                                       unsigned int index) {
+  return sensitive_value(seed, index);
 }
 
 double median(std::vector<double> values) {
@@ -244,7 +246,7 @@ std::string make_run_id() {
 struct ModeResult {
   std::vector<double> gpu_latency_ms;
   std::vector<double> host_launch_to_sync_ms;
-  bool correctness = true;
+  bool correctness = false;
 };
 
 struct InvocationResult {
@@ -631,8 +633,8 @@ void wait_for_background_ready(const int* ready_host, int required) {
   while (*reinterpret_cast<volatile const int*>(ready_host) < required) {
     if (std::chrono::steady_clock::now() >= deadline) {
       std::ostringstream message;
-      message << "background readiness timed out: observed " << *ready_host
-              << ", required " << required;
+      message << "background residency timed out: observed " << *ready_host
+              << " resident blocks, required " << required;
       throw BenchError(message.str());
     }
     std::this_thread::sleep_for(std::chrono::microseconds(50));
@@ -786,6 +788,7 @@ ModeResult run_mode(cudaStream_t sensitive_stream,
     result.host_launch_to_sync_ms.push_back(
         sample_result.host_launch_to_sync_ms);
   }
+  result.correctness = true;
   return result;
 }
 
@@ -1261,6 +1264,9 @@ int run_benchmark(const std::filesystem::path& requested_output) {
 
   auto run_ordinary = [&](unsigned int invocation_index) {
     OrdinaryStreams streams(report.priority_high, report.priority_low);
+    // The occupancy API bounds resident blocks per SM. Requiring that bound
+    // across every available SM while the kernel increments on entry and
+    // decrements on exit proves the background grid is resident everywhere.
     const int ready_target =
         report.background_active_blocks_per_sm *
         static_cast<int>(report.sm_total);
@@ -1289,6 +1295,7 @@ int run_benchmark(const std::filesystem::path& requested_output) {
       pair.close();
       return ModeResult{};
     }
+    // Apply the same full-residency invariant to the background partition.
     const int ready_target =
         report.background_active_blocks_per_sm *
         static_cast<int>(report.background_sm_count);
