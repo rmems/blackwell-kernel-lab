@@ -663,6 +663,16 @@ void wait_for_background_ready(const int* ready_host, int required) {
   }
 }
 
+void verify_background_still_resident(const int* ready_host, int required) {
+  const int observed = *reinterpret_cast<volatile const int*>(ready_host);
+  if (observed != required) {
+    std::ostringstream message;
+    message << "background residency changed before sensitive launch: observed "
+            << observed << " resident blocks, required " << required;
+    throw BenchError(message.str());
+  }
+}
+
 void validate_sensitive_output(Buffers& buffers, std::uint32_t seed) {
   std::vector<std::uint32_t> output(kBlockThreads);
   BKL_CUDA_STAGE("copy sensitive output",
@@ -729,6 +739,8 @@ SampleResult run_sample(cudaStream_t sensitive_stream,
     BKL_CUDA_STAGE("create sensitive stop event", cudaEventCreate(&stop_event));
     BKL_CUDA_STAGE("record sensitive start event",
                    cudaEventRecord(start_event, sensitive_stream));
+    verify_background_still_resident(buffers.ready_host(),
+                                     background_ready_target);
     const auto host_start = std::chrono::steady_clock::now();
     sensitive_kernel<<<1, kBlockThreads, 0, sensitive_stream>>>(
         seed, buffers.sensitive_device());
