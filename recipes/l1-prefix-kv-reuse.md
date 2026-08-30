@@ -28,9 +28,10 @@ benchmark, or evidence that a custom KV CUDA kernel is needed.
 - Ollama is already running on `127.0.0.1:11434`.
 - The selected model already exists locally and fits entirely on the GPU. The
   recipe deliberately calls `ollama show`, not `ollama pull`.
-- `curl`, `jq`, `nvidia-smi`, `ollama`, and `rg` are available.
+- `curl`, `flock`, `jq`, `ln`, `nvidia-smi`, `ollama`, `rg`, and `sha256sum`
+  are available.
 - At least **2 GiB of VRAM remains free while the model is loaded**.
-- The expected full prompt-token count is known. The default `1462` is pinned
+- The expected full prompt-token count is known. The default `1466` is pinned
   to the default model and 96-line prefix so silent context truncation fails
   closed. If either changes, first use a context known to fit comfortably,
   observe the stable full `prompt_eval_count`, then set
@@ -209,8 +210,8 @@ trap 'exit 143' TERM
 request() {
   local prompt=$1
   local output=$2
-  local starttransfer_seconds
-  starttransfer_seconds=$(jq -nc \
+  local curl_timings
+  curl_timings=$(jq -nc \
     --arg model "$BKL_MODEL" \
     --arg prompt "$prompt" \
     --argjson num_ctx "$BKL_NUM_CTX" \
@@ -221,7 +222,7 @@ request() {
       --no-buffer \
       --connect-timeout "$BKL_CONNECT_TIMEOUT" \
       --max-time "$BKL_REQUEST_TIMEOUT" \
-      --write-out '%{time_starttransfer}' \
+      --write-out '{"time_starttransfer":%{time_starttransfer},"time_total":%{time_total}}' \
       -H 'Content-Type: application/json' \
       --data-binary @- "$BKL_BASE_URL/api/generate" -o "$output")
   jq -se '
@@ -244,8 +245,8 @@ request() {
     echo "prompt token mismatch: expected $BKL_EXPECTED_PROMPT_TOKENS, got $prompt_eval_count; reject possible truncation or tokenizer drift" >&2
     return 1
   }
-  request_ttft_ms=$(jq -n --arg seconds "$starttransfer_seconds" \
-    '$seconds | tonumber * 1000')
+  request_ttft_ms=$(jq -er '.time_starttransfer * 1000' <<<"$curl_timings")
+  request_total_ms=$(jq -er '.time_total * 1000' <<<"$curl_timings")
 }
 
 static_prefix='Reusable benchmark policy and tool schemas follow. Preserve every line verbatim.'$'\n'
@@ -292,12 +293,10 @@ measure_cell() {
   local vram_free_mib_before_resume
   vram_free_mib_before_resume=$BKL_LAST_FREE_MIB
 
-  local started_ns finished_ns
-  started_ns=$(date +%s%N)
   request "$measured_prompt" "$measured_json"
-  local resume_ttft_ms
+  local resume_ttft_ms measured_total_ms
   resume_ttft_ms=$request_ttft_ms
-  finished_ns=$(date +%s%N)
+  measured_total_ms=$request_total_ms
   assert_loaded_model
   local loaded_free_mib processor
   loaded_free_mib=$BKL_LAST_FREE_MIB
@@ -325,7 +324,7 @@ measure_cell() {
     --argjson prompt_eval_count "$(jq -s 'map(select(.done == true)) | last | .prompt_eval_count' "$measured_json")" \
     --argjson eval_count "$(jq -s 'map(select(.done == true)) | last | .eval_count' "$measured_json")" \
     --argjson prompt_eval_ms "$(jq -s 'map(select(.done == true)) | last | .prompt_eval_duration / 1000000' "$measured_json")" \
-    --argjson one_token_total_ms "$((finished_ns - started_ns))" \
+    --argjson one_token_total_ms "$measured_total_ms" \
     --argjson prime_prompt_eval_ms "$(jq -s 'map(select(.done == true)) | last | .prompt_eval_duration / 1000000' "$prime_json")" \
     --argjson prime_ttft_ms "$prime_ttft_ms" \
     --argjson resume_ttft_ms "$resume_ttft_ms" \
@@ -346,7 +345,7 @@ measure_cell() {
       prompt_eval_count: $prompt_eval_count,
       eval_count: $eval_count,
       prompt_eval_ms: $prompt_eval_ms,
-      one_token_total_ms: ($one_token_total_ms / 1000000),
+      one_token_total_ms: $one_token_total_ms,
       prime_prompt_eval_ms: $prime_prompt_eval_ms,
       prime_ttft_ms: $prime_ttft_ms,
       resume_ttft_ms: $resume_ttft_ms,
@@ -450,17 +449,18 @@ and finished with `eval_count=1`.
 
 | Invocation | Cell order | Prefix-first prompt eval | Varying-first prompt eval | Reduction |
 |---:|---|---:|---:|---:|
-| 1 | prefix → varying | 16.245 ms | 356.892 ms | 95.45% |
-| 2 | varying → prefix | 16.645 ms | 354.217 ms | 95.30% |
-| 3 | prefix → varying | 16.836 ms | 339.848 ms | 95.05% |
-| **Median** | — | **16.645 ms** | **354.217 ms** | **95.30% (21.28×)** |
+| 1 | prefix → varying | 16.041 ms | 348.856 ms | 95.40% |
+| 2 | varying → prefix | 16.278 ms | 348.162 ms | 95.32% |
+| 3 | prefix → varying | 15.960 ms | 347.311 ms | 95.40% |
+| **Median** | — | **16.041 ms** | **348.162 ms** | **95.39% (21.70×)** |
 
-Median streaming TTFT (`curl time_starttransfer`) was 19.791 ms for the resumed
-prefix-first request versus 416.180 ms for varying-first (95.24%, 21.03×).
-Prefix-first cold TTFT was 2,475.892 ms because it includes model load; compare
-the two resumed layouts for the prompt-order conclusion. Median outer request
-time through one generated token was 29.131 ms versus 425.215 ms (93.15%,
-14.60×). Loaded-model free VRAM was 3,409–3,513 MiB, above the 2 GiB host rule.
+Median streaming TTFT (`curl time_starttransfer`) was 19.452 ms for the resumed
+prefix-first request versus 407.302 ms for varying-first (95.22%, 20.94×).
+Prefix-first cold TTFT was 2,464.512 ms because it includes model load; compare
+the two resumed layouts for the prompt-order conclusion. Median HTTP time
+through one generated token (`curl time_total`) was 19.599 ms versus 407.428 ms
+(95.19%, 20.79×). Loaded-model free VRAM was 3,481–3,509 MiB, above the 2 GiB
+host rule.
 
 The ≥10% per-invocation gate passes in all three invocations. The L1 policy is
 therefore to keep stable policy/tool material at the front and branch on the
