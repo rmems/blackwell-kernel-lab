@@ -46,7 +46,8 @@ result, stops the model between cells so every prime starts cold, alternates
 cell order, exercises each cache path once before recording, and stops the
 model again on exit. The prime request is excluded from the measured request.
 Streaming time to first response byte is recorded as the TTFT observable.
-Local API calls have configurable connect and whole-request timeouts.
+Local API calls have configurable connect and whole-request timeouts. Only the
+result basename is configurable; raw output always stays under `results/`.
 
 ```bash
 set -euo pipefail
@@ -60,9 +61,9 @@ set -euo pipefail
 : "${BKL_MIN_FREE_MIB:=2048}"
 : "${BKL_CONNECT_TIMEOUT:=5}"
 : "${BKL_REQUEST_TIMEOUT:=120}"
-: "${BKL_RESULT_PATH:=results/prefix-kv-reuse.jsonl}"
+: "${BKL_RESULT_NAME:=prefix-kv-reuse.jsonl}"
 
-for tool in curl jq nvidia-smi ollama rg; do
+for tool in curl jq nvidia-smi ollama rg sha256sum; do
   command -v "$tool" >/dev/null || { echo "missing required tool: $tool" >&2; exit 1; }
 done
 
@@ -94,6 +95,16 @@ normalize_uint BKL_REQUEST_TIMEOUT "$BKL_REQUEST_TIMEOUT" 1 || exit 1
   echo "expected prompt plus one output token does not fit BKL_NUM_CTX" >&2
   exit 1
 }
+[[ "$BKL_BASE_URL" =~ ^https?://[^/]+$ ]] || {
+  echo "BKL_BASE_URL must be an Ollama origin without a path or trailing slash" >&2
+  exit 1
+}
+[[ "$BKL_RESULT_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.jsonl$ ]] || {
+  echo "BKL_RESULT_NAME must be a .jsonl basename without directories" >&2
+  exit 1
+}
+BKL_RESULT_PATH="results/$BKL_RESULT_NAME"
+export OLLAMA_HOST="$BKL_BASE_URL"
 [[ ! -e "$BKL_RESULT_PATH" ]] || {
   echo "refusing to overwrite $BKL_RESULT_PATH" >&2
   exit 1
@@ -112,6 +123,26 @@ free_mib() {
   nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits | head -n 1 | tr -d ' '
 }
 
+assert_loaded_model() {
+  BKL_LAST_FREE_MIB=$(free_mib)
+  (( BKL_LAST_FREE_MIB >= BKL_MIN_FREE_MIB )) || {
+    echo "loaded-model VRAM headroom is ${BKL_LAST_FREE_MIB} MiB; need ${BKL_MIN_FREE_MIB} MiB" >&2
+    return 1
+  }
+
+  local ps_output
+  if ! ps_output=$(ollama ps 2>&1); then
+    echo "ollama ps failed while validating model residency: $ps_output" >&2
+    return 1
+  fi
+  BKL_LAST_MODEL_ROW=$(awk -v model="$BKL_MODEL" '$1 == model { print; exit }' <<<"$ps_output")
+  BKL_LAST_PROCESSOR=$(rg -o '[0-9]+% GPU' <<<"$BKL_LAST_MODEL_ROW" | head -n 1 || true)
+  [[ "$BKL_LAST_PROCESSOR" == '100% GPU' ]] || {
+    echo "model is not 100% GPU-resident: ${BKL_LAST_MODEL_ROW:-missing from ollama ps}" >&2
+    return 1
+  }
+}
+
 before_free_mib=$(free_mib)
 (( before_free_mib >= BKL_MIN_FREE_MIB )) || {
   echo "preflight VRAM headroom is ${before_free_mib} MiB; need ${BKL_MIN_FREE_MIB} MiB" >&2
@@ -124,9 +155,19 @@ scratch_dir=$(mktemp -d "$result_dir/.bkl-prefix-kv.XXXXXX")
 tmp_result="$scratch_dir/result.jsonl"
 
 stop_model() {
-  ollama stop "$BKL_MODEL" >/dev/null 2>&1 || true
+  local stop_output
+  if ! stop_output=$(ollama stop "$BKL_MODEL" 2>&1); then
+    echo "ollama stop failed: $stop_output" >&2
+    return 1
+  fi
   for _ in $(seq 1 30); do
-    if ! ollama ps | awk 'NR > 1 { print $1 }' | rg -Fx -- "$BKL_MODEL" >/dev/null; then
+    local ps_output loaded_name
+    if ! ps_output=$(ollama ps 2>&1); then
+      echo "ollama ps failed while confirming unload: $ps_output" >&2
+      return 1
+    fi
+    loaded_name=$(awk -v model="$BKL_MODEL" '$1 == model { print $1; exit }' <<<"$ps_output")
+    if [[ -z "$loaded_name" ]]; then
       return 0
     fi
     sleep 1
@@ -182,6 +223,7 @@ static_prefix='Reusable benchmark policy and tool schemas follow. Preserve every
 for line_number in $(seq -w 1 "$BKL_PREFIX_LINES"); do
   static_prefix+="Reference clause ${line_number}: inputs are deterministic; report only the requested token."$'\n'
 done
+static_prefix_sha256=$(printf '%s' "$static_prefix" | sha256sum | awk '{ print $1 }')
 
 engine_version=$(ollama --version 2>&1 | head -n 1)
 gpu_name=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n 1)
@@ -208,11 +250,17 @@ measure_cell() {
       return 1
       ;;
   esac
+  local prompt_pair_sha256
+  prompt_pair_sha256=$(printf '%s\0%s' "$prime_prompt" "$measured_prompt" |
+    sha256sum | awk '{ print $1 }')
 
   stop_model
   request "$prime_prompt" "$prime_json"
   local prime_ttft_ms
   prime_ttft_ms=$request_ttft_ms
+  assert_loaded_model
+  local vram_free_mib_before_resume
+  vram_free_mib_before_resume=$BKL_LAST_FREE_MIB
 
   local started_ns finished_ns
   started_ns=$(date +%s%N)
@@ -220,21 +268,10 @@ measure_cell() {
   local resume_ttft_ms
   resume_ttft_ms=$request_ttft_ms
   finished_ns=$(date +%s%N)
-
-  local loaded_free_mib
-  loaded_free_mib=$(free_mib)
-  (( loaded_free_mib >= BKL_MIN_FREE_MIB )) || {
-    echo "loaded-model VRAM headroom is ${loaded_free_mib} MiB; need ${BKL_MIN_FREE_MIB} MiB" >&2
-    return 1
-  }
-
-  local processor model_row
-  model_row=$(ollama ps | awk -v model="$BKL_MODEL" '$1 == model { print; exit }')
-  processor=$(rg -o '[0-9]+% GPU' <<<"$model_row" | head -n 1 || true)
-  [[ "$processor" == '100% GPU' ]] || {
-    echo "model is not 100% GPU-resident: ${model_row:-missing from ollama ps}" >&2
-    return 1
-  }
+  assert_loaded_model
+  local loaded_free_mib processor
+  loaded_free_mib=$BKL_LAST_FREE_MIB
+  processor=$BKL_LAST_PROCESSOR
 
   jq -nc \
     --arg timestamp "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
@@ -243,6 +280,9 @@ measure_cell() {
     --arg gpu "$gpu_name" \
     --arg driver "$driver_version" \
     --arg processor "$processor" \
+    --arg endpoint "$BKL_BASE_URL" \
+    --arg static_prefix_sha256 "$static_prefix_sha256" \
+    --arg prompt_pair_sha256 "$prompt_pair_sha256" \
     --arg cell "$cell" \
     --argjson run "$run" \
     --argjson num_ctx "$BKL_NUM_CTX" \
@@ -250,6 +290,7 @@ measure_cell() {
     --argjson expected_prompt_tokens "$BKL_EXPECTED_PROMPT_TOKENS" \
     --argjson connect_timeout_seconds "$BKL_CONNECT_TIMEOUT" \
     --argjson request_timeout_seconds "$BKL_REQUEST_TIMEOUT" \
+    --argjson vram_free_mib_before_resume "$vram_free_mib_before_resume" \
     --argjson prompt_eval_count "$(jq -s 'map(select(.done == true)) | last | .prompt_eval_count' "$measured_json")" \
     --argjson prompt_eval_ms "$(jq -s 'map(select(.done == true)) | last | .prompt_eval_duration / 1000000' "$measured_json")" \
     --argjson one_token_total_ms "$((finished_ns - started_ns))" \
@@ -258,8 +299,10 @@ measure_cell() {
     --argjson resume_ttft_ms "$resume_ttft_ms" \
     --argjson vram_free_mib "$loaded_free_mib" \
     '{schema_version: 1, timestamp: $timestamp,
-      engine: {name: "ollama", version: $engine_version},
+      engine: {name: "ollama", version: $engine_version, endpoint: $endpoint},
       model: $model, gpu: $gpu, driver: $driver, processor: $processor,
+      static_prefix_sha256: $static_prefix_sha256,
+      prompt_pair_sha256: $prompt_pair_sha256,
       options: {num_ctx: $num_ctx, num_predict: 1, temperature: 0, seed: 8,
                 prefix_lines: $prefix_lines,
                 expected_prompt_tokens: $expected_prompt_tokens,
@@ -273,6 +316,7 @@ measure_cell() {
       prime_prompt_eval_ms: $prime_prompt_eval_ms,
       prime_ttft_ms: $prime_ttft_ms,
       resume_ttft_ms: $resume_ttft_ms,
+      vram_free_mib_before_resume: $vram_free_mib_before_resume,
       vram_free_mib: $vram_free_mib}' >>"$tmp_result"
 }
 
@@ -295,7 +339,9 @@ warmup_cell() {
 
   stop_model
   request "$prime_prompt" "$warmup_prime_json"
+  assert_loaded_model
   request "$measured_prompt" "$warmup_measured_json"
+  assert_loaded_model
 }
 
 # Exercise both cache paths once outside the recorded invocations. On this
@@ -363,17 +409,17 @@ prompt had `prompt_eval_count=1462`; the duration, not the count, exposed reuse.
 
 | Invocation | Cell order | Prefix-first prompt eval | Varying-first prompt eval | Reduction |
 |---:|---|---:|---:|---:|
-| 1 | prefix → varying | 24.931 ms | 351.043 ms | 92.90% |
-| 2 | varying → prefix | 21.951 ms | 355.731 ms | 93.83% |
-| 3 | prefix → varying | 23.369 ms | 349.777 ms | 93.32% |
-| **Median** | — | **23.369 ms** | **351.043 ms** | **93.34% (15.02×)** |
+| 1 | prefix → varying | 21.848 ms | 345.044 ms | 93.67% |
+| 2 | varying → prefix | 21.743 ms | 358.485 ms | 93.93% |
+| 3 | prefix → varying | 22.403 ms | 351.672 ms | 93.63% |
+| **Median** | — | **21.848 ms** | **351.672 ms** | **93.79% (16.10×)** |
 
-Median streaming TTFT (`curl time_starttransfer`) was 26.994 ms for the resumed
-prefix-first request versus 411.945 ms for varying-first (93.45%, 15.26×).
-Prefix-first cold TTFT was 2,363.259 ms because it includes model load; compare
+Median streaming TTFT (`curl time_starttransfer`) was 25.284 ms for the resumed
+prefix-first request versus 412.605 ms for varying-first (93.87%, 16.32×).
+Prefix-first cold TTFT was 2,408.533 ms because it includes model load; compare
 the two resumed layouts for the prompt-order conclusion. Median outer request
-time through one generated token was 35.870 ms versus 422.360 ms (91.51%,
-11.77×). Loaded-model free VRAM was 3,428–3,477 MiB, above the 2 GiB host rule.
+time through one generated token was 34.014 ms versus 421.872 ms (91.94%,
+12.40×). Loaded-model free VRAM was 3,495–3,585 MiB, above the 2 GiB host rule.
 
 The ≥10% per-invocation gate passes in all three invocations. The L1 policy is
 therefore to keep stable policy/tool material at the front and branch on the
