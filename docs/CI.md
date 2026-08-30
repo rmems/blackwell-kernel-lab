@@ -1,22 +1,21 @@
 # CI — CPU (GitHub-hosted) + GPU (self-hosted)
 
 | Workflow | Runner | Purpose |
-|----------|--------|---------|
-| [`.github/workflows/ci-cpu.yml`](../.github/workflows/ci-cpu.yml) | **`ubuntu-latest`** (GitHub servers) | `py_compile` + synthetic harness — no GPU |
-| [`.github/workflows/ci-gpu.yml`](../.github/workflows/ci-gpu.yml) | **Self-hosted** `ShipOfTheseus` labels: `self-hosted`, `Linux`, `X64`, `CUDA` | `nvidia-smi` + synthetic; optional live smoke |
+|---|---|---|
+| [`.github/workflows/ci-cpu.yml`](../.github/workflows/ci-cpu.yml) | **`ubuntu-latest`** | Kernel-tree checks and CUDA-disabled CMake configure |
+| [`.github/workflows/ci-gpu.yml`](../.github/workflows/ci-gpu.yml) | **Self-hosted** `ShipOfTheseus` (`self-hosted`, `Linux`, `X64`, `CUDA`) | GPU probe plus sm_120 L3 build, binaries, and graph-benchmark JSON |
 
 ## Host runner (this machine)
 
 | Field | Value |
-|-------|--------|
+|---|---|
 | Name | **ShipOfTheseus** |
 | Labels | `self-hosted`, `Linux`, `X64`, `CUDA` |
 | GPU | RTX 5080 (`sm_120`) |
 
-Ensure the Actions runner service is **online** before expecting `ci-gpu` to pick jobs:
+Ensure the Actions runner is online before expecting `ci-gpu` to pick jobs:
 
 ```bash
-# Typical user install location (adjust if different)
 sudo systemctl status actions.runner.*   # or: cd ~/actions-runner && ./svc.sh status
 ```
 
@@ -24,30 +23,24 @@ Re-register / label docs: [GitHub self-hosted runners](https://docs.github.com/e
 
 ## Security (self-hosted)
 
-1. **Fork PRs never run on the GPU host** — trust gate job runs on **GitHub-hosted** `ubuntu-latest` and sets `allow=false` when `head.repo != this repo`. The self-hosted job is skipped entirely (no checkout of fork code on the GPU box).  
-2. Actions are **pinned to commit SHAs** (not floating tags) in workflow files.  
-3. Prefer **not** using secrets that can be exfiltrated by untrusted PR code on self-hosted.  
-4. Optional live smoke (`vars.BKL_GPU_LIVE_SMOKE=1`) only when Ollama is intentionally left up.  
-5. Desktop share: GPU jobs may compete with interactive agents — keep `concurrency` cancel-in-progress.  
-6. Do not store model weights or API keys in the runner work dir long-term.
+1. **Fork PRs never run on the GPU host** — the GitHub-hosted trust gate skips the self-hosted job when `head.repo != this repo`.
+2. Actions are pinned to commit SHAs, not floating tags.
+3. Do not use secrets that untrusted PR code could exfiltrate on self-hosted infrastructure.
+4. Desktop share: GPU jobs may compete with interactive work; keep `concurrency` cancel-in-progress.
+5. Do not store model weights or API keys in the runner work directory long-term.
 
 ## Local equivalents
 
 ```bash
 # Same as ci-cpu
-python3 -m py_compile harness/agent_loop/*.py harness/serve/*.py harness/report/*.py
-python3 harness/agent_loop/run_synthetic.py --out results/
 cmake -S kernels -B build/kernels-cpu -DBKL_ENABLE_CUDA=OFF
 
-# Live metrics (#10) — needs Ollama/llama-server
-export BKL_BASE_URL=http://127.0.0.1:11434/v1
-export BKL_MODEL=granite4.1:8b
-python3 harness/agent_loop/run_live_metrics.py --out results/ --loops 1
-
-# L3 CUDA smoke (#19 / #21)
+# L3 CUDA smoke (#19 / #21 / #30)
 cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON
 cmake --build build/kernels -j
 ./build/kernels/src/bkl_device_hello
+./build/kernels/src/bkl_graph_launch_bench --out results/graph-launch-bench.json
+python3 -m json.tool results/graph-launch-bench.json >/dev/null
 ```
 
 ## Issue

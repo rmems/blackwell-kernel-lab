@@ -19,7 +19,6 @@ choose its exact location, including in CI, pass `--out`:
 
 ```bash
 ./build/kernels/src/bkl_graph_launch_bench --out results/graph-launch-bench.json
-python3 harness/report/aggregate.py --results results/
 ```
 
 Expected banner (numbers vary):
@@ -38,7 +37,7 @@ Empty kernel ≈ launch overhead. Saxpy is 1M floats — still launch-ish, not a
 ## Notes
 
 - Arch: **sm_120** only. The benchmark exits with status 1 when the GPU compute capability is not 12.0.
-- Not FA4 / not an agent harness.  
+- Not FA4 / not a model benchmark.
 - The benchmark allocates two 1M-float SAXPY buffers: **8 MiB** total explicit
   device memory, plus CUDA runtime/context overhead. It is safe alongside a
   local-agent model only when the normal **>=2 GB free VRAM** headroom remains;

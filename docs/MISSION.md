@@ -1,54 +1,39 @@
-# Mission — GPU kernel + local agent lab
+# Mission — RTX 5080 GPU kernel lab
 
 ## Goal
 
-On the RTX 5080 workstation:
-
-1. **Own GPU kernel work for this host** — L1 engine CUDA paths, L2 scheduling, L3 first-party kernels when L1 proves a gap ([KERNELS.md](KERNELS.md)).  
-2. Run **local AI agents** so they are:
-   - **Efficient** — low tool-loop latency, stable TTFT/TPOT, disciplined VRAM/energy, multi-agent stability  
-   - **Smarter** — reliable tools, constrained outputs, prefix/memory reuse, better concurrency  
+Own GPU kernel work for this RTX 5080 host: L1 engine CUDA paths, L2 scheduling,
+and L3 first-party kernels only when L1 proves a gap ([KERNELS.md](KERNELS.md)).
 
 ## Non-goals
 
 | Non-goal | Owner instead |
-|----------|----------------|
-| Multi-repo Limen CUDA “does it build?” matrix | Retired from this epic |
-| **Model training / fine-tuning forge** | **`rmems/agoge-forger`** (confirmed) — see [FORGE_BOUNDARY.md](FORGE_BOUNDARY.md) |
-| Cloud multi-tenant agent SaaS | Out of scope |
-| Blind L3 kernel writing without L1 baselines | Deferred until measured gap |
+|---|---|
+| Multi-repo Limen CUDA build matrix | Retired from this epic |
+| Model training / fine-tuning forge | [`rmems/agoge-forger`](https://github.com/rmems/agoge-forger) |
+| Blind L3 kernel writing without L1 baselines | Deferred until a measured gap |
 
 ## Ownership (kernels)
 
 | Layer | Meaning | SoT |
-|-------|---------|-----|
+|---|---|---|
 | L1 | Measure engine CUDA (FA, graphs, quant, prefix) | **this repo** |
 | L2 | Host scheduling (Green Contexts, queues) | **this repo** |
 | L3 | New `.cu` / CUTLASS | **this repo** (when justified) |
 | Neuromorphic optional | myelin-style ops | `Limen-Neural/myelin-accelerator` as optional dep only |
 
-`agoge-forger/cuda/` remains a **stub**; real kernel lab work lands here.
+`agoge-forger/cuda/` remains a stub; real kernel lab work lands here.
 
 ## Success
 
-- [x] README/epic describe dual mission (kernels SoT + agent lab), not Limen verification  
-- [x] Host baseline doc (agent + 16 GB oriented) — `docs/HOST_BASELINE.md`  
-- [x] Harness runs a synthetic agent loop → JSON  
-- [x] Documented path to run a local agent / engine smoke on this 5080  
-- [x] L1 kernel ablation path documented (`recipes/kernel-ablation.md`; fill #16 cells)  
-- [ ] Backlog issues fully filled with measured MATRIX rows  
-- [x] L3 workspace / smoke path (`kernels/`, `bkl_device_hello`, sm_120)  
-- [x] Self-hosted **GPU** CI runner for this lab (#11 / #27)
+- [x] README/epic describe a GPU kernel source of truth, not Limen verification.
+- [x] Hardware baseline documented for the 16 GB RTX 5080.
+- [x] L1 engine-CUDA measurement methodology documented ([kernel ablation recipe](../recipes/kernel-ablation.md)).
+- [x] L3 workspace / smoke path (`kernels/`, `bkl_device_hello`, sm_120).
+- [x] Self-hosted GPU CI runner for this lab (#11 / #27).
 
 ## Research anchors
 
-**Kernels (sm_120):**
-
-- Quant fit → CUDA graphs → engine Flash (not FA4/B200) → prefix reuse → optional Green Contexts  
-- Proven gap → L3 first-party kernel  
-
-**Agents:**
-
-- Cold prefill / resume prefill / short decode  
-- NVFP4 / Q4 under 16 GB  
-- Constrained tools, multi-agent TPOT  
+- Quant fit → CUDA graphs → engine Flash (not FA4/B200) → prefix reuse → optional Green Contexts.
+- Proven gap → L3 first-party kernel.
+- CUDA graph launch/replay measurements provide engine-measurement context, not an inference-policy claim.

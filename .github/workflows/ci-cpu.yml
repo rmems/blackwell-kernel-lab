@@ -1,4 +1,4 @@
-# CPU CI — GitHub-hosted (no GPU). Syntax + synthetic harness only.
+# CPU CI — GitHub-hosted (no GPU). Kernel CMake skip path only.
 name: ci-cpu
 
 on:
@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  harness-cpu:
-    name: Synthetic harness (ubuntu-latest)
+  kernels-cpu-configure:
+    name: Kernel CMake configure (ubuntu-latest)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -21,28 +21,6 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-
-      - name: Setup Python
-        # actions/setup-python@v5 pinned
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
-        with:
-          python-version: "3.12"
-
-      - name: Compile harness
-        run: |
-          python3 -m py_compile \
-            harness/agent_loop/run_synthetic.py \
-            harness/agent_loop/run_live_metrics.py \
-            harness/serve/smoke_openai.py \
-            harness/serve/openai_compat.py \
-            harness/report/aggregate.py
-
-      - name: Synthetic agent loop
-        run: |
-          python3 harness/agent_loop/run_synthetic.py --out results/
-          python3 harness/report/aggregate.py --results results/
-          test -f results/summary.csv
-          ls -la results/
 
       - name: Kernels CMake skip path (no CUDA)
         run: |
