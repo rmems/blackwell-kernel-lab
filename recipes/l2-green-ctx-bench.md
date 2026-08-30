@@ -46,10 +46,14 @@ result. It does not mean the 10% decision gate passed. Read `outcome` and
   stream the device's highest available priority; the background stream uses
   the lowest priority. The comparison therefore does not handicap the
   ordinary-stream baseline by ignoring stream priorities.
-- The background kernel launches three waves of 1,024-thread blocks. The grid
-  is derived from CUDA's reported active-block occupancy and total SM count.
-  Each block runs for about 10 ms, and a mapped readiness counter ensures the
-  first resident wave is executing before the sensitive kernel is submitted.
+- The background grid contains three full-device waves of 1,024-thread blocks
+  in ordinary mode. Because the partitioned mode deliberately runs that same
+  grid on only the queried background partition, JSON records its larger
+  partition-relative wave count separately (6.3 waves for the measured 84/40
+  split). The grid is derived from CUDA's reported active-block occupancy and
+  total SM count. Each block runs for about 10 ms, and an occupancy-derived
+  live-residency counter reaches full selected-SM capacity before the sensitive
+  kernel is submitted.
 - The partitioned path runs the identical background and sensitive kernels on
   two disjoint Green Context streams with the same priorities.
 - CUDA events on the sensitive stream record submission-to-completion GPU
@@ -64,9 +68,10 @@ result. It does not mean the 10% decision gate passed. Read `outcome` and
 
 Before allocation, the executable records `cudaMemGetInfo`, its explicit
 planned allocation, and projected remaining VRAM. It also samples free VRAM
-after allocation and around both execution modes. A projected or observed value
-below 2 GiB produces an honest `insufficient_vram_headroom` outcome with no
-latency distributions and explicitly null summary latency fields.
+after allocation, while each sample's streams, events, and background work are
+live, and around both execution modes. A projected or observed value below 2
+GiB produces an honest `insufficient_vram_headroom` outcome with no latency
+distributions and explicitly null summary latency fields.
 
 ## Outcome model
 
@@ -99,18 +104,20 @@ The runtime query returned:
 | Sensitive partition | 40 SMs |
 | Background partition | 40 SMs |
 | Remainder | 4 SMs |
+| Ordinary background waves | 3.0 |
+| Partition-relative background waves | 6.3 |
 
 The retained medians were:
 
 | Invocation | Order | Ordinary | Partitioned | Reduction |
 |---:|---|---:|---:|---:|
-| 1 | ordinary→partitioned | 9.5092 ms | 0.1407 ms | 98.52% |
-| 2 | partitioned→ordinary | 9.5218 ms | 0.1408 ms | 98.52% |
-| 3 | ordinary→partitioned | 9.5248 ms | 0.1410 ms | 98.52% |
+| 1 | ordinary→partitioned | 9.6550 ms | 0.1406 ms | 98.54% |
+| 2 | partitioned→ordinary | 9.6455 ms | 0.1406 ms | 98.54% |
+| 3 | ordinary→partitioned | 9.6510 ms | 0.1412 ms | 98.54% |
 
 All three invocations passed the required 10% reduction independently and all
 output checks passed. Explicit planned device allocation was 6,112 bytes; the
-minimum observed free VRAM was 14,052,818,944 bytes, comfortably above the
+minimum observed free VRAM was 13,935,050,752 bytes, comfortably above the
 2 GiB rule.
 
 This result justifies a separate engine-integration experiment. In particular,

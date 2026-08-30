@@ -26,7 +26,6 @@
 
 namespace {
 
-constexpr unsigned int kBackgroundWaves = 3;
 constexpr unsigned int kBlockThreads = 1024;
 constexpr unsigned int kBackgroundDelayUs = 10000;
 constexpr unsigned int kSensitiveIterations = 12000;
@@ -42,6 +41,8 @@ constexpr std::size_t kRequiredHeadroomBytes = 2ULL * 1024ULL * 1024ULL * 1024UL
 #endif
 
 #if BKL_HAS_GREEN_CONTEXT_API
+constexpr unsigned int kBackgroundWaves = 3;
+constexpr double kReportScale = 1000000.0;
 constexpr auto kReadyTimeout = std::chrono::seconds(10);
 #endif
 
@@ -182,6 +183,10 @@ double median(std::vector<double> values) {
     return (values[middle - 1] + values[middle]) / 2.0;
   }
   return values[middle];
+}
+
+double round_to_report_precision(double value) {
+  return std::round(value * kReportScale) / kReportScale;
 }
 
 #endif
@@ -427,7 +432,24 @@ std::string render_report(const Report& report) {
       << report.background_active_blocks_per_sm << ",\n"
       << "    \"background_grid_blocks\": "
       << report.background_grid_blocks << ",\n"
-      << "    \"background_waves\": " << kBackgroundWaves << ",\n"
+      << "    \"ordinary_background_waves\": ";
+  if (report.background_active_blocks_per_sm > 0 && report.sm_total > 0) {
+    out << static_cast<double>(report.background_grid_blocks) /
+               (static_cast<double>(report.background_active_blocks_per_sm) *
+                report.sm_total);
+  } else {
+    out << "null";
+  }
+  out << ",\n    \"partitioned_background_waves\": ";
+  if (report.background_active_blocks_per_sm > 0 &&
+      report.background_sm_count > 0) {
+    out << static_cast<double>(report.background_grid_blocks) /
+               (static_cast<double>(report.background_active_blocks_per_sm) *
+                report.background_sm_count);
+  } else {
+    out << "null";
+  }
+  out << ",\n"
       << "    \"background_delay_us_per_block\": "
       << kBackgroundDelayUs << ",\n"
       << "    \"background_delay_cycles\": "
@@ -683,7 +705,7 @@ SampleResult run_sample(cudaStream_t sensitive_stream,
                         CUcontext primary_context,
                         int background_ready_target,
                         unsigned long long background_delay_cycles,
-                        std::uint32_t seed, Buffers& buffers) {
+                        std::uint32_t seed, Report& report, Buffers& buffers) {
   cudaEvent_t start_event = nullptr;
   cudaEvent_t stop_event = nullptr;
   try {
@@ -713,6 +735,12 @@ SampleResult run_sample(cudaStream_t sensitive_stream,
     BKL_CUDA_STAGE("launch sensitive kernel", cudaGetLastError());
     BKL_CUDA_STAGE("record sensitive stop event",
                    cudaEventRecord(stop_event, sensitive_stream));
+    set_current_context(primary_context,
+                        "restore primary context for live VRAM query");
+    static_cast<void>(
+        observe_vram_headroom(report, "observe live sample VRAM"));
+    set_current_context(sensitive_context,
+                        "restore sensitive context after live VRAM query");
     BKL_CUDA_STAGE("synchronize sensitive stop event",
                    cudaEventSynchronize(stop_event));
     const auto host_stop = std::chrono::steady_clock::now();
@@ -765,13 +793,17 @@ ModeResult run_mode(cudaStream_t sensitive_stream,
                     CUcontext primary_context,
                     int background_ready_target,
                     unsigned long long background_delay_cycles,
-                    unsigned int invocation_index, Buffers& buffers) {
+                    unsigned int invocation_index, Report& report,
+                    Buffers& buffers) {
   // One complete overlap warmup is intentionally excluded from distributions.
   const std::uint32_t warmup_seed = 0x6b8b4567U ^ invocation_index;
   static_cast<void>(run_sample(
       sensitive_stream, background_stream, sensitive_context,
       background_context, primary_context, background_ready_target,
-      background_delay_cycles, warmup_seed, buffers));
+      background_delay_cycles, warmup_seed, report, buffers));
+  if (report.outcome != "measured") {
+    return ModeResult{};
+  }
 
   ModeResult result;
   result.gpu_latency_ms.reserve(kSamplesPerMode);
@@ -783,7 +815,10 @@ ModeResult run_mode(cudaStream_t sensitive_stream,
         run_sample(sensitive_stream, background_stream, sensitive_context,
                    background_context, primary_context,
                    background_ready_target, background_delay_cycles, seed,
-                   buffers);
+                   report, buffers);
+    if (report.outcome != "measured") {
+      return ModeResult{};
+    }
     result.gpu_latency_ms.push_back(sample_result.gpu_latency_ms);
     result.host_launch_to_sync_ms.push_back(
         sample_result.host_launch_to_sync_ms);
@@ -1273,7 +1308,8 @@ int run_benchmark(const std::filesystem::path& requested_output) {
     ModeResult result =
         run_mode(streams.sensitive(), streams.background(), primary_context,
                  primary_context, primary_context, ready_target,
-                 report.background_delay_cycles, invocation_index, buffers);
+                 report.background_delay_cycles, invocation_index, report,
+                 buffers);
     streams.close();
     static_cast<void>(
         observe_vram_headroom(report, "observe ordinary-mode VRAM"));
@@ -1302,7 +1338,8 @@ int run_benchmark(const std::filesystem::path& requested_output) {
     ModeResult result =
         run_mode(pair.sensitive(), pair.background(), pair.sensitive_context(),
                  pair.background_context(), primary_context, ready_target,
-                 report.background_delay_cycles, invocation_index, buffers);
+                 report.background_delay_cycles, invocation_index, report,
+                 buffers);
     static_cast<void>(
         observe_vram_headroom(report, "observe partitioned-mode VRAM"));
     pair.close();
@@ -1335,10 +1372,10 @@ int run_benchmark(const std::filesystem::path& requested_output) {
       report.invocations.clear();
       break;
     }
-    invocation.ordinary_median_ms =
-        median(invocation.ordinary.gpu_latency_ms);
-    invocation.partitioned_median_ms =
-        median(invocation.partitioned.gpu_latency_ms);
+    invocation.ordinary_median_ms = round_to_report_precision(
+        median(invocation.ordinary.gpu_latency_ms));
+    invocation.partitioned_median_ms = round_to_report_precision(
+        median(invocation.partitioned.gpu_latency_ms));
     if (!(invocation.ordinary_median_ms > 0.0) ||
         !(invocation.partitioned_median_ms > 0.0) ||
         !std::isfinite(invocation.ordinary_median_ms) ||

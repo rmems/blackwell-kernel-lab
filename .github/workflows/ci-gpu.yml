@@ -103,6 +103,7 @@ jobs:
           test -s results/green-ctx-bench.json
           python3 - <<'PY'
           import json
+          import math
           from pathlib import Path
 
           data = json.loads(Path("results/green-ctx-bench.json").read_text())
@@ -121,6 +122,27 @@ jobs:
               assert data["host"]["projected_free_after_bytes"] >= data["host"]["required_headroom_bytes"]
               assert data["host"]["vram_min_observed_bytes"] >= data["host"]["required_headroom_bytes"]
               assert data["capability"]["created_groups"] == 2
+              workload = data["workload"]
+              ordinary_waves = workload["background_grid_blocks"] / (
+                  workload["background_active_blocks_per_sm"]
+                  * data["capability"]["sm_total"]
+              )
+              partitioned_waves = workload["background_grid_blocks"] / (
+                  workload["background_active_blocks_per_sm"]
+                  * data["capability"]["background_sm_count"]
+              )
+              assert math.isclose(
+                  workload["ordinary_background_waves"],
+                  ordinary_waves,
+                  rel_tol=0.0,
+                  abs_tol=1e-6,
+              )
+              assert math.isclose(
+                  workload["partitioned_background_waves"],
+                  partitioned_waves,
+                  rel_tol=0.0,
+                  abs_tol=1e-6,
+              )
               assert data["summary"]["ordinary_median_ms"] > 0
               assert data["summary"]["partitioned_median_ms"] > 0
               assert len(data["invocations"]) == 3
