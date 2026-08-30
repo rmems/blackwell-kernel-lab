@@ -88,6 +88,7 @@ if(NOT CMAKE_CUDA_COMPILER)
 endif()
 
 enable_language(CUDA)
+find_package(CUDAToolkit REQUIRED)
 # RTX 5080 consumer Blackwell — compute capability 12.0
 set(CMAKE_CUDA_ARCHITECTURES 120 CACHE STRING "CUDA arch for this lab" FORCE)
 set(CMAKE_CUDA_STANDARD 17)

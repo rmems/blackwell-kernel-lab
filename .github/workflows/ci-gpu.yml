@@ -62,7 +62,7 @@ jobs:
           fi
           command -v nvcc && nvcc --version | tail -2 || echo "nvcc not on PATH; kernel build requires it"
 
-      - name: L3 device_hello (sm_120)
+      - name: sm_120 kernel suite
         run: |
           HOST_CXX=""
           # Prefer newer supported hosts first (CUDA 13.3: g++ 6–15).
@@ -96,3 +96,43 @@ jobs:
           test -s results/graph-launch-bench.json
           python3 -m json.tool results/graph-launch-bench.json >/dev/null
           grep -q "bkl graph_launch_bench sm_120 ok" /tmp/bkl_graph_launch_bench.out
+          ./build/kernels/src/bkl_green_ctx_bench \
+            --out results/green-ctx-bench.json | tee /tmp/bkl_green_ctx_bench.out
+          grep -Fq "bkl green_ctx_bench sm_120" /tmp/bkl_green_ctx_bench.out
+          grep -Fq "bkl green_ctx_bench sm_120 ok" /tmp/bkl_green_ctx_bench.out
+          test -s results/green-ctx-bench.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path("results/green-ctx-bench.json").read_text())
+          assert data["schema"] == "bkl.green_ctx_bench.v1"
+          assert data["host"]["compute_capability"] == "12.0"
+          assert data["outcome"] in {
+              "compile_time_api_unavailable",
+              "unsupported",
+              "not_permitted",
+              "no_legal_split",
+              "insufficient_vram_headroom",
+              "measured",
+          }
+          if data["outcome"] == "measured":
+              assert data["measurement_skipped_reason"] is None
+              assert data["host"]["projected_free_after_bytes"] >= data["host"]["required_headroom_bytes"]
+              assert data["host"]["vram_min_observed_bytes"] >= data["host"]["required_headroom_bytes"]
+              assert data["capability"]["created_groups"] == 2
+              assert data["summary"]["ordinary_median_ms"] > 0
+              assert data["summary"]["partitioned_median_ms"] > 0
+              assert len(data["invocations"]) == 3
+              for invocation in data["invocations"]:
+                  assert invocation["correctness"] is True
+                  assert len(invocation["ordinary_gpu_latency_ms"]) == 7
+                  assert len(invocation["partitioned_gpu_latency_ms"]) == 7
+          else:
+              assert data["measurement_skipped_reason"]
+              assert data["invocations"] == []
+              assert data["summary"]["ordinary_median_ms"] is None
+              assert data["summary"]["partitioned_median_ms"] is None
+              assert data["summary"]["improvement_percent"] is None
+              assert data["decision"]["passed_all_three"] is None
+          PY

@@ -3,7 +3,7 @@
 | Workflow | Runner | Purpose |
 |---|---|---|
 | [`.github/workflows/ci-cpu.yml`](../.github/workflows/ci-cpu.yml) | **`ubuntu-latest`** | Kernel-tree checks and CUDA-disabled CMake configure |
-| [`.github/workflows/ci-gpu.yml`](../.github/workflows/ci-gpu.yml) | **Self-hosted** `ShipOfTheseus` (`self-hosted`, `Linux`, `X64`, `CUDA`) | GPU probe plus sm_120 L3 build, binaries, and graph-benchmark JSON |
+| [`.github/workflows/ci-gpu.yml`](../.github/workflows/ci-gpu.yml) | **Self-hosted** `ShipOfTheseus` (`self-hosted`, `Linux`, `X64`, `CUDA`) | GPU probe plus sm_120 build, binaries, graph JSON, and Green Context capability/measurement JSON |
 
 ## Host runner (this machine)
 
@@ -35,11 +35,13 @@ Re-register / label docs: [GitHub self-hosted runners](https://docs.github.com/e
 # Same as ci-cpu
 cmake -S kernels -B build/kernels-cpu -DBKL_ENABLE_CUDA=OFF
 
-# L3 CUDA smoke (#19 / #21 / #30)
+# CUDA smoke and first-party measurements (#17 / #19 / #21 / #30)
 cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON
 cmake --build build/kernels -j
 ./build/kernels/src/bkl_device_hello
+./build/kernels/src/bkl_green_ctx_bench --out results/green-ctx-bench.json
 ./build/kernels/src/bkl_graph_launch_bench --out results/graph-launch-bench.json
+python3 -m json.tool results/green-ctx-bench.json >/dev/null
 python3 -m json.tool results/graph-launch-bench.json >/dev/null
 ```
 

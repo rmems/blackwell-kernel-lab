@@ -44,6 +44,7 @@ Hard rule: **sm_120 ≠ sm_100**. No FA4/TMEM assumptions. No MIG.
 | #12 / RM-476 | Engine up — unlocks GPU kernels | Done |
 | #16 / RM-470 | L1 FA × graphs × quant ablations | Done (graphs = engine-default on llama.cpp 9190; D deferred) |
 | #8 / RM-183 | L1 prefix / KV reuse | **Measured** (prefix-first: 21.70× prompt-eval median) |
+| #17 / RM-471 | L2 Green Context SM isolation | **Measured** (`bkl_green_ctx_bench`; 98.52% lower critical-kernel median) |
 | #20 / RM-486 | Forge ↔ kernel boundary contract | Done |
 | #11 / RM-182 | Self-hosted GPU Actions runner | Done (#27) |
 | #19 / RM-487 | L3 `kernels/` workspace layout | **This tree** (`kernels/`) |
@@ -65,7 +66,18 @@ system/tool material first, drop stale request-specific material, and reuse
 only when model, engine, context, options, and policy match. See
 [l1-prefix-kv-reuse.md](../recipes/l1-prefix-kv-reuse.md).
 
+Measured on the same RTX 5080 with CUDA 13.3 (2026-08-30): the Driver API
+reported 84 SMs, an eight-SM minimum partition, and eight-SM co-scheduling
+alignment. `bkl_green_ctx_bench` therefore formed two disjoint 40-SM Green
+Contexts with a four-SM remainder. Across three alternating-order invocations,
+the critical-kernel median fell from 9.509–9.525 ms on ordinary high-priority
+streams to 0.141 ms on the isolated partition (98.52% lower), with
+seven samples per mode and full output validation. This clears the 10%-in-each-
+of-three gate for a separate downstream experiment; it is not itself proof of
+vLLM behavior. See [l2-green-ctx-bench.md](../recipes/l2-green-ctx-bench.md).
+
 L3 workspace: [kernels/README.md](../kernels/README.md). Recipes:
 [L1 prefix/KV reuse](../recipes/l1-prefix-kv-reuse.md) ·
+[L2 Green Context contention](../recipes/l2-green-ctx-bench.md) ·
 [L3 device hello](../recipes/l3-device-hello.md) ·
 [L3 graph-launch benchmark](../recipes/l3-graph-launch-bench.md).
