@@ -43,6 +43,12 @@ cmake --build build/kernels -j
 python3 -m json.tool results/graph-launch-bench.json >/dev/null
 ```
 
+The model-backed L1 prefix/KV experiment is intentionally manual: CI does not
+pull weights or assume that a runner has the selected model resident. Run
+[l1-prefix-kv-reuse.md](../recipes/l1-prefix-kv-reuse.md) on the GPU host with
+an already-local model; it enforces the 2 GiB headroom rule and writes JSONL
+under gitignored `results/`.
+
 ## Issue
 
 #11 / RM-182 — self-hosted GPU Actions runner for this lab.

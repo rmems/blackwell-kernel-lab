@@ -72,12 +72,14 @@ Without a supported host and without the opt-in above, configure **fails** (no s
 
 ## Recipe
 
-[recipes/l3-device-hello.md](../recipes/l3-device-hello.md)
-[recipes/l3-graph-launch-bench.md](../recipes/l3-graph-launch-bench.md)
+- [L1 prefix / KV reuse](../recipes/l1-prefix-kv-reuse.md)
+- [L3 device hello](../recipes/l3-device-hello.md)
+- [L3 graph-launch benchmark](../recipes/l3-graph-launch-bench.md)
 
 ## Issues
 
-- #19 / RM-487 — workspace layout  
-- #21 / RM-488 — device smoke + GPU CI hook  
-- #30 — CUDA graph vs eager launch bench  
+- #8 / RM-183 — L1 prefix / KV reuse measurement
+- #19 / RM-487 — workspace layout
+- #21 / RM-488 — device smoke + GPU CI hook
+- #30 — CUDA graph vs eager launch bench
  
