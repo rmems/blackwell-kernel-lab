@@ -62,6 +62,8 @@ results/        Kernel measurement outputs (gitignored)
 | L1–L3 deltas | Justify or reject first-party kernel work |
 
 See [docs/MISSION.md](docs/MISSION.md) and [docs/KERNELS.md](docs/KERNELS.md).
+The reproducible L1 prefix-cache experiment is
+[recipes/l1-prefix-kv-reuse.md](recipes/l1-prefix-kv-reuse.md).
 
 ## Milestones & version bumps
 
