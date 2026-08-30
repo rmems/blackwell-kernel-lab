@@ -56,14 +56,14 @@ set -euo pipefail
 : "${BKL_BASE_URL:=http://127.0.0.1:11434}"
 : "${BKL_NUM_CTX:=8192}"
 : "${BKL_PREFIX_LINES:=96}"
-: "${BKL_EXPECTED_PROMPT_TOKENS:=1462}"
+: "${BKL_EXPECTED_PROMPT_TOKENS:=1466}"
 : "${BKL_RUNS:=3}"
 : "${BKL_MIN_FREE_MIB:=2048}"
 : "${BKL_CONNECT_TIMEOUT:=5}"
 : "${BKL_REQUEST_TIMEOUT:=120}"
 : "${BKL_RESULT_NAME:=prefix-kv-reuse.jsonl}"
 
-for tool in curl jq ln nvidia-smi ollama rg sha256sum; do
+for tool in curl flock jq ln nvidia-smi ollama rg sha256sum; do
   command -v "$tool" >/dev/null || { echo "missing required tool: $tool" >&2; exit 1; }
 done
 
@@ -95,8 +95,8 @@ normalize_uint BKL_REQUEST_TIMEOUT "$BKL_REQUEST_TIMEOUT" 1 || exit 1
   echo "expected prompt plus one output token does not fit BKL_NUM_CTX" >&2
   exit 1
 }
-[[ "$BKL_BASE_URL" =~ ^https?://(127\.0\.0\.1|localhost|\[::1\])(:[0-9]+)?$ ]] || {
-  echo "BKL_BASE_URL must be a loopback Ollama origin without a path or trailing slash" >&2
+[[ "$BKL_BASE_URL" =~ ^http://127\.0\.0\.1(:[0-9]+)?$ ]] || {
+  echo "BKL_BASE_URL must be a canonical IPv4-loopback Ollama origin" >&2
   exit 1
 }
 [[ "$BKL_RESULT_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.jsonl$ ]] || {
@@ -107,6 +107,16 @@ BKL_RESULT_PATH="results/$BKL_RESULT_NAME"
 export OLLAMA_HOST="$BKL_BASE_URL"
 [[ ! -e "$BKL_RESULT_PATH" ]] || {
   echo "refusing to overwrite $BKL_RESULT_PATH" >&2
+  exit 1
+}
+
+mkdir -p -- results
+lock_key=$(printf '%s' "$BKL_BASE_URL" |
+  sha256sum | awk '{ print $1 }')
+lock_path="results/.prefix-kv-reuse-$lock_key.lock"
+exec {BKL_LOCK_FD}>"$lock_path"
+flock -n "$BKL_LOCK_FD" || {
+  echo "another prefix/KV run is using $BKL_MODEL at $BKL_BASE_URL" >&2
   exit 1
 }
 
@@ -215,11 +225,18 @@ request() {
       -H 'Content-Type: application/json' \
       --data-binary @- "$BKL_BASE_URL/api/generate" -o "$output")
   jq -se '
-    (map(select(.done == true)) | last) as $final |
+    . as $events |
+    ($events | map(select(.done == true)) | last) as $final |
     ($final != null) and
     ($final.prompt_eval_count | type == "number") and
-    ($final.prompt_eval_duration | type == "number")
-  ' "$output" >/dev/null
+    ($final.prompt_eval_duration | type == "number") and
+    ($final.eval_count == 1) and
+    ([$events[] | .response? // empty |
+      select((type == "string") and (length > 0))] | length > 0)
+  ' "$output" >/dev/null || {
+    echo "generation must stream exactly one response token" >&2
+    return 1
+  }
   local prompt_eval_count
   prompt_eval_count=$(jq -s \
     'map(select(.done == true)) | last | .prompt_eval_count' "$output")
@@ -236,6 +253,7 @@ for line_number in $(seq -w 1 "$BKL_PREFIX_LINES"); do
   static_prefix+="Reference clause ${line_number}: inputs are deterministic; report only the requested token."$'\n'
 done
 static_prefix_sha256=$(printf '%s' "$static_prefix" | sha256sum | awk '{ print $1 }')
+response_cue=$'\n''Assistant response: ['
 
 engine_version=$(ollama --version 2>&1 | head -n 1)
 gpu_name=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n 1)
@@ -250,12 +268,12 @@ measure_cell() {
 
   case "$cell" in
     prefix_first)
-      prime_prompt="$static_prefix"$'\n''Alpha request: return the digit zero.'
-      measured_prompt="$static_prefix"$'\n''Beta request: return the digit zero.'
+      prime_prompt="$static_prefix"$'\n''Alpha request: return the digit zero.'"$response_cue"
+      measured_prompt="$static_prefix"$'\n''Beta request: return the digit zero.'"$response_cue"
       ;;
     varying_first)
-      prime_prompt='Alpha request: return the digit zero.'$'\n'"$static_prefix"
-      measured_prompt='Beta request: return the digit zero.'$'\n'"$static_prefix"
+      prime_prompt='Alpha request: return the digit zero.'$'\n'"$static_prefix$response_cue"
+      measured_prompt='Beta request: return the digit zero.'$'\n'"$static_prefix$response_cue"
       ;;
     *)
       echo "unknown cell: $cell" >&2
@@ -305,6 +323,7 @@ measure_cell() {
     --argjson request_timeout_seconds "$BKL_REQUEST_TIMEOUT" \
     --argjson vram_free_mib_before_resume "$vram_free_mib_before_resume" \
     --argjson prompt_eval_count "$(jq -s 'map(select(.done == true)) | last | .prompt_eval_count' "$measured_json")" \
+    --argjson eval_count "$(jq -s 'map(select(.done == true)) | last | .eval_count' "$measured_json")" \
     --argjson prompt_eval_ms "$(jq -s 'map(select(.done == true)) | last | .prompt_eval_duration / 1000000' "$measured_json")" \
     --argjson one_token_total_ms "$((finished_ns - started_ns))" \
     --argjson prime_prompt_eval_ms "$(jq -s 'map(select(.done == true)) | last | .prompt_eval_duration / 1000000' "$prime_json")" \
@@ -325,6 +344,7 @@ measure_cell() {
       run: $run, cell: $cell,
       ttft_method: "curl time_starttransfer on the streaming response",
       prompt_eval_count: $prompt_eval_count,
+      eval_count: $eval_count,
       prompt_eval_ms: $prompt_eval_ms,
       one_token_total_ms: ($one_token_total_ms / 1000000),
       prime_prompt_eval_ms: $prime_prompt_eval_ms,
@@ -342,12 +362,12 @@ warmup_cell() {
 
   case "$cell" in
     prefix_first)
-      prime_prompt="$static_prefix"$'\n''Alpha request: return the digit zero.'
-      measured_prompt="$static_prefix"$'\n''Beta request: return the digit zero.'
+      prime_prompt="$static_prefix"$'\n''Alpha request: return the digit zero.'"$response_cue"
+      measured_prompt="$static_prefix"$'\n''Beta request: return the digit zero.'"$response_cue"
       ;;
     varying_first)
-      prime_prompt='Alpha request: return the digit zero.'$'\n'"$static_prefix"
-      measured_prompt='Beta request: return the digit zero.'$'\n'"$static_prefix"
+      prime_prompt='Alpha request: return the digit zero.'$'\n'"$static_prefix$response_cue"
+      measured_prompt='Beta request: return the digit zero.'$'\n'"$static_prefix$response_cue"
       ;;
   esac
 
@@ -424,22 +444,23 @@ immutable model digest, GPU residency, and VRAM headroom.
 Measured 2026-08-30 with Ollama 0.33.2, `phi4:14b` at digest
 `ac896e5b8b34a1f4efa7b14d7520725140d5512484457fab45d2a4ea14c69dba`,
 `num_ctx=8192`, one generated token, and the model reported as 100%
-GPU-resident. Each measured prompt had `prompt_eval_count=1462`; the duration,
-not the count, exposed reuse.
+GPU-resident. Each measured prompt had `prompt_eval_count=1466`; the duration,
+not the count, exposed reuse. Every stream contained a non-empty response chunk
+and finished with `eval_count=1`.
 
 | Invocation | Cell order | Prefix-first prompt eval | Varying-first prompt eval | Reduction |
 |---:|---|---:|---:|---:|
-| 1 | prefix → varying | 22.562 ms | 346.373 ms | 93.49% |
-| 2 | varying → prefix | 24.678 ms | 347.913 ms | 92.91% |
-| 3 | prefix → varying | 22.518 ms | 348.422 ms | 93.54% |
-| **Median** | — | **22.562 ms** | **347.913 ms** | **93.52% (15.42×)** |
+| 1 | prefix → varying | 16.245 ms | 356.892 ms | 95.45% |
+| 2 | varying → prefix | 16.645 ms | 354.217 ms | 95.30% |
+| 3 | prefix → varying | 16.836 ms | 339.848 ms | 95.05% |
+| **Median** | — | **16.645 ms** | **354.217 ms** | **95.30% (21.28×)** |
 
-Median streaming TTFT (`curl time_starttransfer`) was 25.947 ms for the resumed
-prefix-first request versus 403.737 ms for varying-first (93.57%, 15.56×).
-Prefix-first cold TTFT was 2,382.714 ms because it includes model load; compare
+Median streaming TTFT (`curl time_starttransfer`) was 19.791 ms for the resumed
+prefix-first request versus 416.180 ms for varying-first (95.24%, 21.03×).
+Prefix-first cold TTFT was 2,475.892 ms because it includes model load; compare
 the two resumed layouts for the prompt-order conclusion. Median outer request
-time through one generated token was 33.855 ms versus 412.204 ms (91.79%,
-12.18×). Loaded-model free VRAM was 3,517–3,590 MiB, above the 2 GiB host rule.
+time through one generated token was 29.131 ms versus 425.215 ms (93.15%,
+14.60×). Loaded-model free VRAM was 3,409–3,513 MiB, above the 2 GiB host rule.
 
 The ≥10% per-invocation gate passes in all three invocations. The L1 policy is
 therefore to keep stable policy/tool material at the front and branch on the
