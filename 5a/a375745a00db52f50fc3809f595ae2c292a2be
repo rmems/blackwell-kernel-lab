@@ -1,0 +1,19 @@
+docs/KERNELS.md
+  s_52d6e291c00818::t_eb57d5653d7cef 47,73-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5aa375745a00db52f50fc3809f595ae2c292a2be",
+  "prompts": {},
+  "sessions": {
+    "s_52d6e291c00818": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a021e1-a82e-7d82-bc41-43e030257278",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Raul Montoya Cardenas <montoyaraul34@gmail.com>"
+    }
+  }
+}
