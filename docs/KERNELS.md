@@ -43,7 +43,7 @@ Hard rule: **sm_120 ≠ sm_100**. No FA4/TMEM assumptions. No MIG.
 |---|---|---|
 | #12 / RM-476 | Engine up — unlocks GPU kernels | Done |
 | #16 / RM-470 | L1 FA × graphs × quant ablations | Done (graphs = engine-default on llama.cpp 9190; D deferred) |
-| #8 / RM-183 | L1 prefix / KV reuse | **Measured** (prefix-first: 16.10× prompt-eval median) |
+| #8 / RM-183 | L1 prefix / KV reuse | **Measured** (prefix-first: 15.42× prompt-eval median) |
 | #20 / RM-486 | Forge ↔ kernel boundary contract | Done |
 | #11 / RM-182 | Self-hosted GPU Actions runner | Done (#27) |
 | #19 / RM-487 | L3 `kernels/` workspace layout | **This tree** (`kernels/`) |
@@ -57,10 +57,10 @@ measurements and do not themselves choose an inference-engine graph policy.
 
 Measured on the same host with Ollama 0.33.2 and a 100%-GPU-resident
 `phi4:14b` (2026-08-30): placing the stable policy before the varying task in a
-1,462-token prompt reduced median prompt evaluation from 351.672 ms to 21.848
-ms (93.79%, 16.10×) across three independent invocations. Streaming resume
-TTFT fell from 412.605 ms to 25.284 ms. All three cleared the 10% gate while
-retaining 3,495–3,585 MiB of free VRAM. Policy: keep byte-stable
+1,462-token prompt reduced median prompt evaluation from 347.913 ms to 22.562
+ms (93.52%, 15.42×) across three independent invocations. Streaming resume
+TTFT fell from 403.737 ms to 25.947 ms. All three cleared the 10% gate while
+retaining 3,517–3,590 MiB of free VRAM. Policy: keep byte-stable
 system/tool material first, drop stale request-specific material, and reuse
 only when model, engine, context, options, and policy match. See
 [l1-prefix-kv-reuse.md](../recipes/l1-prefix-kv-reuse.md).

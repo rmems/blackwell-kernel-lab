@@ -63,7 +63,7 @@ set -euo pipefail
 : "${BKL_REQUEST_TIMEOUT:=120}"
 : "${BKL_RESULT_NAME:=prefix-kv-reuse.jsonl}"
 
-for tool in curl jq nvidia-smi ollama rg sha256sum; do
+for tool in curl jq ln nvidia-smi ollama rg sha256sum; do
   command -v "$tool" >/dev/null || { echo "missing required tool: $tool" >&2; exit 1; }
 done
 
@@ -95,8 +95,8 @@ normalize_uint BKL_REQUEST_TIMEOUT "$BKL_REQUEST_TIMEOUT" 1 || exit 1
   echo "expected prompt plus one output token does not fit BKL_NUM_CTX" >&2
   exit 1
 }
-[[ "$BKL_BASE_URL" =~ ^https?://[^/]+$ ]] || {
-  echo "BKL_BASE_URL must be an Ollama origin without a path or trailing slash" >&2
+[[ "$BKL_BASE_URL" =~ ^https?://(127\.0\.0\.1|localhost|\[::1\])(:[0-9]+)?$ ]] || {
+  echo "BKL_BASE_URL must be a loopback Ollama origin without a path or trailing slash" >&2
   exit 1
 }
 [[ "$BKL_RESULT_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.jsonl$ ]] || {
@@ -114,10 +114,22 @@ ollama show "$BKL_MODEL" >/dev/null || {
   echo "model is not already local: $BKL_MODEL (no automatic pull)" >&2
   exit 1
 }
-curl --silent --show-error --fail \
+tags_json=$(curl --silent --show-error --fail \
   --connect-timeout "$BKL_CONNECT_TIMEOUT" \
   --max-time "$BKL_REQUEST_TIMEOUT" \
-  "$BKL_BASE_URL/api/tags" >/dev/null
+  "$BKL_BASE_URL/api/tags")
+model_digest=$(jq -er --arg model "$BKL_MODEL" '
+  first(.models[] |
+    select((.name == $model) or (.model == $model)) |
+    .digest) // empty
+' <<<"$tags_json") || {
+  echo "could not resolve an immutable digest for local model: $BKL_MODEL" >&2
+  exit 1
+}
+[[ "$model_digest" =~ ^[0-9a-f]{64}$ ]] || {
+  echo "invalid model digest for $BKL_MODEL: $model_digest" >&2
+  exit 1
+}
 
 free_mib() {
   nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits | head -n 1 | tr -d ' '
@@ -277,6 +289,7 @@ measure_cell() {
     --arg timestamp "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
     --arg engine_version "$engine_version" \
     --arg model "$BKL_MODEL" \
+    --arg model_digest "$model_digest" \
     --arg gpu "$gpu_name" \
     --arg driver "$driver_version" \
     --arg processor "$processor" \
@@ -300,7 +313,8 @@ measure_cell() {
     --argjson vram_free_mib "$loaded_free_mib" \
     '{schema_version: 1, timestamp: $timestamp,
       engine: {name: "ollama", version: $engine_version, endpoint: $endpoint},
-      model: $model, gpu: $gpu, driver: $driver, processor: $processor,
+      model: $model, model_digest: $model_digest,
+      gpu: $gpu, driver: $driver, processor: $processor,
       static_prefix_sha256: $static_prefix_sha256,
       prompt_pair_sha256: $prompt_pair_sha256,
       options: {num_ctx: $num_ctx, num_predict: 1, temperature: 0, seed: 8,
@@ -361,7 +375,11 @@ for run in $(seq 1 "$BKL_RUNS"); do
   fi
 done
 
-mv -- "$tmp_result" "$BKL_RESULT_PATH"
+ln -- "$tmp_result" "$BKL_RESULT_PATH" || {
+  echo "refusing to overwrite concurrently created $BKL_RESULT_PATH" >&2
+  exit 1
+}
+rm -- "$tmp_result"
 
 summary=$(jq -s '
   def median:
@@ -399,27 +417,29 @@ jq -e '.decision_gate == "pass"' <<<"$summary" >/dev/null
 
 Generated JSONL stays under gitignored `results/`. Keep the raw file local;
 commit only reviewed summaries that name the model, options, engine version,
-GPU residency, and VRAM headroom.
+immutable model digest, GPU residency, and VRAM headroom.
 
 ## ShipOfTheseus result
 
-Measured 2026-08-30 with Ollama 0.33.2, `phi4:14b`, `num_ctx=8192`, one
-generated token, and the model reported as 100% GPU-resident. Each measured
-prompt had `prompt_eval_count=1462`; the duration, not the count, exposed reuse.
+Measured 2026-08-30 with Ollama 0.33.2, `phi4:14b` at digest
+`ac896e5b8b34a1f4efa7b14d7520725140d5512484457fab45d2a4ea14c69dba`,
+`num_ctx=8192`, one generated token, and the model reported as 100%
+GPU-resident. Each measured prompt had `prompt_eval_count=1462`; the duration,
+not the count, exposed reuse.
 
 | Invocation | Cell order | Prefix-first prompt eval | Varying-first prompt eval | Reduction |
 |---:|---|---:|---:|---:|
-| 1 | prefix → varying | 21.848 ms | 345.044 ms | 93.67% |
-| 2 | varying → prefix | 21.743 ms | 358.485 ms | 93.93% |
-| 3 | prefix → varying | 22.403 ms | 351.672 ms | 93.63% |
-| **Median** | — | **21.848 ms** | **351.672 ms** | **93.79% (16.10×)** |
+| 1 | prefix → varying | 22.562 ms | 346.373 ms | 93.49% |
+| 2 | varying → prefix | 24.678 ms | 347.913 ms | 92.91% |
+| 3 | prefix → varying | 22.518 ms | 348.422 ms | 93.54% |
+| **Median** | — | **22.562 ms** | **347.913 ms** | **93.52% (15.42×)** |
 
-Median streaming TTFT (`curl time_starttransfer`) was 25.284 ms for the resumed
-prefix-first request versus 412.605 ms for varying-first (93.87%, 16.32×).
-Prefix-first cold TTFT was 2,408.533 ms because it includes model load; compare
+Median streaming TTFT (`curl time_starttransfer`) was 25.947 ms for the resumed
+prefix-first request versus 403.737 ms for varying-first (93.57%, 15.56×).
+Prefix-first cold TTFT was 2,382.714 ms because it includes model load; compare
 the two resumed layouts for the prompt-order conclusion. Median outer request
-time through one generated token was 34.014 ms versus 421.872 ms (91.94%,
-12.40×). Loaded-model free VRAM was 3,495–3,585 MiB, above the 2 GiB host rule.
+time through one generated token was 33.855 ms versus 412.204 ms (91.79%,
+12.18×). Loaded-model free VRAM was 3,517–3,590 MiB, above the 2 GiB host rule.
 
 The ≥10% per-invocation gate passes in all three invocations. The L1 policy is
 therefore to keep stable policy/tool material at the front and branch on the
