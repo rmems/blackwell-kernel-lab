@@ -7,7 +7,7 @@
 | Layer | Meaning | Where |
 |-------|---------|--------|
 | **L1** | Measure engine CUDA paths (FA, graphs, quant, prefix) | `recipes/`, `docs/`, `results/` |
-| **L2** | Host scheduling (queues, isolation, later Green Context notes) | docs and measured artifacts |
+| **L2** | Host scheduling (queues and Green Context isolation) | first-party benchmarks, recipes, and measured artifacts |
 | **L3** | First-party `.cu` / CUTLASS **in this tree** | `kernels/` |
 
 Do **not** land production L3 ops until L1 leaves a **proven** gap. Hello is the on-ramp. `#30` is the first measured kernel: CUDA graph vs eager launch (llama.cpp 9190 has no graph CLI — #16).
@@ -28,6 +28,7 @@ kernels/
   src/
     CMakeLists.txt
     device_hello.cu         # minimal L3 smoke (#21)
+    green_ctx_bench.cu      # L2 Green Context contention benchmark (#17)
     graph_launch_bench.cu   # CUDA graph vs eager launch (#30)
 ```
 
@@ -41,9 +42,11 @@ cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON \
   -DBKL_CUDA_HOST_COMPILER=/home/linuxbrew/.linuxbrew/bin/g++-15
 cmake --build build/kernels -j"$(nproc)"
 ./build/kernels/src/bkl_device_hello
+./build/kernels/src/bkl_green_ctx_bench
 ./build/kernels/src/bkl_graph_launch_bench
 # expect: device0: NVIDIA GeForce RTX 5080 compute 12.0
 #         bkl device_hello sm_120 ok
+#         bkl green_ctx_bench sm_120 ok
 #         bkl graph_launch_bench sm_120 ok
 ```
 
@@ -73,12 +76,14 @@ Without a supported host and without the opt-in above, configure **fails** (no s
 ## Recipe
 
 - [L1 prefix / KV reuse](../recipes/l1-prefix-kv-reuse.md)
+- [L2 Green Context contention](../recipes/l2-green-ctx-bench.md)
 - [L3 device hello](../recipes/l3-device-hello.md)
 - [L3 graph-launch benchmark](../recipes/l3-graph-launch-bench.md)
 
 ## Issues
 
 - #8 / RM-183 — L1 prefix / KV reuse measurement
+- #17 / RM-471 — L2 Green Context scheduling measurement
 - #19 / RM-487 — workspace layout
 - #21 / RM-488 — device smoke + GPU CI hook
 - #30 — CUDA graph vs eager launch bench
