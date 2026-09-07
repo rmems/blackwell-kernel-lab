@@ -1,0 +1,25 @@
+kernels/tools/check_green_ctx_report.py
+  s_74ddf8973f5095::t_cd7f1d1b3400e7 1-185
+kernels/README.md
+  s_74ddf8973f5095::t_579dd289fe9fe5 33-34
+.github/workflows/ci-gpu.yml
+  s_74ddf8973f5095::t_5f1bd25c7357d9 104-106
+docs/CI.md
+  s_74ddf8973f5095::t_a5cd75aed85c50 45-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "2459255f2f336f241580a6ad9446818ddce1e730",
+  "prompts": {},
+  "sessions": {
+    "s_74ddf8973f5095": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4c146045-a4f5-4953-8df4-1f44b0291ec4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Raul Montoya Cardenas <montoyaraul34@gmail.com>"
+    }
+  }
+}
