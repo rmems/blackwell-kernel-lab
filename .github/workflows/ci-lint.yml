@@ -55,3 +55,16 @@ jobs:
         run: |
           shellcheck --version | head -n 2
           ./actionlint -oneline -shellcheck "$(command -v shellcheck)"
+
+      - name: Lint recipe scripts
+        # Measurement scripts under recipes/scripts/ are run by hand on the GPU
+        # host against a live engine, so a shell mistake there costs a whole
+        # measurement session. They are linted with the same shellcheck.
+        run: |
+          mapfile -t scripts < <(git ls-files 'recipes/scripts/*.sh')
+          if [ "${#scripts[@]}" -eq 0 ]; then
+            echo "no recipe scripts to lint"
+            exit 0
+          fi
+          printf 'linting %s\n' "${scripts[@]}"
+          shellcheck --format=gcc "${scripts[@]}"
