@@ -1,0 +1,22 @@
+kernels/src/CMakeLists.txt
+  s_74ddf8973f5095::t_5361f287f2c95e 7-18
+kernels/src/graph_launch_bench.cu
+  s_74ddf8973f5095::t_4f0d147279ca04 177
+  s_74ddf8973f5095::t_fbc187e0d407bf 246
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c0a401833e211b5027fe7024a64a352dad003cdf",
+  "prompts": {},
+  "sessions": {
+    "s_74ddf8973f5095": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4c146045-a4f5-4953-8df4-1f44b0291ec4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Raul Montoya Cardenas <montoyaraul34@gmail.com>"
+    }
+  }
+}
