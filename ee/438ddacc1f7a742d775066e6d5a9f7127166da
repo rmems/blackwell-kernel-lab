@@ -1,0 +1,23 @@
+.github/workflows/ci-lint.yml
+  s_74ddf8973f5095::t_1144a51d4a7d9f 58-70
+recipes/l1-prefix-kv-reuse.md
+  s_74ddf8973f5095::t_10bfcf22938e9b 45-46,49-50,52-53,55-59,62-103
+recipes/scripts/l1-prefix-kv-reuse.sh
+  s_74ddf8973f5095::t_cc136a46850603 1-404
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ee438ddacc1f7a742d775066e6d5a9f7127166da",
+  "prompts": {},
+  "sessions": {
+    "s_74ddf8973f5095": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4c146045-a4f5-4953-8df4-1f44b0291ec4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Raul Montoya Cardenas <montoyaraul34@gmail.com>"
+    }
+  }
+}
