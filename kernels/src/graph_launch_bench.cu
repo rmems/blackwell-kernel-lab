@@ -174,7 +174,7 @@ int main(int argc, char** argv) {
   if (argc == 3 && std::string(argv[1]) == "--out") {
     out_path = argv[2];
   } else if (argc != 1) {
-    std::fprintf(stderr, "usage: %s [--out PATH]\\n", argv[0]);
+    std::fprintf(stderr, "usage: %s [--out PATH]\n", argv[0]);
     return 2;
   }
   int count = 0;
@@ -243,7 +243,7 @@ int main(int argc, char** argv) {
   const float expected_saxpy =
       1.0f + kRuns * (2.0f * kSaxpyIters + 1.0f);
   if (saxpy_sentinel != expected_saxpy) {
-    std::fprintf(stderr, "SAXPY validation failed: got %.1f, expected %.1f\\n",
+    std::fprintf(stderr, "SAXPY validation failed: got %.1f, expected %.1f\n",
                  saxpy_sentinel, expected_saxpy);
     return 1;
   }
