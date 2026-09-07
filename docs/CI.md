@@ -41,8 +41,11 @@ cmake --build build/kernels -j
 ./build/kernels/src/bkl_device_hello
 ./build/kernels/src/bkl_green_ctx_bench --out results/green-ctx-bench.json
 ./build/kernels/src/bkl_graph_launch_bench --out results/graph-launch-bench.json
-python3 -m json.tool results/green-ctx-bench.json >/dev/null
 python3 -m json.tool results/graph-launch-bench.json >/dev/null
+
+# Same report check ci-gpu runs: recomputes wave counts and per-invocation
+# improvement from the report's own inputs, not just "is it valid JSON".
+python3 kernels/tools/check_green_ctx_report.py results/green-ctx-bench.json
 ```
 
 The model-backed L1 prefix/KV experiment is intentionally manual: CI does not
