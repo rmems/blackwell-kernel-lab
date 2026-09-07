@@ -64,27 +64,12 @@ jobs:
 
       - name: sm_120 kernel suite
         run: |
-          HOST_CXX=""
-          # Prefer newer supported hosts first (CUDA 13.3: g++ 6–15).
-          for c in \
-            /home/linuxbrew/.linuxbrew/bin/g++-15 \
-            /usr/bin/g++-15 \
-            /usr/bin/g++-14 \
-            /usr/bin/g++-13; do
-            if [ -x "$c" ]; then HOST_CXX="$c"; break; fi
-          done
-          CMAKE_ARGS=(-S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON)
-          if [ -n "$HOST_CXX" ]; then
-            CMAKE_ARGS+=(-DBKL_CUDA_HOST_COMPILER="$HOST_CXX")
-          fi
-          if [ -x /usr/local/cuda/bin/nvcc ]; then
-            CMAKE_ARGS+=(-DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc)
-          fi
-          if [ -z "$HOST_CXX" ]; then
-            echo "Need g++-15/14/13 for CUDA 13.3 host compiler (see kernels/README.md)"
-            exit 1
-          fi
-          cmake "${CMAKE_ARGS[@]}"
+          # kernels/CMakeLists.txt locates nvcc and a supported host compiler
+          # (g++-15 … g++-6), and fails with install instructions when neither
+          # is present. This is deliberately the same flag-free invocation the
+          # README and docs/CI.md give users, so CI exercises the documented
+          # command rather than a second, narrower copy of the same search.
+          cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON
           cmake --build build/kernels -j"$(nproc 2>/dev/null || echo 4)"
           ./build/kernels/src/bkl_device_hello | tee /tmp/bkl_device_hello.out
           # This lab's self-hosted runner is ShipOfTheseus / RTX 5080 (sm_120).
