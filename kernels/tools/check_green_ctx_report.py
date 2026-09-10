@@ -45,13 +45,7 @@ def require(condition: object, message: str) -> None:
         raise ReportError(message)
 
 
-def check_measured(data: dict) -> None:
-    require(
-        data["measurement_skipped_reason"] is None,
-        "outcome=measured must not carry a measurement_skipped_reason",
-    )
-
-    host = data["host"]
+def check_host_headroom(host: dict) -> None:
     require(
         host["projected_free_after_bytes"] >= host["required_headroom_bytes"],
         "projected free VRAM is below the required headroom",
@@ -61,13 +55,8 @@ def check_measured(data: dict) -> None:
         "minimum observed free VRAM is below the required headroom",
     )
 
-    capability = data["capability"]
-    require(
-        capability["created_groups"] == 2,
-        f"expected 2 Green Context groups, got {capability['created_groups']}",
-    )
 
-    workload = data["workload"]
+def check_background_waves(capability: dict, workload: dict) -> None:
     per_sm = workload["background_active_blocks_per_sm"]
     blocks = workload["background_grid_blocks"]
     for label, sm_count in (
@@ -81,17 +70,13 @@ def check_measured(data: dict) -> None:
             f"{label}_background_waves is {reported}, recomputed {recomputed}",
         )
 
-    summary = data["summary"]
-    require(summary["ordinary_median_ms"] > 0, "ordinary median must be positive")
-    require(summary["partitioned_median_ms"] > 0, "partitioned median must be positive")
 
-    invocations = data["invocations"]
+def check_invocations(invocations: list, required_improvement: float) -> list[bool]:
     require(
         len(invocations) == INVOCATIONS,
         f"expected {INVOCATIONS} invocations, got {len(invocations)}",
     )
 
-    required_improvement = data["decision"]["required_improvement_percent"]
     recomputed_gates = []
     for index, invocation in enumerate(invocations, start=1):
         require(invocation["correctness"] is True, f"invocation {index} failed correctness")
@@ -113,9 +98,11 @@ def check_measured(data: dict) -> None:
             f" recomputed {recomputed_gate} from {recomputed_improvement:.4f}%",
         )
         recomputed_gates.append(recomputed_gate)
+    return recomputed_gates
 
+
+def check_decision(decision: dict, recomputed_gates: list[bool]) -> None:
     passed_all_three = all(recomputed_gates)
-    decision = data["decision"]
     require(
         decision["passed_all_three"] is passed_all_three,
         f"passed_all_three is {decision['passed_all_three']},"
@@ -126,6 +113,31 @@ def check_measured(data: dict) -> None:
         f"follow_up_justified is {decision['follow_up_justified']},"
         f" recomputed {passed_all_three}",
     )
+
+
+def check_measured(data: dict) -> None:
+    require(
+        data["measurement_skipped_reason"] is None,
+        "outcome=measured must not carry a measurement_skipped_reason",
+    )
+
+    check_host_headroom(data["host"])
+
+    capability = data["capability"]
+    require(
+        capability["created_groups"] == 2,
+        f"expected 2 Green Context groups, got {capability['created_groups']}",
+    )
+
+    check_background_waves(capability, data["workload"])
+
+    summary = data["summary"]
+    require(summary["ordinary_median_ms"] > 0, "ordinary median must be positive")
+    require(summary["partitioned_median_ms"] > 0, "partitioned median must be positive")
+
+    required_improvement = data["decision"]["required_improvement_percent"]
+    recomputed_gates = check_invocations(data["invocations"], required_improvement)
+    check_decision(data["decision"], recomputed_gates)
 
 
 def check_skipped(data: dict) -> None:
