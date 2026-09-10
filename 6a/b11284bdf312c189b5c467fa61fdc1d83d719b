@@ -1,0 +1,29 @@
+kernels/README.md
+  s_1ad2d67c025b83::t_28e3ff6e4d0e29 37,40
+README.md
+  s_1ad2d67c025b83::t_28e3ff6e4d0e29 36,38-40,62,67-70,87-92
+kernels/CMakeLists.txt
+  s_1ad2d67c025b83::t_28e3ff6e4d0e29 56-62
+.github/workflows/ci-gpu.yml
+  s_1ad2d67c025b83::t_28e3ff6e4d0e29 67-72
+kernels/src/CMakeLists.txt
+  s_1ad2d67c025b83::t_28e3ff6e4d0e29 7-18
+kernels/src/graph_launch_bench.cu
+  s_1ad2d67c025b83::t_28e3ff6e4d0e29 177,246
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6ab11284bdf312c189b5c467fa61fdc1d83d719b",
+  "prompts": {},
+  "sessions": {
+    "s_1ad2d67c025b83": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bf04852a-5a0c-4be1-807b-c49af03cb7d5",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
