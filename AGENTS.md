@@ -2,20 +2,20 @@
 
 ## What this repo is
 
-1. **GPU kernel lab (SoT)** for this RTX 5080: L1 engine CUDA paths, L2 scheduling, and L3 first-party `.cu` / CUTLASS when measured gaps justify it ([docs/KERNELS.md](docs/KERNELS.md)).
+1. **CUDA backend for [`rmems/agoge-forger`](https://github.com/rmems/agoge-forger)** on this RTX 5080: the kernels and engine CUDA paths that make local LLM fine-tuning and training honest on sm_120 / ~16 GB ([docs/KERNELS.md](docs/KERNELS.md), [docs/FORGE_CONSUME.md](docs/FORGE_CONSUME.md)).
 
 ## What this repo is not
 
 - Not a Limen-Neural multi-repo CUDA verification suite.
 - Not a dump of `cu/*.cu` copied from myelin without measurement.
-- Not the training forge — that is [`rmems/agoge-forger`](https://github.com/rmems/agoge-forger).
+- Not the training forge itself — trainer, datasets, and the SFT / QLoRA ladder live in [`rmems/agoge-forger`](https://github.com/rmems/agoge-forger).
 - Not a multi-tenant cloud agent product.
 
 ## Ownership map
 
 | Concern | Owner |
 |---|---|
-| Custom / host GPU kernels (L1–L3) | **this repo** |
+| Custom / host GPU kernels (L1–L3) — forge CUDA backend | **this repo** |
 | SFT / QLoRA / post-training ladder | `rmems/agoge-forger` |
 | Optional neuromorphic upstream | `Limen-Neural/myelin-accelerator` (dep only) |
 
@@ -24,7 +24,7 @@ Full rules: [docs/FORGE_BOUNDARY.md](docs/FORGE_BOUNDARY.md).
 ## Hardware constraints (hard)
 
 - RTX 5080, compute **sm_120**, ~16 GB VRAM.
-- Leave **≥2 GB** free when an engine measurement or desktop workload needs headroom.
+- Leave **≥2 GB** free when an engine measurement, training job, or desktop workload needs headroom.
 - **sm_120 ≠ sm_100** — no FA4/TMEM/MIG assumptions.
 
 ## Working rules
@@ -42,10 +42,10 @@ Full rules: [docs/FORGE_BOUNDARY.md](docs/FORGE_BOUNDARY.md).
 
 | Role | Default |
 |---|---|
-| Training | **agoge-forger** only |
-| Kernel SoT | **this repo** (`docs/KERNELS.md`) |
+| Training / fine-tune orchestration | **agoge-forger** |
+| CUDA backend / kernel SoT | **this repo** (`docs/KERNELS.md`, `docs/FORGE_CONSUME.md`) |
 
 ## Before claiming “done”
 
-- [ ] Docs describe the kernel source of truth, not a local-agent product.
+- [ ] Docs describe this repo as the agoge-forger CUDA backend, not a local-agent playground.
 - [ ] VRAM/headroom implications are called out for this 16 GB host when applicable.

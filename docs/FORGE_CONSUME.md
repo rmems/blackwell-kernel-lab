@@ -1,7 +1,7 @@
 # Forge consume contract (contract revision 1)
 
-**Audience:** `agoge-forger`, or anything else that wants to pin this lab as
-its local CUDA backend without copying `.cu`.
+**Audience:** `agoge-forger`, or anything else that wants to pin this repo as
+the local CUDA backend for LLM fine-tuning and training without copying `.cu`.
 
 **Cite:** `rmems/blackwell-kernel-lab@24039e6` (no release tag newer than
 `v0.1.0` exists yet; update this pointer when one is cut). See
@@ -65,5 +65,5 @@ build/run is on the self-hosted `ci-gpu` runner — see
 ## Acceptance
 
 A reader who has only this file should be able to find the host rules above,
-run one L1 recipe and one L3 smoke binary, and know that training stays in
-`agoge-forger` while kernels stay here.
+run one L1 recipe and one L3 smoke binary, and know that this repo is the
+CUDA backend while training orchestration stays in `agoge-forger`.
