@@ -30,6 +30,8 @@ kernels/
     device_hello.cu         # minimal L3 smoke (#21)
     green_ctx_bench.cu      # L2 Green Context contention benchmark (#17)
     graph_launch_bench.cu   # CUDA graph vs eager launch (#30)
+  tools/
+    check_green_ctx_report.py   # report self-consistency check (CI + local)
 ```
 
 ## Build (GPU host)
