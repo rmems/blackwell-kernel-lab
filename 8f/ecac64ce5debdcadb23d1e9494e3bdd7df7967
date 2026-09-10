@@ -1,0 +1,38 @@
+docs/MISSION.md
+  s_a9fbce909af1d6::t_7e5958a1e9ec72 28-29,33
+  s_a9fbce909af1d6::t_c65ff0143be180 1,5-8,15,17
+AGENTS.md
+  s_a9fbce909af1d6::t_13e441c394a099 5,11,18,27,45-46,50
+docs/KERNELS.md
+  s_a9fbce909af1d6::t_2248d502497c05 1,3-7,9-11,13-14
+docs/FORGE_CONSUME.md
+  s_a9fbce909af1d6::t_6f151b15087432 68-69
+  s_a9fbce909af1d6::t_d6a49c0e505d85 3-4
+docs/HOST_BASELINE.md
+  s_a9fbce909af1d6::t_867f0d51fa60c5 1
+README.md
+  s_a9fbce909af1d6::t_aeda6500268ee6 3-8,18,20-22,26,28-32,34,50,56,64-66,71,74,92,101-103
+docs/FORGE_BOUNDARY.md
+  s_a9fbce909af1d6::t_91959df8b9437c 5-7,12
+  s_a9fbce909af1d6::t_1c785e85eb7864 19
+  s_a9fbce909af1d6::t_2df8a80ca7cfa2 41
+  s_a9fbce909af1d6::t_affbe658079e8a 78
+kernels/README.md
+  s_a9fbce909af1d6::t_a715cf02ce6996 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8fecac64ce5debdcadb23d1e9494e3bdd7df7967",
+  "prompts": {},
+  "sessions": {
+    "s_a9fbce909af1d6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "19aac755-2f09-40d8-acdf-1a7c9d4be274",
+        "model": "grok-4.6"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
