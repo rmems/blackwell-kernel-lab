@@ -43,7 +43,8 @@ Do not start both.
 2. To train: do not push GPU jobs; pause the self-hosted runner if a
    `ci-gpu` run is already queued.
 3. To push kernel CI: same headroom. `ci-gpu` waits up to 10 minutes for
-   that floor, then fails. Markdown-only PRs do not schedule the GPU host.
+   that floor, then fails (job timeout 30 minutes including smoke).
+   Markdown-only PRs do not schedule the GPU host.
 
 Details: [docs/CI.md](docs/CI.md) · [docs/HOST_BASELINE.md](docs/HOST_BASELINE.md).
 

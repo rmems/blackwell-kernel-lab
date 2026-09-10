@@ -28,8 +28,9 @@ Re-register / label docs: [GitHub self-hosted runners](https://docs.github.com/e
 3. Do not use secrets that untrusted PR code could exfiltrate on self-hosted infrastructure.
 4. Desktop share: GPU jobs **serialize** with training and interactive work.
    `ci-gpu` waits up to 10 minutes for ≥2048 MiB free on GPU 0, then fails.
-   Markdown-only PRs (`**/*.md`, `LICENSE`) do not schedule the GPU host.
-   Keep `concurrency` cancel-in-progress.
+   The job timeout is **30 minutes** (wait + kernel smoke). Markdown-only PRs
+   (`**/*.md`, `LICENSE`) do not schedule the GPU host. Keep `concurrency`
+   cancel-in-progress.
 5. Do not store model weights or API keys in the runner work directory long-term.
 
 ## GPU headroom (serialize)
@@ -70,5 +71,5 @@ under gitignored `results/`.
 
 ## Issue
 
-#11 / RM-182 — self-hosted GPU Actions runner.
-#45 / #49 — train ↔ GPU CI serialize (wait for headroom; do not dual-occupy).
+- #11 / RM-182 — self-hosted GPU Actions runner.
+- #45 / #49 — train ↔ GPU CI serialize (wait for headroom; do not dual-occupy).
