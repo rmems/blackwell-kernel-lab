@@ -1,0 +1,19 @@
+.github/workflows/ci-cpu.yml
+  s_1ad2d67c025b83::t_028f3c4fc14fd7 13-16,29-33,35-36,39-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "24039e648c78c0573a051223e845ff8c46a83260",
+  "prompts": {},
+  "sessions": {
+    "s_1ad2d67c025b83": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bf04852a-5a0c-4be1-807b-c49af03cb7d5",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
