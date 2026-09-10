@@ -1,0 +1,57 @@
+# Lint CI — GitHub-hosted only. Never schedules work on the GPU host.
+#
+# ci-gpu.yml drives a self-hosted runner with GPU access, so a mistake in a
+# workflow file is more expensive here than in a repo that only uses hosted
+# runners. actionlint checks the workflow syntax, expression types, runner
+# labels, and (through shellcheck) every `run:` block.
+name: ci-lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned release + checksum: no floating tag, no third-party action, and the
+  # binary is rejected if the download does not match (docs/CI.md security #2).
+  ACTIONLINT_VERSION: 1.7.12
+  ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+
+jobs:
+  workflows:
+    name: actionlint + shellcheck (ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        # actions/checkout@v4 pinned
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Install actionlint
+        run: |
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location --retry 3 \
+            --output "$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum --check --strict -
+          tar -xzf "$archive" actionlint
+          rm -f -- "$archive"
+          ./actionlint -version
+
+      - name: Lint workflows
+        # actionlint reads .github/actionlint.yaml for this lab's self-hosted
+        # runner labels and shells out to the preinstalled shellcheck for the
+        # `run:` blocks, including the inline GPU verification scripts.
+        run: |
+          shellcheck --version | head -n 2
+          ./actionlint -oneline -shellcheck "$(command -v shellcheck)"

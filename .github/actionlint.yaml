@@ -1,0 +1,10 @@
+# actionlint configuration for this lab.
+#
+# ci-gpu.yml targets the registered self-hosted runner ShipOfTheseus. actionlint
+# only knows GitHub-hosted labels plus the generic `self-hosted` / `linux` /
+# `x64`, so the lab-specific label has to be declared here or every lint run
+# fails with "label CUDA is unknown". Keep this in sync with docs/CI.md and with
+# the labels on the registered runner.
+self-hosted-runner:
+  labels:
+    - CUDA
