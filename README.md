@@ -33,6 +33,20 @@ under `agoge-forger/cuda/`.
 
 **Consume API for the forge:** [docs/FORGE_CONSUME.md](docs/FORGE_CONSUME.md).
 
+## Before you train or push GPU CI
+
+This host has **one** RTX 5080. agoge-forger training and GPU CI **serialize**.
+Do not start both.
+
+1. Run `nvidia-smi`. GPU 0 must show **≥2048 MiB free** and no unexpected
+   compute process.
+2. To train: do not push GPU jobs; pause the self-hosted runner if a
+   `ci-gpu` run is already queued.
+3. To push kernel CI: same headroom. `ci-gpu` waits up to 10 minutes for
+   that floor, then fails. Markdown-only PRs do not schedule the GPU host.
+
+Details: [docs/CI.md](docs/CI.md) · [docs/HOST_BASELINE.md](docs/HOST_BASELINE.md).
+
 ## Quick start
 
 ```bash
@@ -90,7 +104,7 @@ milestones.
 | Milestone | Version | Goal |
 |-----------|---------|------|
 | [**F0** — Forge CUDA backend](https://github.com/rmems/blackwell-kernel-lab/milestone/8) | **v0.2.0** | Honest local CUDA backend for agoge-forger: consume contract, 16 GB train-fit, train↔kernel coexistence |
-| [**M0** — Lab identity + host baseline](https://github.com/rmems/blackwell-kernel-lab/milestone/1) | **v0.1.0** | Kernel-lab identity, onboarding, and 16 GB hardware baseline |
+| [**M0** — Lab identity + host baseline](https://github.com/rmems/blackwell-kernel-lab/milestone/1) | **v0.1.0** | CUDA-backend identity, onboarding, and 16 GB hardware baseline |
 | [**M1** — Engine CUDA baselines](https://github.com/rmems/blackwell-kernel-lab/milestone/2) | **v0.2.0** | Reproducible L1 engine CUDA measurements and host configuration |
 | [**M2** — Kernel measurement campaign](https://github.com/rmems/blackwell-kernel-lab/milestone/3) | **v0.3.0** | FlashAttention, CUDA graphs, quant-path baselines, and measured gaps |
 | [**K0** — Kernel SoT + L3 workspace](https://github.com/rmems/blackwell-kernel-lab/milestone/4) | **v0.4.0** | Forge↔kernel boundary, `kernels/` layout, L3 smoke |
@@ -106,7 +120,9 @@ matter. Closing F0 tags **v0.2.0** (the next real release after tagged v0.1.0).
 new minor.
 
 **CI split:** CPU workflows → GitHub-hosted `ubuntu-latest`; GPU workflows →
-self-hosted `ShipOfTheseus` (`CUDA` label). See [docs/CI.md](docs/CI.md).
+self-hosted `ShipOfTheseus` (`CUDA` label). GPU smoke waits for ≥2 GiB free,
+then fails if the card stays occupied. Markdown-only PRs skip the GPU host.
+See [docs/CI.md](docs/CI.md).
 
 ## License
 

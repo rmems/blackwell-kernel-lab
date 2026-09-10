@@ -56,14 +56,13 @@ jobs:
           shellcheck --version | head -n 2
           ./actionlint -oneline -shellcheck "$(command -v shellcheck)"
 
-      - name: Lint recipe scripts
-        # Measurement scripts under recipes/scripts/ are run by hand on the GPU
-        # host against a live engine, so a shell mistake there costs a whole
-        # measurement session. They are linted with the same shellcheck.
+      - name: Lint recipe and kernel-tool scripts
+        # Measurement scripts under recipes/scripts/ and the GPU-CI wait
+        # helper under kernels/tools/ are linted with the same shellcheck.
         run: |
-          mapfile -t scripts < <(git ls-files 'recipes/scripts/*.sh')
+          mapfile -t scripts < <(git ls-files 'recipes/scripts/*.sh' 'kernels/tools/*.sh')
           if [ "${#scripts[@]}" -eq 0 ]; then
-            echo "no recipe scripts to lint"
+            echo "no recipe or kernel-tool scripts to lint"
             exit 0
           fi
           printf 'linting %s\n' "${scripts[@]}"
