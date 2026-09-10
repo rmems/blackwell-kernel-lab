@@ -34,12 +34,10 @@ kernels/
 
 ## Build (GPU host)
 
-CUDA 13.3 rejects host **gcc 16+**. This tree auto-picks `g++-15` when present (Homebrew path on ShipOfTheseus), or you can set it:
+CUDA 13.3 rejects host **gcc 16+**. This tree finds `nvcc` under `/usr/local/cuda` and auto-picks `g++-15` when present (Homebrew path on ShipOfTheseus), so no flags are needed:
 
 ```bash
-cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON \
-  -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc \
-  -DBKL_CUDA_HOST_COMPILER=/home/linuxbrew/.linuxbrew/bin/g++-15
+cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON
 cmake --build build/kernels -j"$(nproc)"
 ./build/kernels/src/bkl_device_hello
 ./build/kernels/src/bkl_green_ctx_bench

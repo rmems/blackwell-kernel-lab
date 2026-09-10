@@ -33,10 +33,11 @@ no second CUDA tree under `agoge-forger/cuda/`.
 nvidia-smi
 nvcc --version   # expect CUDA 13.3 on this host
 
-# L3 first-party CUDA smoke (sm_120)
+# First-party CUDA smoke and benchmarks (sm_120)
 cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON && cmake --build build/kernels -j
-./build/kernels/src/bkl_device_hello
-./build/kernels/src/bkl_graph_launch_bench --out results/graph-launch-bench.json
+./build/kernels/src/bkl_device_hello                                        # L3 smoke
+./build/kernels/src/bkl_graph_launch_bench --out results/graph-launch-bench.json  # L3
+./build/kernels/src/bkl_green_ctx_bench --out results/green-ctx-bench.json        # L2
 
 # Docs: docs/KERNELS.md · kernels/README.md · docs/CI.md · recipes/
 ```
@@ -58,12 +59,15 @@ results/        Kernel measurement outputs (gitignored)
 | Flash / fused-attention behavior | Identify prefill and KV-memory effects exposed by an engine |
 | Quantized GEMM path | Measure fit and decode-bandwidth tradeoffs |
 | Prefix / session KV reuse | Establish engine cache behavior before L2 scheduling |
+| Green Context SM isolation | Measure whether L2 partitioning protects a latency-sensitive kernel |
 | VRAM peak + free headroom | Keep experiments within the 16 GB host limit |
 | L1–L3 deltas | Justify or reject first-party kernel work |
 
 See [docs/MISSION.md](docs/MISSION.md) and [docs/KERNELS.md](docs/KERNELS.md).
-The reproducible L1 prefix-cache experiment is
-[recipes/l1-prefix-kv-reuse.md](recipes/l1-prefix-kv-reuse.md).
+The reproducible experiments are
+[recipes/l1-prefix-kv-reuse.md](recipes/l1-prefix-kv-reuse.md) (L1 prefix cache)
+and [recipes/l2-green-ctx-bench.md](recipes/l2-green-ctx-bench.md) (L2 Green
+Context contention).
 
 ## Milestones & version bumps
 
@@ -80,6 +84,12 @@ milestones.
 | [**K0** — Kernel SoT + L3 workspace](https://github.com/rmems/blackwell-kernel-lab/milestone/4) | **v0.4.0** | Forge↔kernel boundary, `kernels/` layout, L3 smoke |
 | [**M3** — Proven-gap kernel follow-through](https://github.com/rmems/blackwell-kernel-lab/milestone/5) | **v0.5.0** | L2 scheduling evidence and L3 experiments justified by L1 measurements |
 | [**CI** — Self-hosted GPU runner](https://github.com/rmems/blackwell-kernel-lab/milestone/6) | **patch / v0.x.0-ci** | Secure self-hosted **GPU** Actions runner (may ship mid-stream) |
+| [**K1** — CUDA scheduling evidence](https://github.com/rmems/blackwell-kernel-lab/milestone/7) | **v0.6.0** | L2 Green Context isolation and the L1 prefix/KV measurement (#8, #17) |
+
+This table is the kernel-lab naming. Milestones 2, 3, and 5 on GitHub still
+carry pre-#33 agent-harness titles ("Measure stack", "Agent efficiency
+baselines", "Smarter multi-agent agents"); rename them there to match, per the
+GH↔docs alignment rule in [AGENTS.md](AGENTS.md).
 
 **Patch** (`v0.N.M+1`): docs, recipes, and fixups inside an open milestone — no
 new minor.

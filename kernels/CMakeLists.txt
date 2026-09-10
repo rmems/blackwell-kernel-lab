@@ -53,7 +53,13 @@ else()
         "/usr/bin/g++-7"
         "/usr/bin/g++-6")
       if(EXISTS "${_cc}")
-        set(BKL_CUDA_HOST_COMPILER "${_cc}" CACHE FILEPATH "Host C++ compiler for nvcc")
+        # FORCE is required: BKL_CUDA_HOST_COMPILER already exists as an empty
+        # cache entry (declared above), and a non-FORCE `set(... CACHE ...)`
+        # never overwrites an existing entry — so without it, discovery finds a
+        # compiler and then silently discards it. Only reached when the user
+        # supplied nothing, so this still never overrides an explicit choice.
+        set(BKL_CUDA_HOST_COMPILER "${_cc}" CACHE FILEPATH
+          "Host C++ compiler for nvcc" FORCE)
         break()
       endif()
     endforeach()
