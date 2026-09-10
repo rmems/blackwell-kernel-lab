@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: cpu-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   kernels-cpu-configure:
     name: Kernel CMake configure (ubuntu-latest)
@@ -22,12 +26,57 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Kernels CMake skip path (no CUDA)
+      - name: Kernel tree is complete
+        # Derived from the build and doc files rather than hand-listed. The
+        # previous hand-kept list was not updated when green_ctx_bench.cu and
+        # the L2 recipe landed in #35, so the newest kernel in the tree fell
+        # outside this gate without anything failing.
         run: |
+          status=0
+
           test -f kernels/README.md
           test -f kernels/CMakeLists.txt
-          test -f kernels/src/device_hello.cu
-          test -f kernels/src/graph_launch_bench.cu
-          test -f recipes/l1-prefix-kv-reuse.md
+          test -f kernels/src/CMakeLists.txt
+
+          # Every executable declared in the kernel tree must have its source.
+          mapfile -t sources < <(
+            sed -n 's/^add_executable([A-Za-z0-9_]\+ \([A-Za-z0-9_.-]\+\))$/\1/p' \
+              kernels/src/CMakeLists.txt
+          )
+          if [ "${#sources[@]}" -eq 0 ]; then
+            echo "parsed no add_executable() sources from kernels/src/CMakeLists.txt"
+            exit 1
+          fi
+          for source in "${sources[@]}"; do
+            if [ -f "kernels/src/$source" ]; then
+              echo "ok       kernels/src/$source"
+            else
+              echo "MISSING  kernels/src/$source"
+              status=1
+            fi
+          done
+
+          # Every recipe kernels/README.md sends people to must exist.
+          mapfile -t recipes < <(
+            grep -oE '\(\.\./recipes/[A-Za-z0-9._-]+\.md\)' kernels/README.md |
+              tr -d '()' | sed 's|^\.\./||' | sort -u
+          )
+          if [ "${#recipes[@]}" -eq 0 ]; then
+            echo "parsed no recipe links from kernels/README.md"
+            exit 1
+          fi
+          for recipe in "${recipes[@]}"; do
+            if [ -f "$recipe" ]; then
+              echo "ok       $recipe"
+            else
+              echo "MISSING  $recipe"
+              status=1
+            fi
+          done
+
+          exit "$status"
+
+      - name: Kernels CMake skip path (no CUDA)
+        run: |
           cmake -S kernels -B build/kernels-cpu -DBKL_ENABLE_CUDA=OFF
           # No GPU targets required; configure must succeed without nvcc.
