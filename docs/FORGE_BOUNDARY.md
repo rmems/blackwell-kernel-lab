@@ -69,6 +69,8 @@ Prefer contracts over FFI:
 
 ## Related
 
+- [FORGE_CONSUME.md](FORGE_CONSUME.md) — the consume-side API: stable paths,
+  host facts, and recipes forge may cite (contract revision 1, #43)
 - [KERNELS.md](KERNELS.md) — L1/L2/L3
 - [MISSION.md](MISSION.md) — kernel lab mission
 - Issues: #19 L3 workspace · #20 this contract · #21 L3 smoke · epic #1 / RM-175

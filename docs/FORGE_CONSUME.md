@@ -1,0 +1,69 @@
+# Forge consume contract (contract revision 1)
+
+**Audience:** `agoge-forger`, or anything else that wants to pin this lab as
+its local CUDA backend without copying `.cu`.
+
+**Cite:** `rmems/blackwell-kernel-lab@24039e6` (no release tag newer than
+`v0.1.0` exists yet; update this pointer when one is cut). See
+[`FORGE_BOUNDARY.md`](FORGE_BOUNDARY.md) for the ownership rule this contract
+implements — this doc is the consume-side API, that one is the boundary.
+
+## Host facts
+
+From [`HOST_BASELINE.md`](HOST_BASELINE.md):
+
+- Compute capability **12.0** (`sm_120`, Blackwell consumer) — **not** `sm_100`.
+  Do not assume FA4, TMEM, `tcgen05`, or MIG.
+- **16303 MiB** VRAM (~16 GB). Leave **≥2 GB free** for kernel measurement;
+  see the headroom math there before sizing anything against this host.
+- CUDA toolkit **13.3** at `/usr/local/cuda`.
+
+## Layer map
+
+From [`KERNELS.md`](KERNELS.md):
+
+- **L1** — measure engine CUDA paths (FlashAttention, graphs, quant, prefix).
+- **L2** — host scheduling (Green Context isolation, no MIG).
+- **L3** — first-party `.cu` / CUTLASS, written only once L1 proves a gap.
+
+## Runnable recipes
+
+- [`recipes/l1-prefix-kv-reuse.md`](../recipes/l1-prefix-kv-reuse.md)
+- [`recipes/l2-green-ctx-bench.md`](../recipes/l2-green-ctx-bench.md)
+- [`recipes/l3-device-hello.md`](../recipes/l3-device-hello.md)
+- [`recipes/l3-graph-launch-bench.md`](../recipes/l3-graph-launch-bench.md)
+- [`recipes/kernel-ablation.md`](../recipes/kernel-ablation.md)
+
+## Build and smoke
+
+From [`kernels/README.md`](../kernels/README.md):
+
+```bash
+cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON
+cmake --build build/kernels -j"$(nproc)"
+./build/kernels/src/bkl_device_hello
+./build/kernels/src/bkl_green_ctx_bench
+./build/kernels/src/bkl_graph_launch_bench
+```
+
+`-DBKL_ENABLE_CUDA=OFF` configures without CUDA (what `ci-cpu.yml` runs). GPU
+build/run is on the self-hosted `ci-gpu` runner — see
+[`docs/CI.md`](CI.md).
+
+## What forge must not do
+
+- Copy `.cu` files into `agoge-forger/cuda/`. That directory stays a stub
+  pointing here.
+- Assume `sm_100`, FA4/TMEM/`tcgen05`, or MIG — this host is `sm_120`,
+  consumer-class, single GPU.
+- Grow a second first-party CUDA tree. New kernel work lands in this repo,
+  not in the forge.
+- Duplicate the VRAM headroom math from `HOST_BASELINE.md` into forge
+  recipes; forge's own preflight (`uv run agoge check-torch`) already warns
+  on the relevant threshold.
+
+## Acceptance
+
+A reader who has only this file should be able to find the host rules above,
+run one L1 recipe and one L3 smoke binary, and know that training stays in
+`agoge-forger` while kernels stay here.
