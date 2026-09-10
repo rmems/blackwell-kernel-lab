@@ -2,18 +2,21 @@
 
 **Audience:** contributors adding CUDA, training code, or host GPU experiments across `rmems/*`.
 
+This repo is the **CUDA backend** for local LLM fine-tuning and training on
+this RTX 5080. The forge orchestrates training; kernels live here.
+
 ## One-line rule
 
 | Work | Lives in |
 |---|---|
-| **GPU kernels and engine CUDA measurements on this RTX 5080** | **`rmems/blackwell-kernel-lab`** |
+| **CUDA backend: GPU kernels and engine CUDA measurements on this RTX 5080** | **`rmems/blackwell-kernel-lab`** |
 | **Model training / fine-tuning / post-training ladder** | **`rmems/agoge-forger`** |
 
 Do **not** grow a second first-party CUDA tree under the forge.
 
 ## Ownership
 
-### This repo (`blackwell-kernel-lab`) — kernel SoT
+### This repo (`blackwell-kernel-lab`) — CUDA backend / kernel SoT
 
 | Layer | Meaning | Location |
 |---|---|---|
@@ -35,7 +38,7 @@ Also owns kernel documentation, measurement artifacts, and self-hosted **GPU** C
 
 ### Optional neuromorphic upstream
 
-`Limen-Neural/myelin-accelerator` may be an optional dependency for niche ops. It is not the SoT for this host’s kernel lab. Target **sm_120** and do not pin ancient PTX.
+`Limen-Neural/myelin-accelerator` may be an optional dependency for niche ops. It is not the SoT for this host’s CUDA backend. Target **sm_120** and do not pin ancient PTX.
 
 ## How the forge may consume kernels
 
@@ -72,6 +75,6 @@ Prefer contracts over FFI:
 - [FORGE_CONSUME.md](FORGE_CONSUME.md) — the consume-side API: stable paths,
   host facts, and recipes forge may cite (contract revision 1, #43)
 - [KERNELS.md](KERNELS.md) — L1/L2/L3
-- [MISSION.md](MISSION.md) — kernel lab mission
+- [MISSION.md](MISSION.md) — CUDA-backend mission
 - Issues: #19 L3 workspace · #20 this contract · #21 L3 smoke · epic #1 / RM-175
 - Forge: https://github.com/rmems/agoge-forger

@@ -1,4 +1,4 @@
-# Host baseline — RTX 5080 kernel lab
+# Host baseline — RTX 5080 CUDA backend
 
 **Host:** ShipOfTheseus (personal workstation)  
 **Refresh:** 2026-08-12T09:50Z (live `nvidia-smi` / `nvcc` on this machine)

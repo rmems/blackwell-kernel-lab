@@ -1,6 +1,6 @@
 # kernels/ — first-party L3 CUDA workspace (sm_120)
 
-**Source of truth for host GPU kernels** lives in this repo (`rmems/blackwell-kernel-lab`), not in `agoge-forger/cuda/` (stub only). See [docs/FORGE_BOUNDARY.md](../docs/FORGE_BOUNDARY.md) and [docs/KERNELS.md](../docs/KERNELS.md).
+This tree is the **CUDA backend** for [`rmems/agoge-forger`](https://github.com/rmems/agoge-forger) local LLM fine-tuning and training. The source of truth for host GPU kernels lives here, not in `agoge-forger/cuda/` (stub only). See [docs/FORGE_CONSUME.md](../docs/FORGE_CONSUME.md), [docs/FORGE_BOUNDARY.md](../docs/FORGE_BOUNDARY.md), and [docs/KERNELS.md](../docs/KERNELS.md).
 
 ## L1 vs L2 vs L3
 

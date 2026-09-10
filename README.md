@@ -1,7 +1,11 @@
 # blackwell-kernel-lab
 
-**GPU kernel lab for the RTX 5080 (Blackwell / sm_120)** — the source of truth
-for first-party kernel work and engine CUDA-path measurements on this host.
+**CUDA backend for [`rmems/agoge-forger`](https://github.com/rmems/agoge-forger)** —
+local LLM fine-tuning and training on this RTX 5080 (Blackwell / sm_120, ~16 GB).
+
+The forge owns the trainer, datasets, and SFT / QLoRA / post-training ladder.
+This repo owns the GPU kernels and engine CUDA-path measurements that training
+on this host actually runs on. `agoge-forger/cuda/` is a stub that points here.
 
 ```text
 This host (ShipOfTheseus) · RTX 5080 · ~16 GB GDDR7 · driver 610.x · CUDA 13.3
@@ -11,20 +15,23 @@ This host (ShipOfTheseus) · RTX 5080 · ~16 GB GDDR7 · driver 610.x · CUDA 13
 
 | Goal | Scope |
 |------|-------|
-| **GPU kernels (SoT in this repo)** | L1 engine CUDA paths → L2 host scheduling → L3 first-party `.cu` / CUTLASS when L1 proves a gap. See [docs/KERNELS.md](docs/KERNELS.md). |
+| **Local CUDA backend for agoge-forger** | L1 engine CUDA paths → L2 host scheduling → L3 first-party `.cu` / CUTLASS when L1 proves a gap. See [docs/KERNELS.md](docs/KERNELS.md). |
 
-This is **not** a Limen-Neural multi-repo verification lab. Training / fine-tuning
-stays in **agoge-forger**.
+This is **not** a Limen-Neural multi-repo verification lab and **not** a
+multi-agent product. Training orchestration stays in the forge; the CUDA
+that makes local fine-tuning honest on this 16 GB card lives here.
 
 | Activity | Where it lives |
 |----------|----------------|
-| **GPU kernel work and engine CUDA measurements** | `rmems/blackwell-kernel-lab` |
+| **CUDA backend / GPU kernels / engine CUDA measurements** | `rmems/blackwell-kernel-lab` |
 | **Model training / fine-tune forge** | [`rmems/agoge-forger`](https://github.com/rmems/agoge-forger) |
-| **Optional neuromorphic kernels (upstream)** | `Limen-Neural/myelin-accelerator` — optional dep only; **not** the SoT for this host’s kernel lab |
+| **Optional neuromorphic kernels (upstream)** | `Limen-Neural/myelin-accelerator` — optional dep only; **not** the SoT for this host |
 
-**Boundary contract:** [docs/FORGE_BOUNDARY.md](docs/FORGE_BOUNDARY.md) — new
-`.cu` lands here **only after L1 proves a gap**; training remains in the forge;
-no second CUDA tree under `agoge-forger/cuda/`.
+**Boundary contract:** [docs/FORGE_BOUNDARY.md](docs/FORGE_BOUNDARY.md) —
+new `.cu` lands here **only after L1 proves a gap**; no second CUDA tree
+under `agoge-forger/cuda/`.
+
+**Consume API for the forge:** [docs/FORGE_CONSUME.md](docs/FORGE_CONSUME.md).
 
 ## Quick start
 
@@ -40,12 +47,13 @@ cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON && cmake --build build/ke
 ./build/kernels/src/bkl_green_ctx_bench --out results/green-ctx-bench.json        # L2
 
 # Docs: docs/KERNELS.md · kernels/README.md · docs/CI.md · recipes/
+# Forge consume: docs/FORGE_CONSUME.md
 ```
 
 ## Repo layout
 
 ```text
-docs/           Mission, hardware baseline, kernel layering, CI, boundary
+docs/           Mission, hardware baseline, kernel layering, CI, forge consume/boundary
 recipes/        Human-run kernel measurement playbooks
 kernels/        First-party L3 CUDA workspace (sm_120) — see kernels/README.md
 results/        Kernel measurement outputs (gitignored)
@@ -53,14 +61,17 @@ results/        Kernel measurement outputs (gitignored)
 
 ## Kernel measurements we track
 
+These measurements exist so agoge-forger can train and serve on this card
+without guessing sm_100 / FA4 / MIG behavior.
+
 | Measurement | Why |
 |-------------|-----|
 | CUDA graph launch and replay overhead | Determine when capture amortizes on sm_120 |
 | Flash / fused-attention behavior | Identify prefill and KV-memory effects exposed by an engine |
-| Quantized GEMM path | Measure fit and decode-bandwidth tradeoffs |
+| Quantized GEMM path | Measure fit and decode-bandwidth tradeoffs for 4-bit train/serve |
 | Prefix / session KV reuse | Establish engine cache behavior before L2 scheduling |
 | Green Context SM isolation | Measure whether L2 partitioning protects a latency-sensitive kernel |
-| VRAM peak + free headroom | Keep experiments within the 16 GB host limit |
+| VRAM peak + free headroom | Keep train and kernel work within the 16 GB host limit |
 | L1–L3 deltas | Justify or reject first-party kernel work |
 
 See [docs/MISSION.md](docs/MISSION.md) and [docs/KERNELS.md](docs/KERNELS.md).
@@ -78,6 +89,7 @@ milestones.
 
 | Milestone | Version | Goal |
 |-----------|---------|------|
+| [**F0** — Forge CUDA backend](https://github.com/rmems/blackwell-kernel-lab/milestone/8) | **v0.2.0** | Honest local CUDA backend for agoge-forger: consume contract, 16 GB train-fit, train↔kernel coexistence |
 | [**M0** — Lab identity + host baseline](https://github.com/rmems/blackwell-kernel-lab/milestone/1) | **v0.1.0** | Kernel-lab identity, onboarding, and 16 GB hardware baseline |
 | [**M1** — Engine CUDA baselines](https://github.com/rmems/blackwell-kernel-lab/milestone/2) | **v0.2.0** | Reproducible L1 engine CUDA measurements and host configuration |
 | [**M2** — Kernel measurement campaign](https://github.com/rmems/blackwell-kernel-lab/milestone/3) | **v0.3.0** | FlashAttention, CUDA graphs, quant-path baselines, and measured gaps |
@@ -86,10 +98,9 @@ milestones.
 | [**CI** — Self-hosted GPU runner](https://github.com/rmems/blackwell-kernel-lab/milestone/6) | **patch / v0.x.0-ci** | Secure self-hosted **GPU** Actions runner (may ship mid-stream) |
 | [**K1** — CUDA scheduling evidence](https://github.com/rmems/blackwell-kernel-lab/milestone/7) | **v0.6.0** | L2 Green Context isolation and the L1 prefix/KV measurement (#8, #17) |
 
-This table is the kernel-lab naming. Milestones 2, 3, and 5 on GitHub still
-carry pre-#33 agent-harness titles ("Measure stack", "Agent efficiency
-baselines", "Smarter multi-agent agents"); rename them there to match, per the
-GH↔docs alignment rule in [AGENTS.md](AGENTS.md).
+**Current cut is F0.** Older GitHub milestone titles for 2, 3, and 5 may still
+carry pre-#33 agent-harness names; the names in this table are the ones that
+matter. Closing F0 tags **v0.2.0** (the next real release after tagged v0.1.0).
 
 **Patch** (`v0.N.M+1`): docs, recipes, and fixups inside an open milestone — no
 new minor.

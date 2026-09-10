@@ -1,14 +1,17 @@
-# Kernels for RTX 5080 (SoT in this repo)
+# Kernels for RTX 5080 (CUDA backend SoT)
 
-**`rmems/blackwell-kernel-lab` is the source of truth for GPU kernel work on
-this host** (sm_120 / 16 GB): engine CUDA paths (L1), host scheduling (L2), and
-first-party `.cu` / CUTLASS (L3) when L1 proves a gap.
+**`rmems/blackwell-kernel-lab` is the CUDA backend for
+[`rmems/agoge-forger`](https://github.com/rmems/agoge-forger) local LLM
+fine-tuning and training on this host** (sm_120 / 16 GB): engine CUDA paths
+(L1), host scheduling (L2), and first-party `.cu` / CUTLASS (L3) when L1
+proves a gap.
 
-Keep at least **2 GiB of VRAM free** before a measurement on this 16 GB host;
-see [HOST_BASELINE.md](HOST_BASELINE.md) for the operational headroom rule.
+Keep at least **2 GiB of VRAM free** before a measurement or train job on this
+16 GB host; see [HOST_BASELINE.md](HOST_BASELINE.md) for the operational
+headroom rule.
 
-Not neuromorphic-first. Not greenfield attention from day one. Training remains
-in `agoge-forger` (its `cuda/` tree is a stub only).
+Not neuromorphic-first. Not greenfield attention from day one. The trainer
+stays in `agoge-forger`; its `cuda/` tree is a stub that points here.
 
 **Boundary contract:** [FORGE_BOUNDARY.md](FORGE_BOUNDARY.md).
 

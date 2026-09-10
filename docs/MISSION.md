@@ -1,17 +1,20 @@
-# Mission — RTX 5080 GPU kernel lab
+# Mission — CUDA backend for agoge-forger (RTX 5080)
 
 ## Goal
 
-Own GPU kernel work for this RTX 5080 host: L1 engine CUDA paths, L2 scheduling,
-and L3 first-party kernels only when L1 proves a gap ([KERNELS.md](KERNELS.md)).
+Be the **local CUDA backend** so [`rmems/agoge-forger`](https://github.com/rmems/agoge-forger)
+can fine-tune and train LLMs honestly on this RTX 5080: L1 engine CUDA paths,
+L2 scheduling, and L3 first-party kernels only when L1 proves a gap
+([KERNELS.md](KERNELS.md), [FORGE_CONSUME.md](FORGE_CONSUME.md)).
 
 ## Non-goals
 
 | Non-goal | Owner instead |
 |---|---|
 | Multi-repo Limen CUDA build matrix | Retired from this epic |
-| Model training / fine-tuning forge | [`rmems/agoge-forger`](https://github.com/rmems/agoge-forger) |
+| Trainer, datasets, SFT / QLoRA ladder | [`rmems/agoge-forger`](https://github.com/rmems/agoge-forger) |
 | Blind L3 kernel writing without L1 baselines | Deferred until a measured gap |
+| Multi-agent / local-agent product | Retired (M3 not-planned) |
 
 ## Ownership (kernels)
 
@@ -22,11 +25,12 @@ and L3 first-party kernels only when L1 proves a gap ([KERNELS.md](KERNELS.md)).
 | L3 | New `.cu` / CUTLASS | **this repo** (when justified) |
 | Neuromorphic optional | myelin-style ops | `Limen-Neural/myelin-accelerator` as optional dep only |
 
-`agoge-forger/cuda/` remains a stub; real kernel lab work lands here.
+`agoge-forger/cuda/` remains a stub; the CUDA backend for local training
+lands here.
 
 ## Success
 
-- [x] README/epic describe a GPU kernel source of truth, not Limen verification.
+- [x] README/epic describe the agoge-forger CUDA backend, not a Limen or agent playground.
 - [x] Hardware baseline documented for the 16 GB RTX 5080.
 - [x] L1 engine-CUDA measurement methodology documented ([kernel ablation recipe](../recipes/kernel-ablation.md)).
 - [x] L3 workspace / smoke path (`kernels/`, `bkl_device_hello`, sm_120).
