@@ -1,0 +1,35 @@
+.github/workflows/ci-gpu.yml
+  s_a9fbce909af1d6::t_1df496dddb744d 11-15,20-22
+  s_a9fbce909af1d6::t_edd1efbc65a657 65-68
+.github/workflows/ci-lint.yml
+  s_a9fbce909af1d6::t_6548bf06661064 63,65
+  s_a9fbce909af1d6::t_cd7ff5c545c3e2 59-61
+docs/CI.md
+  s_a9fbce909af1d6::t_1c0b06436537d6 73-74
+  s_a9fbce909af1d6::t_17e3c48042c49e 29-32,35-44
+docs/FORGE_CONSUME.md
+  s_a9fbce909af1d6::t_b93f874fa79c08 64-66
+kernels/tools/wait_gpu_headroom.sh
+  s_a9fbce909af1d6::t_17099684045883 40-44,46-50
+  s_a9fbce909af1d6::t_eb5f808982afd5 1-39,45,51-78
+README.md
+  s_a9fbce909af1d6::t_76abcef8b97c97 107
+  s_a9fbce909af1d6::t_2f19a384890e6d 36-49
+  s_a9fbce909af1d6::t_0ccf217dfb25a5 123-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3a454f99d72b6aad44e3fcd8b4e4417490dfbc15",
+  "prompts": {},
+  "sessions": {
+    "s_a9fbce909af1d6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "19aac755-2f09-40d8-acdf-1a7c9d4be274",
+        "model": "grok-4.6"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
