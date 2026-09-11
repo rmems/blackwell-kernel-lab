@@ -1,0 +1,20 @@
+kernels/tools/wait_gpu_headroom.sh
+  s_a9fbce909af1d6::t_30dcafe60d055f 95-102,104-106,108-127,131-133,135
+  s_a9fbce909af1d6::t_8ab790b2f6f36c 36-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e768033837d6d0e69ffea27836ac472f4afcc402",
+  "prompts": {},
+  "sessions": {
+    "s_a9fbce909af1d6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "19aac755-2f09-40d8-acdf-1a7c9d4be274",
+        "model": "grok-4.6"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
