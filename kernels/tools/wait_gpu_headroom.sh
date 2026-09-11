@@ -33,6 +33,12 @@ require_uint() {
       exit 1
       ;;
   esac
+  # Keep values inside signed 32-bit so $((10#$val)) cannot abort with
+  # "value too great for base" on a 20-digit string that still matches [0-9]+.
+  if [ "${#val}" -gt 9 ]; then
+    echo "$name is too large (max 9 digits), got: $val" >&2
+    exit 1
+  fi
 }
 
 as_base10() {
@@ -86,37 +92,46 @@ list_compute_apps
 # Count from this process start, not a parent shell that sourced us.
 SECONDS=0
 deadline=$wait_s
+saw_ok_probe=0
+last_ok_free=
+
+fail_deadline() {
+  if [ "$saw_ok_probe" -eq 1 ]; then
+    echo "Need at least ${need_mib} MiB free on GPU 0 after waiting ${wait_s}s; last reading ${last_ok_free} MiB" >&2
+  else
+    echo "nvidia-smi never returned a parseable free-MiB reading after waiting ${wait_s}s" >&2
+  fi
+  list_compute_apps
+  exit 1
+}
 
 while true; do
+  if free="$(query_free_mib)"; then
+    case "$free" in
+      '' | *[!0-9]*)
+        echo "could not parse free MiB from nvidia-smi: ${free}" >&2
+        list_compute_apps
+        ;;
+      *)
+        saw_ok_probe=1
+        last_ok_free=$free
+        if [ "$free" -ge "$need_mib" ]; then
+          echo "GPU 0 has ${free} MiB free (>= ${need_mib})"
+          exit 0
+        fi
+        echo "GPU busy (${free} MiB free)"
+        list_compute_apps
+        ;;
+    esac
+  else
+    echo "nvidia-smi probe failed" >&2
+    list_compute_apps
+  fi
+
   remaining=$((deadline - SECONDS))
   if [ "$remaining" -le 0 ]; then
-    echo "Need at least ${need_mib} MiB free on GPU 0 after waiting ${wait_s}s" >&2
-    list_compute_apps
-    exit 1
+    fail_deadline
   fi
-
-  if ! free="$(query_free_mib)"; then
-    echo "nvidia-smi probe failed; retrying (${remaining}s left before fail)" >&2
-    list_compute_apps
-    sleep_remaining "$remaining"
-    continue
-  fi
-
-  case "$free" in
-    '' | *[!0-9]*)
-      echo "could not parse free MiB from nvidia-smi: ${free}; retrying (${remaining}s left before fail)" >&2
-      list_compute_apps
-      sleep_remaining "$remaining"
-      continue
-      ;;
-  esac
-
-  if [ "$free" -ge "$need_mib" ]; then
-    echo "GPU 0 has ${free} MiB free (>= ${need_mib})"
-    exit 0
-  fi
-
-  echo "GPU busy (${free} MiB free); waiting (${remaining}s left before fail)"
-  list_compute_apps
+  echo "waiting (${remaining}s left before fail)"
   sleep_remaining "$remaining"
 done
