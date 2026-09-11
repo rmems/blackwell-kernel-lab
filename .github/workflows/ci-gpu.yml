@@ -8,10 +8,18 @@ name: ci-gpu
 on:
   push:
     branches: [main]
+    # Docs-only cuts do not need the GPU host (PR #48 failed this job on
+    # occupancy while changing only markdown). workflow_dispatch still runs.
+    paths-ignore:
+      - "**/*.md"
+      - LICENSE
   workflow_dispatch:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - "**/*.md"
+      - LICENSE
 
 permissions:
   contents: read
@@ -44,7 +52,7 @@ jobs:
     if: needs.gate.outputs.allow == 'true'
     # Labels on registered runner ShipOfTheseus (see docs/CI.md).
     runs-on: [self-hosted, Linux, X64, CUDA]
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -54,12 +62,11 @@ jobs:
 
       - name: GPU presence
         run: |
-          nvidia-smi --query-gpu=name,driver_version,memory.total,memory.free --format=csv
-          free_mib="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits | head -n1 | tr -d '[:space:]')"
-          if [ "$free_mib" -lt 2048 ]; then
-            echo "Need at least 2048 MiB free on GPU 0; found ${free_mib} MiB"
-            exit 1
-          fi
+          # Serialize with train / desktop occupancy: wait for ≥2 GiB free
+          # (HOST_BASELINE) instead of failing the PR in one probe. Budget:
+          # up to 10 minutes here, remainder of the 30-minute job for smoke.
+          # See kernels/tools/wait_gpu_headroom.sh and docs/CI.md.
+          bash kernels/tools/wait_gpu_headroom.sh 2048 600 30
           command -v nvcc && nvcc --version | tail -2 || echo "nvcc not on PATH; kernel build requires it"
 
       - name: sm_120 kernel suite

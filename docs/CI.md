@@ -26,8 +26,23 @@ Re-register / label docs: [GitHub self-hosted runners](https://docs.github.com/e
 1. **Fork PRs never run on the GPU host** — the GitHub-hosted trust gate skips the self-hosted job when `head.repo != this repo`.
 2. Actions are pinned to commit SHAs, not floating tags.
 3. Do not use secrets that untrusted PR code could exfiltrate on self-hosted infrastructure.
-4. Desktop share: GPU jobs may compete with interactive work; keep `concurrency` cancel-in-progress.
+4. Desktop share: GPU jobs **serialize** with training and interactive work.
+   `ci-gpu` waits up to 10 minutes for ≥2048 MiB free on GPU 0, then fails.
+   The job timeout is **30 minutes** (wait + kernel smoke). Markdown-only PRs
+   (`**/*.md`, `LICENSE`) do not schedule the GPU host. Keep `concurrency`
+   cancel-in-progress.
 5. Do not store model weights or API keys in the runner work directory long-term.
+
+## GPU headroom (serialize)
+
+```bash
+# Same wait CI uses before kernel smoke
+bash kernels/tools/wait_gpu_headroom.sh 2048 600 30
+```
+
+If another compute process holds the card below 2 GiB, do not start
+`agoge train-*` **or** GPU CI. Pause the self-hosted runner, or wait.
+Green Context isolation is not the default for train vs Actions.
 
 ## Local equivalents
 
@@ -56,4 +71,5 @@ under gitignored `results/`.
 
 ## Issue
 
-#11 / RM-182 — self-hosted GPU Actions runner for this lab.
+- #11 / RM-182 — self-hosted GPU Actions runner.
+- #45 / #49 — train ↔ GPU CI serialize (wait for headroom; do not dual-occupy).
