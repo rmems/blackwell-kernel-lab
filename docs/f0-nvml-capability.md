@@ -67,7 +67,7 @@ Envelope matches the correlation records so a run can carry both files:
 | `agoge_run_id` | Same join key as GPU samples. |
 | `host.hostname` | Same-host capture assumed. |
 | `gpu` | `uuid`, `pci_bus_id`, `name`, `compute_capability`. Null when unknown; empty string is invalid. `device_status=ok` requires uuid or PCI. |
-| `tools` | `nvml_version`, `driver_version`, `nvidia_smi` (version string only; nvidia-smi is **not** a metric source here). Unknown → `null`. |
+| `tools` | `nvml_version`, `driver_version`, `nvidia_smi`. Live probes fill NVML/driver from libnvidia-ml and leave `nvidia_smi` null (nvidia-smi is **not** invoked and is **not** a metric source). Unknown → `null`. |
 | `collector` | `id` = `bkl-nvml-capability`, `version` string. |
 | `metrics` | One object per F0 field below. |
 | `capability_digest` | `sha256:` + 64 lowercase hex of identity + tool versions + per-metric capability/unit (not probe values). |

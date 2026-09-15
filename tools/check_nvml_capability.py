@@ -26,18 +26,15 @@ from f0_measurements import (
     check_measurement,
     require,
 )
-from nvml_capability import (
+from nvml_capability import ProbeFailure, discover
+from nvml_fakes import (
     FakeNvmlBackend,
-    ProbeFailure,
-    bind_samples,
-    check_capability_snapshot,
     correlation_capability_snapshot,
-    discover,
     discover_scenario,
-    reject_fabricated_zero,
     scenario_table,
 )
 from nvml_live import discover_live
+from nvml_schema import bind_samples, check_capability_snapshot, reject_fabricated_zero
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_DIR = REPO_ROOT / "fixtures" / "f0-nvml-capability"

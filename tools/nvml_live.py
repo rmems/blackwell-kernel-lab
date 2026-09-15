@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import ctypes
 import os
-import shutil
-import subprocess
 from typing import Any, Callable
 
 from f0_measurements import PSTATE_METRIC, require
@@ -48,27 +46,6 @@ class MemoryInfo(ctypes.Structure):
         ("free", ctypes.c_ulonglong),
         ("used", ctypes.c_ulonglong),
     ]
-
-
-def nvidia_smi_version() -> str | None:
-    """Record nvidia-smi's version string if present. Not a metric source."""
-    binary = shutil.which("nvidia-smi")
-    if binary is None:
-        return None
-    try:
-        proc = subprocess.run(
-            [binary, "--version"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    lines = (proc.stdout or proc.stderr).strip().splitlines()
-    if not lines:
-        return None
-    return lines[0][:120] or None
 
 
 class LiveNvmlBackend:
@@ -119,7 +96,7 @@ class LiveNvmlBackend:
         lib = self._require_lib()
         driver = _nvml_string(lambda buf, size: lib.nvmlSystemGetDriverVersion(buf, size), 80)
         nvml = _nvml_string(lambda buf, size: lib.nvmlSystemGetNVMLVersion(buf, size), 80)
-        return ToolVersions(nvml_version=nvml, driver_version=driver, nvidia_smi=nvidia_smi_version())
+        return ToolVersions(nvml_version=nvml, driver_version=driver, nvidia_smi=None)
 
     def read_numeric(self, index: int, metric: str) -> int | float:
         handle = self._handle(index)
