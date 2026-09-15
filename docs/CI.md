@@ -2,7 +2,7 @@
 
 | Workflow | Runner | Purpose |
 |---|---|---|
-| [`.github/workflows/ci-cpu.yml`](../.github/workflows/ci-cpu.yml) | **`ubuntu-latest`** | Kernel-tree checks and CUDA-disabled CMake configure |
+| [`.github/workflows/ci-cpu.yml`](../.github/workflows/ci-cpu.yml) | **`ubuntu-latest`** | Kernel-tree checks, CUDA-disabled CMake configure, and F0 correlation join (#52) |
 | [`.github/workflows/ci-gpu.yml`](../.github/workflows/ci-gpu.yml) | **Self-hosted** `ShipOfTheseus` (`self-hosted`, `Linux`, `X64`, `CUDA`) | GPU probe plus sm_120 build, binaries, graph JSON, and Green Context capability/measurement JSON |
 
 ## Host runner (this machine)
@@ -49,6 +49,9 @@ Green Context isolation is not the default for train vs Actions.
 ```bash
 # Same as ci-cpu
 cmake -S kernels -B build/kernels-cpu -DBKL_ENABLE_CUDA=OFF
+python3 tools/check_f0_correlation.py \
+  --markers fixtures/f0-correlation/agoge-markers.jsonl \
+  --samples fixtures/f0-correlation/bkl-gpu-samples.jsonl
 
 # CUDA smoke and first-party measurements (#17 / #19 / #21 / #30)
 cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON
