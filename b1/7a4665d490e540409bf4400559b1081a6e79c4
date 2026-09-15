@@ -1,0 +1,34 @@
+tools/check_f0_correlation.py
+  s_8e5965c7e7168d::t_9532acfd7d84cf 82-85
+  s_8e5965c7e7168d::t_9ec585c8731a8f 330-344
+  s_8e5965c7e7168d::t_e10599fde90c28 41-42
+  s_8e5965c7e7168d::t_2bc40657b7261c 103-108,111,115,117
+  s_8e5965c7e7168d::t_a385223b93e42a 145-146
+  s_8e5965c7e7168d::t_14a54ee0693b3d 94
+  s_8e5965c7e7168d::t_5c453981a966e4 345-355
+  s_8e5965c7e7168d::t_db54658045031a 15,17,19
+  s_8e5965c7e7168d::t_2551c24a993390 128,131-137
+  s_8e5965c7e7168d::t_ed195caa25ec3f 385,394
+  s_8e5965c7e7168d::t_f990a88080fa2a 205-215,220
+  s_8e5965c7e7168d::t_110b351a980fc8 223-224,226-227,234-235
+  s_8e5965c7e7168d::t_847340e5cc24d9 258-289,293,295-300,304-307,313-327
+  s_8e5965c7e7168d::t_379d1e12691c3b 138
+docs/f0-correlation-schema.md
+  s_8e5965c7e7168d::t_c0095397c4bdf8 139-142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b17a4665d490e540409bf4400559b1081a6e79c4",
+  "prompts": {},
+  "sessions": {
+    "s_8e5965c7e7168d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "5e0fe61c-55bb-4e18-8aab-df27234c37fb",
+        "model": "grok-4.6"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
