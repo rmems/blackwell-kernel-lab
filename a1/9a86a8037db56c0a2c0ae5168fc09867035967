@@ -1,0 +1,22 @@
+tools/check_f0_correlation.py
+  s_8e5965c7e7168d::t_71c59dfaf48436 301-302,305-311,317,319,325
+  s_8e5965c7e7168d::t_4fe34dd8947607 248-251
+  s_8e5965c7e7168d::t_9177750ebed048 374-379
+  s_8e5965c7e7168d::t_557887066b80e3 262-267,270-271,273-274,279-294
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a19a86a8037db56c0a2c0ae5168fc09867035967",
+  "prompts": {},
+  "sessions": {
+    "s_8e5965c7e7168d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "5e0fe61c-55bb-4e18-8aab-df27234c37fb",
+        "model": "grok-4.6"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
