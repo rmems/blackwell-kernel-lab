@@ -14,6 +14,8 @@ Not neuromorphic-first. Not greenfield attention from day one. The trainer
 stays in `agoge-forger`; its `cuda/` tree is a stub that points here.
 
 **Boundary contract:** [FORGE_BOUNDARY.md](FORGE_BOUNDARY.md).
+Training ↔ GPU sample join: [f0-correlation-schema.md](f0-correlation-schema.md)
+(CPU contract; not a kernel).
 
 ## Layers
 

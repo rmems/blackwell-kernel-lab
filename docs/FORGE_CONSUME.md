@@ -50,6 +50,15 @@ cmake --build build/kernels -j"$(nproc)"
 build/run is on the self-hosted `ci-gpu` runner — see
 [`docs/CI.md`](CI.md).
 
+## Training ↔ GPU telemetry join (F0)
+
+Versioned JSONL contract: [`f0-correlation-schema.md`](f0-correlation-schema.md)
+(`bkl.f0_correlation.v1`). Agoge emits `agoge_marker` records (run id, phase,
+step). This lab emits `bkl_gpu_sample` records. Join is `agoge_run_id` plus
+monotonic time on one host. BKL does not infer train phases from GPU load.
+CPU fixtures live under `fixtures/f0-correlation/`. Forge issue #144 should
+emit the Agoge-owned side; the trainer is not implemented here.
+
 ## What forge must not do
 
 - Copy `.cu` files into `agoge-forger/cuda/`. That directory stays a stub
