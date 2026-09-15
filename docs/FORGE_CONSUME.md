@@ -87,6 +87,6 @@ bundle instead of growing a second measurement format.
 ## Acceptance
 
 A reader who has only this file should be able to find the host rules above,
-run one L1 recipe and one L3 smoke binary, find the measured QLoRA train-fit
-notes, and know that this repo is the CUDA backend while training
-orchestration stays in `agoge-forger`.
+run one L1 recipe and one L3 smoke binary, find the QLoRA train-fit notes
+(trainer-reported MiniCPM5 peak; Granite unmeasured), and know that this
+repo is the CUDA backend while training orchestration stays in `agoge-forger`.
