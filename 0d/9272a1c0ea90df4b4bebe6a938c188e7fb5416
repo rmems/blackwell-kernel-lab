@@ -1,0 +1,19 @@
+.gitignore
+  s_0cc7001fa4318a::t_8a24e2a3b2d742 31-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0d9272a1c0ea90df4b4bebe6a938c188e7fb5416",
+  "prompts": {},
+  "sessions": {
+    "s_0cc7001fa4318a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "6fe998b7-a3be-4520-a9e1-f60d3a9e340b",
+        "model": "cursor-grok-4.6-medium"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
