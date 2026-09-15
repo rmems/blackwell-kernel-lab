@@ -82,8 +82,12 @@ jobs:
           # No GPU targets required; configure must succeed without nvcc.
 
       - name: F0 correlation schema join (CPU)
-        # Issue #52: join Agoge-marker + BKL-sample fixtures. No GPU.
+        # Issue #52 / RM-1349: join Agoge-marker + BKL-sample fixtures, then
+        # validate the one-host clock-skew report. No GPU.
         run: |
           python3 tools/check_f0_correlation.py \
             --markers fixtures/f0-correlation/agoge-markers.jsonl \
-            --samples fixtures/f0-correlation/bkl-gpu-samples.jsonl
+            --samples fixtures/f0-correlation/bkl-gpu-samples.jsonl \
+            --clock-skew fixtures/f0-correlation/clock-skew.json
+          python3 tools/check_f0_clock_skew.py \
+            --fixtures fixtures/f0-correlation/clock-skew
