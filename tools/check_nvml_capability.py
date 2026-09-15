@@ -26,7 +26,7 @@ from f0_measurements import (
     check_measurement,
     require,
 )
-from nvml_capability import ProbeFailure, discover
+from nvml_capability import NVML_ERROR_DRIVER_NOT_LOADED, ProbeFailure, discover, map_nvml_error
 from nvml_fakes import (
     FakeNvmlBackend,
     correlation_capability_snapshot,
@@ -206,6 +206,32 @@ def check_malformed_timestamp() -> None:
     )
 
 
+def check_driver_not_loaded_is_unsupported() -> None:
+    require(
+        map_nvml_error(NVML_ERROR_DRIVER_NOT_LOADED) == "unsupported",
+        "DRIVER_NOT_LOADED must not be classified as device_lost",
+    )
+
+
+def check_bind_rejects_other_gpu() -> None:
+    snapshot = correlation_capability_snapshot()
+    sample = json.loads(json.dumps(load_jsonl(CORRELATION_SAMPLES)[0]))
+    sample["gpu"]["uuid"] = "GPU-other"
+    expect_schema_error(
+        lambda: bind_samples(snapshot, [sample]),
+        "sample from another GPU must not bind",
+    )
+
+
+def check_missing_gpu_key_rejected() -> None:
+    snapshot = discover_scenario("full-support")
+    del snapshot["gpu"]["name"]
+    expect_schema_error(
+        lambda: check_capability_snapshot(snapshot),
+        "omitted gpu.name must be rejected",
+    )
+
+
 def check_optional_failure_does_not_abort() -> None:
     class BoomPower(FakeNvmlBackend):
         def read_numeric(self, index: int, metric: str) -> int | float:
@@ -243,6 +269,9 @@ def check_committed_fixtures(snapshots: dict[str, dict[str, Any]]) -> None:
 def run_self_test() -> None:
     check_zero_substitution_guards()
     check_malformed_timestamp()
+    check_driver_not_loaded_is_unsupported()
+    check_bind_rejects_other_gpu()
+    check_missing_gpu_key_rejected()
     snapshots = {
         "full-support": check_full_support(),
         "partial-support": check_partial_support(),

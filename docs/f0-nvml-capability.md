@@ -57,6 +57,7 @@ fabricated `0`. It also rejects `status == ok` with `value == null`.
 
 `device_status` on the snapshot (not a metric) is one of: `ok`, `no_device`,
 `device_lost`, `permission_denied`, `transient_failure`, `unsupported`.
+`NVML_ERROR_DRIVER_NOT_LOADED` is `unsupported` (no driver), not `device_lost`.
 
 ## Snapshot fields
 

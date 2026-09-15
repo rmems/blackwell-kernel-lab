@@ -29,22 +29,23 @@ from f0_measurements import (
 from nvml_capability import capability_digest
 
 
+GPU_IDENTITY_KEYS = ("pci_bus_id", "uuid", "name", "compute_capability")
+TOOL_KEYS = ("nvml_version", "driver_version", "nvidia_smi")
+
+
+def check_nullable_str_fields(obj: Any, keys: tuple[str, ...], prefix: str) -> None:
+    require(isinstance(obj, dict), f"{prefix} object required")
+    for key in keys:
+        require(key in obj, f"{prefix}.{key} required (null if unknown)")
+        require_optional_nonempty_str(obj.get(key), f"{prefix}.{key} must be null or a non-empty string")
+
+
 def check_gpu_identity_fields(gpu: Any) -> None:
-    require(isinstance(gpu, dict), "gpu identity object required")
-    require_optional_nonempty_str(gpu.get("pci_bus_id"), "gpu.pci_bus_id must be null or a non-empty string")
-    require_optional_nonempty_str(gpu.get("uuid"), "gpu.uuid must be null or a non-empty string")
-    require_optional_nonempty_str(gpu.get("name"), "gpu.name must be null or a non-empty string")
-    require_optional_nonempty_str(
-        gpu.get("compute_capability"),
-        "gpu.compute_capability must be null or a non-empty string",
-    )
+    check_nullable_str_fields(gpu, GPU_IDENTITY_KEYS, "gpu")
 
 
 def check_tools(tools: Any) -> None:
-    require(isinstance(tools, dict), "tools object required")
-    require_optional_nonempty_str(tools.get("nvml_version"), "tools.nvml_version must be null or a string")
-    require_optional_nonempty_str(tools.get("driver_version"), "tools.driver_version must be null or a string")
-    require_optional_nonempty_str(tools.get("nvidia_smi"), "tools.nvidia_smi must be null or a string")
+    check_nullable_str_fields(tools, TOOL_KEYS, "tools")
 
 
 def check_numeric_capability(rec: Any, name: str, unit: str) -> None:
@@ -122,6 +123,38 @@ def check_capability_snapshot(rec: Any) -> None:
     check_device_identity_rule(rec)
 
 
+def nonempty_id(value: Any) -> str | None:
+    if isinstance(value, str) and value:
+        return value
+    return None
+
+
+def gpu_identity_matches(cap_gpu: Any, sample_gpu: Any) -> bool:
+    if not isinstance(cap_gpu, dict) or not isinstance(sample_gpu, dict):
+        return False
+    cap_uuid = nonempty_id(cap_gpu.get("uuid"))
+    sample_uuid = nonempty_id(sample_gpu.get("uuid"))
+    if cap_uuid is not None and sample_uuid is not None:
+        return cap_uuid == sample_uuid
+    cap_pci = nonempty_id(cap_gpu.get("pci_bus_id"))
+    sample_pci = nonempty_id(sample_gpu.get("pci_bus_id"))
+    if cap_pci is not None and sample_pci is not None:
+        return cap_pci == sample_pci
+    return False
+
+
+def check_bind_host_gpu(snapshot: dict[str, Any], sample: dict[str, Any], index: int) -> None:
+    host = sample.get("host")
+    require(isinstance(host, dict), f"sample {index} host object required")
+    require(host.get("hostname") == snapshot["host"]["hostname"], f"sample {index} host mismatch")
+    if snapshot["device_status"] != "ok":
+        return
+    require(
+        gpu_identity_matches(snapshot["gpu"], sample.get("gpu")),
+        f"sample {index} GPU identity mismatch",
+    )
+
+
 def check_discovery_precedes_sample(snapshot: dict[str, Any], sample: dict[str, Any], index: int) -> None:
     require(
         snapshot["monotonic_ns"] <= sample["monotonic_ns"],
@@ -140,6 +173,7 @@ def bind_one_sample(snapshot: dict[str, Any], sample: Any, index: int, digest: s
         f"sample {index} capability_digest must match the run snapshot",
     )
     require(sample["capability_digest"] == digest, f"sample {index} capability_digest mismatch")
+    check_bind_host_gpu(snapshot, sample, index)
     check_discovery_precedes_sample(snapshot, sample, index)
 
 
