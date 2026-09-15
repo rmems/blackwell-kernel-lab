@@ -46,7 +46,8 @@ Do not start both.
    that floor, then fails (job timeout 30 minutes including smoke).
    Markdown-only PRs do not schedule the GPU host.
 
-Details: [docs/CI.md](docs/CI.md) · [docs/HOST_BASELINE.md](docs/HOST_BASELINE.md).
+Details: [docs/CI.md](docs/CI.md) · [docs/HOST_BASELINE.md](docs/HOST_BASELINE.md) ·
+[docs/TRAIN_FIT_5080.md](docs/TRAIN_FIT_5080.md) (MiniCPM5 canary peak VRAM).
 
 ## Quick start
 
@@ -61,14 +62,14 @@ cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON && cmake --build build/ke
 ./build/kernels/src/bkl_graph_launch_bench --out results/graph-launch-bench.json  # L3
 ./build/kernels/src/bkl_green_ctx_bench --out results/green-ctx-bench.json        # L2
 
-# Docs: docs/KERNELS.md · kernels/README.md · docs/CI.md · recipes/
+# Docs: docs/KERNELS.md · docs/TRAIN_FIT_5080.md · kernels/README.md · docs/CI.md · recipes/
 # Forge consume: docs/FORGE_CONSUME.md
 ```
 
 ## Repo layout
 
 ```text
-docs/           Mission, hardware baseline, kernel layering, CI, forge consume/boundary
+docs/           Mission, hardware baseline, train-fit, kernel layering, CI, forge consume/boundary
 fixtures/       CPU JSONL fixtures (F0 Agoge ↔ BKL correlation schema)
 recipes/        Human-run kernel measurement playbooks
 kernels/        First-party L3 CUDA workspace (sm_120) — see kernels/README.md

@@ -8,7 +8,8 @@ proves a gap.
 
 Keep at least **2 GiB of VRAM free** before a measurement or train job on this
 16 GB host; see [HOST_BASELINE.md](HOST_BASELINE.md) for the operational
-headroom rule.
+headroom rule and [TRAIN_FIT_5080.md](TRAIN_FIT_5080.md) for the MiniCPM5
+QLoRA canary peak on this card.
 
 Not neuromorphic-first. Not greenfield attention from day one. The trainer
 stays in `agoge-forger`; its `cuda/` tree is a stub that points here.
