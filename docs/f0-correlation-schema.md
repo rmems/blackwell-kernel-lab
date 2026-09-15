@@ -136,7 +136,10 @@ Deterministic join used by `tools/check_f0_correlation.py`:
 1. Partition records by `agoge_run_id`. Different run ids never join.
 2. Within a run, sort Agoge markers by `monotonic_ns` (tie-break `timestamp_utc`).
 3. For each BKL sample, attach the latest marker with
-   `marker.monotonic_ns <= sample.monotonic_ns` on the **same** `host.hostname`.
+   `marker.monotonic_ns <= sample.monotonic_ns` on the **same** `host.hostname`
+   **and** the same GPU identity (`uuid` if both sides have a non-empty uuid;
+   otherwise `pci_bus_id` if both sides have a non-empty bus id). Mismatched
+   or missing identities stay unjoined.
 4. If no such marker exists, the sample is **unjoined** (allowed in production
    streams; the CPU fixture in this repo requires ≥1 joined pair).
 5. Wall clock is for humans and for skew notes. Ordering is monotonic.

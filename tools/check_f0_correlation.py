@@ -12,8 +12,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
+import math
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +38,8 @@ PHYSICAL = (
     ("vram_total", "MiB"),
     ("headroom", "MiB"),
 )
+PERCENT_FIELDS = {"utilization_gpu", "utilization_memory"}
+FIXTURE_IDLE_MONOTONIC_NS = 1_500_000_000
 
 
 class SchemaError(Exception):
@@ -74,6 +79,10 @@ def require_positive_int(value: Any, message: str) -> None:
     require(value > 0, message)
 
 
+def _reject_nonfinite_json(token: str) -> None:
+    raise SchemaError(f"non-finite JSON number {token!r} is not allowed")
+
+
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     text = path.read_text()
@@ -82,7 +91,7 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
         if not stripped:
             continue
         try:
-            obj = json.loads(stripped)
+            obj = json.loads(stripped, parse_constant=_reject_nonfinite_json)
         except json.JSONDecodeError as error:
             raise SchemaError(f"{path}:{line_no}: {error}") from error
         require(isinstance(obj, dict), f"{path}:{line_no}: expected object")
@@ -91,15 +100,21 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def check_ok_numeric(value: Any, name: str) -> None:
+    require(isinstance(value, (int, float)), f"{name}: ok requires a numeric value, not {value!r}")
+    require(not isinstance(value, bool), f"{name}: ok requires a numeric value, not {value!r}")
+    require(math.isfinite(float(value)), f"{name}: ok requires a finite number, not {value!r}")
+
+
 def check_measurement(obj: Any, name: str, unit: str) -> None:
     require(isinstance(obj, dict), f"{name} must be a measurement object")
+    require("value" in obj, f"{name}: value key required")
     require(obj.get("unit") == unit, f"{name}: expected unit {unit}, got {obj.get('unit')}")
     status = obj.get("status")
     require(status in MEASUREMENT_STATUS, f"{name}: bad status {status}")
-    value = obj.get("value")
+    value = obj["value"]
     if status == "ok":
-        require(isinstance(value, (int, float)), f"{name}: ok requires a numeric value, not {value!r}")
-        require(not isinstance(value, bool), f"{name}: ok requires a numeric value, not {value!r}")
+        check_ok_numeric(value, name)
         return
     require(value is None, f"{name}: missing must be null, not {value!r} (missing ≠ zero)")
 
@@ -110,18 +125,25 @@ def check_host(rec: dict[str, Any]) -> None:
     require_nonempty_str(host.get("hostname"), "host.hostname required")
 
 
-def check_time(rec: dict[str, Any]) -> None:
-    timestamp = rec.get("timestamp_utc")
+def parse_rfc3339_utc(timestamp: Any) -> datetime:
     require(isinstance(timestamp, str), "timestamp_utc must be UTC RFC3339 ending in Z")
     require(timestamp.endswith("Z"), "timestamp_utc must be UTC RFC3339 ending in Z")
+    try:
+        return datetime.fromisoformat(timestamp[:-1] + "+00:00")
+    except ValueError as error:
+        raise SchemaError("timestamp_utc must be UTC RFC3339 ending in Z") from error
+
+
+def check_time(rec: dict[str, Any]) -> None:
+    parse_rfc3339_utc(rec.get("timestamp_utc"))
     require_nonneg_int(rec.get("monotonic_ns"), "monotonic_ns must be a non-negative int")
 
 
 def check_collector(rec: dict[str, Any]) -> None:
     collector = rec.get("collector")
     require(isinstance(collector, dict), "collector object required")
-    require(collector.get("id"), "collector.id and collector.version required")
-    require(collector.get("version"), "collector.id and collector.version required")
+    require_nonempty_str(collector.get("id"), "collector.id must be a non-empty string")
+    require_nonempty_str(collector.get("version"), "collector.version must be a non-empty string")
 
 
 def check_envelope(rec: dict[str, Any], kind: str) -> None:
@@ -180,22 +202,37 @@ def check_marker(rec: dict[str, Any]) -> None:
     check_marker_metrics(rec)
 
 
-def check_throttle(obj: Any) -> None:
-    require(isinstance(obj, dict), "throttle must be an object")
-    status = obj.get("status")
-    require(status in MEASUREMENT_STATUS, f"throttle: bad status {status}")
-    reasons = obj.get("reasons")
+def check_throttle_reasons(status: str, reasons: Any) -> None:
     if status == "ok":
         require(isinstance(reasons, list), "throttle.reasons must be a list when ok")
         require(all(isinstance(item, str) for item in reasons), "throttle.reasons must be strings")
         return
-    require(reasons is None, "throttle.reasons must be null when not ok")
+    if reasons is None:
+        return
+    require(isinstance(reasons, list), "throttle.reasons must be null or a list when not ok")
+    require(len(reasons) == 0, "throttle.reasons must be null or empty when not ok")
+
+
+def check_throttle(obj: Any) -> None:
+    require(isinstance(obj, dict), "throttle must be an object")
+    status = obj.get("status")
+    require(status in MEASUREMENT_STATUS, f"throttle: bad status {status}")
+    check_throttle_reasons(status, obj.get("reasons"))
+
+
+def check_percent_bounds(obj: dict[str, Any], name: str) -> None:
+    if obj.get("status") != "ok":
+        return
+    value = obj["value"]
+    require(0 <= value <= 100, f"{name}: ok percent must be in 0–100, got {value!r}")
 
 
 def check_sample_physical(rec: dict[str, Any]) -> None:
     for name, unit in PHYSICAL:
         require(name in rec, f"missing physical field {name}")
         check_measurement(rec[name], name, unit)
+        if name in PERCENT_FIELDS:
+            check_percent_bounds(rec[name], name)
 
 
 def check_cuda(rec: dict[str, Any]) -> None:
@@ -218,40 +255,104 @@ def check_sample(rec: dict[str, Any]) -> None:
     check_cuda(rec)
 
 
+def gpu_join_token(gpu: Any) -> tuple[str, str] | None:
+    require(isinstance(gpu, dict), "gpu identity object required")
+    uuid = gpu.get("uuid")
+    if isinstance(uuid, str) and uuid:
+        return ("uuid", uuid)
+    pci = gpu.get("pci_bus_id")
+    if isinstance(pci, str) and pci:
+        return ("pci", pci)
+    return None
+
+
+def join_bucket_key(rec: dict[str, Any]) -> tuple[str, str, tuple[str, str]] | None:
+    token = gpu_join_token(rec.get("gpu"))
+    if token is None:
+        return None
+    return (rec["agoge_run_id"], rec["host"]["hostname"], token)
+
+
+def marker_sort_key(item: dict[str, Any]) -> tuple[int, datetime]:
+    return (item["monotonic_ns"], parse_rfc3339_utc(item["timestamp_utc"]))
+
+
+def latest_marker_at_or_before(
+    run_markers: list[dict[str, Any]], monotonic_ns: int
+) -> dict[str, Any] | None:
+    keys = [item["monotonic_ns"] for item in run_markers]
+    index = bisect.bisect_right(keys, monotonic_ns) - 1
+    if index < 0:
+        return None
+    return run_markers[index]
+
+
 def join_samples(
     markers: list[dict[str, Any]], samples: list[dict[str, Any]]
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
-    by_run: dict[str, list[dict[str, Any]]] = {}
+    by_key: dict[tuple[str, str, tuple[str, str]], list[dict[str, Any]]] = {}
     for marker in markers:
-        by_run.setdefault(marker["agoge_run_id"], []).append(marker)
-    for run_markers in by_run.values():
-        run_markers.sort(key=lambda item: (item["monotonic_ns"], item["timestamp_utc"]))
+        key = join_bucket_key(marker)
+        if key is None:
+            continue
+        by_key.setdefault(key, []).append(marker)
+    for run_markers in by_key.values():
+        run_markers.sort(key=marker_sort_key)
 
     joined: list[tuple[dict[str, Any], dict[str, Any]]] = []
     for sample in samples:
-        run_markers = by_run.get(sample["agoge_run_id"], [])
-        host = sample["host"]["hostname"]
-        chosen = None
-        for marker in run_markers:
-            if marker["host"]["hostname"] != host:
-                continue
-            if marker["monotonic_ns"] <= sample["monotonic_ns"]:
-                chosen = marker
+        key = join_bucket_key(sample)
+        if key is None:
+            continue
+        chosen = latest_marker_at_or_before(by_key.get(key, []), sample["monotonic_ns"])
         if chosen is not None:
             joined.append((chosen, sample))
     return joined
 
 
-def phase_from_markers_only(pairs: list[tuple[dict[str, Any], dict[str, Any]]]) -> None:
-    """Joined phase must come from the Agoge marker, never from GPU utilization."""
-    for marker, sample in pairs:
-        util = sample["utilization_gpu"]
-        require(marker["phase"] == "train", "fixture markers use phase=train")
-        require(util["status"] == "ok", "fixture samples have ok GPU util")
-        # First fixture sample is idle (0%) but still joins to train step 0.
-        if sample["monotonic_ns"] == 1500000000:
-            require(util["value"] == 0.0, "first sample is a legitimate zero util")
-            require(marker["global_step"] == 0, "idle util must still join step 0, not an inferred idle phase")
+def check_fixture_idle_join(pairs: list[tuple[dict[str, Any], dict[str, Any]]]) -> None:
+    """Fixture-only: idle 0% util still joins train step 0 from the marker."""
+    idle = [
+        (marker, sample)
+        for marker, sample in pairs
+        if sample["monotonic_ns"] == FIXTURE_IDLE_MONOTONIC_NS
+    ]
+    if not idle:
+        return
+    marker, sample = idle[0]
+    util = sample["utilization_gpu"]
+    require(marker["phase"] == "train", "idle fixture sample must join phase=train")
+    require(util["status"] == "ok", "idle fixture sample has ok GPU util")
+    require(util["value"] == 0.0, "first sample is a legitimate zero util")
+    require(marker["global_step"] == 0, "idle util must still join step 0, not an inferred idle phase")
+
+
+def expect_schema_error(fn: Any) -> None:
+    try:
+        fn()
+    except SchemaError:
+        return
+    raise SchemaError("expected a schema error")
+
+
+def check_contract_guards() -> None:
+    check_missing_is_not_zero()
+    expect_schema_error(lambda: check_ok_numeric(float("nan"), "loss"))
+    expect_schema_error(lambda: check_measurement({"unit": "W", "status": "unavailable"}, "power", "W"))
+    expect_schema_error(lambda: parse_rfc3339_utc("not-a-dateZ"))
+    expect_schema_error(lambda: check_percent_bounds({"status": "ok", "value": 150}, "utilization_gpu"))
+    check_throttle({"status": "unsupported", "reasons": []})
+    marker = {
+        "agoge_run_id": "r",
+        "host": {"hostname": "h"},
+        "gpu": {"uuid": "GPU-A"},
+        "monotonic_ns": 1,
+        "timestamp_utc": "2026-01-01T00:00:00Z",
+    }
+    sample = dict(marker)
+    sample["gpu"] = {"uuid": "GPU-B"}
+    sample["monotonic_ns"] = 2
+    require(not join_samples([marker], [sample]), "mismatched GPU uuid must not join")
 
 
 def check_missing_is_not_zero() -> None:
@@ -281,7 +382,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
     try:
-        check_missing_is_not_zero()
+        check_contract_guards()
         markers = load_jsonl(args.markers)
         samples = load_jsonl(args.samples)
         for rec in markers:
@@ -290,7 +391,7 @@ def main(argv: list[str]) -> int:
             check_sample(rec)
         pairs = join_samples(markers, samples)
         require(pairs, "expected at least one join on agoge_run_id + monotonic_ns")
-        phase_from_markers_only(pairs)
+        check_fixture_idle_join(pairs)
     except (SchemaError, OSError, KeyError, TypeError) as error:
         print(error, file=sys.stderr)
         return 1
