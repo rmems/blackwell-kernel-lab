@@ -245,6 +245,10 @@ def check_cuda(rec: dict[str, Any]) -> None:
 
 def check_sample(rec: dict[str, Any]) -> None:
     check_envelope(rec, SAMPLE)
+    require(
+        gpu_join_token(rec.get("gpu")) is not None,
+        "bkl_gpu_sample requires a non-empty gpu.uuid or gpu.pci_bus_id",
+    )
     require_positive_int(rec.get("cadence_ms"), "bkl_gpu_sample cadence_ms must be a positive int")
     check_sample_physical(rec)
     check_throttle(rec.get("throttle"))
@@ -255,56 +259,70 @@ def check_sample(rec: dict[str, Any]) -> None:
     check_cuda(rec)
 
 
+def nonempty_id(value: Any) -> str | None:
+    if isinstance(value, str) and value:
+        return value
+    return None
+
+
 def gpu_join_token(gpu: Any) -> tuple[str, str] | None:
     require(isinstance(gpu, dict), "gpu identity object required")
-    uuid = gpu.get("uuid")
-    if isinstance(uuid, str) and uuid:
+    uuid = nonempty_id(gpu.get("uuid"))
+    if uuid is not None:
         return ("uuid", uuid)
-    pci = gpu.get("pci_bus_id")
-    if isinstance(pci, str) and pci:
+    pci = nonempty_id(gpu.get("pci_bus_id"))
+    if pci is not None:
         return ("pci", pci)
     return None
 
 
-def join_bucket_key(rec: dict[str, Any]) -> tuple[str, str, tuple[str, str]] | None:
-    token = gpu_join_token(rec.get("gpu"))
-    if token is None:
-        return None
-    return (rec["agoge_run_id"], rec["host"]["hostname"], token)
+def gpu_identities_match(marker_gpu: Any, sample_gpu: Any) -> bool:
+    if not isinstance(marker_gpu, dict) or not isinstance(sample_gpu, dict):
+        return False
+    marker_uuid = nonempty_id(marker_gpu.get("uuid"))
+    sample_uuid = nonempty_id(sample_gpu.get("uuid"))
+    if marker_uuid is not None and sample_uuid is not None:
+        return marker_uuid == sample_uuid
+    marker_pci = nonempty_id(marker_gpu.get("pci_bus_id"))
+    sample_pci = nonempty_id(sample_gpu.get("pci_bus_id"))
+    if marker_pci is not None and sample_pci is not None:
+        return marker_pci == sample_pci
+    return False
+
+
+def join_bucket_key(rec: dict[str, Any]) -> tuple[str, str]:
+    return (rec["agoge_run_id"], rec["host"]["hostname"])
 
 
 def marker_sort_key(item: dict[str, Any]) -> tuple[int, datetime]:
     return (item["monotonic_ns"], parse_rfc3339_utc(item["timestamp_utc"]))
 
 
-def latest_marker_at_or_before(
-    run_markers: list[dict[str, Any]], monotonic_ns: int
+def latest_matching_marker(
+    run_markers: list[dict[str, Any]], sample: dict[str, Any]
 ) -> dict[str, Any] | None:
     keys = [item["monotonic_ns"] for item in run_markers]
-    index = bisect.bisect_right(keys, monotonic_ns) - 1
-    if index < 0:
-        return None
-    return run_markers[index]
+    index = bisect.bisect_right(keys, sample["monotonic_ns"]) - 1
+    while index >= 0:
+        marker = run_markers[index]
+        if gpu_identities_match(marker.get("gpu"), sample.get("gpu")):
+            return marker
+        index -= 1
+    return None
 
 
 def join_samples(
     markers: list[dict[str, Any]], samples: list[dict[str, Any]]
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
-    by_key: dict[tuple[str, str, tuple[str, str]], list[dict[str, Any]]] = {}
+    by_key: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for marker in markers:
-        key = join_bucket_key(marker)
-        if key is None:
-            continue
-        by_key.setdefault(key, []).append(marker)
+        by_key.setdefault(join_bucket_key(marker), []).append(marker)
     for run_markers in by_key.values():
         run_markers.sort(key=marker_sort_key)
 
     joined: list[tuple[dict[str, Any], dict[str, Any]]] = []
     for sample in samples:
-        key = join_bucket_key(sample)
-        if key is None:
-            continue
-        chosen = latest_marker_at_or_before(by_key.get(key, []), sample["monotonic_ns"])
+        chosen = latest_matching_marker(by_key.get(join_bucket_key(sample), []), sample)
         if chosen is not None:
             joined.append((chosen, sample))
     return joined
@@ -353,6 +371,12 @@ def check_contract_guards() -> None:
     sample["gpu"] = {"uuid": "GPU-B"}
     sample["monotonic_ns"] = 2
     require(not join_samples([marker], [sample]), "mismatched GPU uuid must not join")
+    pci_marker = dict(marker)
+    pci_marker["gpu"] = {"pci_bus_id": "0000:01:00.0"}
+    pci_sample = dict(marker)
+    pci_sample["gpu"] = {"uuid": "GPU-B", "pci_bus_id": "0000:01:00.0"}
+    pci_sample["monotonic_ns"] = 2
+    require(join_samples([pci_marker], [pci_sample]), "pci fallback must join when uuids are not both set")
 
 
 def check_missing_is_not_zero() -> None:
