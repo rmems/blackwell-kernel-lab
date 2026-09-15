@@ -46,6 +46,34 @@ def require(condition: object, message: str) -> None:
         raise SchemaError(message)
 
 
+def require_nonempty_str(value: Any, message: str) -> None:
+    require(isinstance(value, str), message)
+    require(value, message)
+
+
+def require_optional_nonempty_str(value: Any, message: str) -> None:
+    if value is None:
+        return
+    require_nonempty_str(value, message)
+
+
+def require_nonneg_int(value: Any, message: str) -> None:
+    require(isinstance(value, int), message)
+    require(not isinstance(value, bool), message)
+    require(value >= 0, message)
+
+
+def require_optional_nonneg_int(value: Any, message: str) -> None:
+    if value is None:
+        return
+    require_nonneg_int(value, message)
+
+
+def require_positive_int(value: Any, message: str) -> None:
+    require_nonneg_int(value, message)
+    require(value > 0, message)
+
+
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     text = path.read_text()
@@ -70,59 +98,86 @@ def check_measurement(obj: Any, name: str, unit: str) -> None:
     require(status in MEASUREMENT_STATUS, f"{name}: bad status {status}")
     value = obj.get("value")
     if status == "ok":
-        require(isinstance(value, (int, float)) and not isinstance(value, bool),
-                f"{name}: ok requires a numeric value, not {value!r}")
+        require(isinstance(value, (int, float)), f"{name}: ok requires a numeric value, not {value!r}")
+        require(not isinstance(value, bool), f"{name}: ok requires a numeric value, not {value!r}")
         return
     require(value is None, f"{name}: missing must be null, not {value!r} (missing ≠ zero)")
+
+
+def check_host(rec: dict[str, Any]) -> None:
+    host = rec.get("host")
+    require(isinstance(host, dict), "host object required")
+    require_nonempty_str(host.get("hostname"), "host.hostname required")
+
+
+def check_time(rec: dict[str, Any]) -> None:
+    timestamp = rec.get("timestamp_utc")
+    require(isinstance(timestamp, str), "timestamp_utc must be UTC RFC3339 ending in Z")
+    require(timestamp.endswith("Z"), "timestamp_utc must be UTC RFC3339 ending in Z")
+    require_nonneg_int(rec.get("monotonic_ns"), "monotonic_ns must be a non-negative int")
+
+
+def check_collector(rec: dict[str, Any]) -> None:
+    collector = rec.get("collector")
+    require(isinstance(collector, dict), "collector object required")
+    require(collector.get("id"), "collector.id and collector.version required")
+    require(collector.get("version"), "collector.id and collector.version required")
 
 
 def check_envelope(rec: dict[str, Any], kind: str) -> None:
     require(rec.get("schema_version") == SCHEMA, f"unexpected schema_version: {rec.get('schema_version')}")
     require(rec.get("record_kind") == kind, f"expected record_kind {kind}, got {rec.get('record_kind')}")
-    require(isinstance(rec.get("agoge_run_id"), str) and rec["agoge_run_id"], "agoge_run_id required")
-    host = rec.get("host")
-    require(isinstance(host, dict) and isinstance(host.get("hostname"), str) and host["hostname"],
-            "host.hostname required")
-    gpu = rec.get("gpu")
-    require(isinstance(gpu, dict), "gpu identity object required")
-    require(isinstance(rec.get("timestamp_utc"), str) and rec["timestamp_utc"].endswith("Z"),
-            "timestamp_utc must be UTC RFC3339 ending in Z")
-    mono = rec.get("monotonic_ns")
-    require(isinstance(mono, int) and not isinstance(mono, bool) and mono >= 0,
-            "monotonic_ns must be a non-negative int")
-    collector = rec.get("collector")
-    require(isinstance(collector, dict) and collector.get("id") and collector.get("version"),
-            "collector.id and collector.version required")
+    require_nonempty_str(rec.get("agoge_run_id"), "agoge_run_id required")
+    check_host(rec)
+    require(isinstance(rec.get("gpu"), dict), "gpu identity object required")
+    check_time(rec)
+    check_collector(rec)
 
 
-def check_marker(rec: dict[str, Any]) -> None:
-    check_envelope(rec, MARKER)
-    require(rec.get("cadence_ms") is None, "agoge_marker cadence_ms must be null")
-    require(isinstance(rec.get("model_id"), str) and rec["model_id"], "model_id required")
-    require(isinstance(rec.get("model_revision"), str) and rec["model_revision"],
-            "model_revision required")
+def check_dataset(rec: dict[str, Any]) -> None:
     dataset = rec.get("dataset")
     require(isinstance(dataset, dict), "dataset object required")
-    for key in ("id", "split"):
-        require(isinstance(dataset.get(key), str) and dataset[key], f"dataset.{key} required")
-    digest = dataset.get("config_digest")
-    require(digest is None or (isinstance(digest, str) and digest),
-            "dataset.config_digest must be null or a non-empty string")
-    require(isinstance(rec.get("phase"), str) and rec["phase"], "phase required")
-    step = rec.get("global_step")
-    require(isinstance(step, int) and not isinstance(step, bool) and step >= 0,
-            "global_step must be a non-negative int")
-    micro = rec.get("microstep")
-    require(micro is None or (isinstance(micro, int) and not isinstance(micro, bool) and micro >= 0),
-            "microstep must be null or a non-negative int")
-    for counter in ("tokens_accepted", "examples_accepted"):
-        val = rec.get(counter)
-        require(val is None or (isinstance(val, int) and not isinstance(val, bool) and val >= 0),
-                f"{counter} must be null or a non-negative int")
+    require_nonempty_str(dataset.get("id"), "dataset.id required")
+    require_nonempty_str(dataset.get("split"), "dataset.split required")
+    require_optional_nonempty_str(
+        dataset.get("config_digest"),
+        "dataset.config_digest must be null or a non-empty string",
+    )
+
+
+def check_marker_model(rec: dict[str, Any]) -> None:
+    require(rec.get("cadence_ms") is None, "agoge_marker cadence_ms must be null")
+    require_nonempty_str(rec.get("model_id"), "model_id required")
+    require_nonempty_str(rec.get("model_revision"), "model_revision required")
+
+
+def check_marker_step(rec: dict[str, Any]) -> None:
+    require_nonempty_str(rec.get("phase"), "phase required")
+    require_nonneg_int(rec.get("global_step"), "global_step must be a non-negative int")
+    require_optional_nonneg_int(rec.get("microstep"), "microstep must be null or a non-negative int")
+    require_optional_nonneg_int(
+        rec.get("tokens_accepted"),
+        "tokens_accepted must be null or a non-negative int",
+    )
+    require_optional_nonneg_int(
+        rec.get("examples_accepted"),
+        "examples_accepted must be null or a non-negative int",
+    )
+
+
+def check_marker_metrics(rec: dict[str, Any]) -> None:
     if "loss" in rec:
         check_measurement(rec["loss"], "loss", "1")
     if "throughput_tokens_per_s" in rec:
         check_measurement(rec["throughput_tokens_per_s"], "throughput_tokens_per_s", "token/s")
+
+
+def check_marker(rec: dict[str, Any]) -> None:
+    check_envelope(rec, MARKER)
+    check_marker_model(rec)
+    check_dataset(rec)
+    check_marker_step(rec)
+    check_marker_metrics(rec)
 
 
 def check_throttle(obj: Any) -> None:
@@ -137,23 +192,30 @@ def check_throttle(obj: Any) -> None:
     require(reasons is None, "throttle.reasons must be null when not ok")
 
 
-def check_sample(rec: dict[str, Any]) -> None:
-    check_envelope(rec, SAMPLE)
-    cadence = rec.get("cadence_ms")
-    require(isinstance(cadence, int) and not isinstance(cadence, bool) and cadence > 0,
-            "bkl_gpu_sample cadence_ms must be a positive int")
+def check_sample_physical(rec: dict[str, Any]) -> None:
     for name, unit in PHYSICAL:
         require(name in rec, f"missing physical field {name}")
         check_measurement(rec[name], name, unit)
-    check_throttle(rec.get("throttle"))
-    pref = rec.get("profile_window_ref")
-    require(pref is None or (isinstance(pref, str) and pref),
-            "profile_window_ref must be null or a non-empty string")
+
+
+def check_cuda(rec: dict[str, Any]) -> None:
     cuda = rec.get("cuda")
     require(isinstance(cuda, dict), "cuda object required")
-    for key in ("driver_version", "runtime_version", "tool"):
-        val = cuda.get(key)
-        require(val is None or (isinstance(val, str) and val), f"cuda.{key} must be null or string")
+    require_optional_nonempty_str(cuda.get("driver_version"), "cuda.driver_version must be null or string")
+    require_optional_nonempty_str(cuda.get("runtime_version"), "cuda.runtime_version must be null or string")
+    require_optional_nonempty_str(cuda.get("tool"), "cuda.tool must be null or string")
+
+
+def check_sample(rec: dict[str, Any]) -> None:
+    check_envelope(rec, SAMPLE)
+    require_positive_int(rec.get("cadence_ms"), "bkl_gpu_sample cadence_ms must be a positive int")
+    check_sample_physical(rec)
+    check_throttle(rec.get("throttle"))
+    require_optional_nonempty_str(
+        rec.get("profile_window_ref"),
+        "profile_window_ref must be null or a non-empty string",
+    )
+    check_cuda(rec)
 
 
 def join_samples(
