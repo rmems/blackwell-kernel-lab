@@ -3,12 +3,14 @@
 **Audience:** `agoge-forger`, or anything else that wants to pin this repo as
 the local CUDA backend for LLM fine-tuning and training without copying `.cu`.
 
-**Cite:** `rmems/blackwell-kernel-lab@24039e6` for contract revision 1 (no
-release tag newer than `v0.1.0` exists yet; update this pointer when one is
-cut). Train-fit notes ([`TRAIN_FIT_5080.md`](TRAIN_FIT_5080.md), #44) landed
-after that pin — read them from the default branch, not from `@24039e6`. See
-[`FORGE_BOUNDARY.md`](FORGE_BOUNDARY.md) for the ownership rule this contract
-implements — this doc is the consume-side API, that one is the boundary.
+**Cite:** default branch for consume pages including
+[`TRAIN_FIT_5080.md`](TRAIN_FIT_5080.md) (#44). Do not pin
+`rmems/blackwell-kernel-lab@24039e6` for train-fit — that SHA has neither
+this page nor `FORGE_CONSUME.md`. Contract revision 1 host/recipe/smoke
+text originally landed there; update the SHA when a release tag newer than
+`v0.1.0` is cut. See [`FORGE_BOUNDARY.md`](FORGE_BOUNDARY.md) for the
+ownership rule this contract implements — this doc is the consume-side API,
+that one is the boundary.
 
 ## Host facts
 

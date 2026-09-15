@@ -37,7 +37,7 @@ Do not copy trainer YAML into this repo. Cite these Agoge configs:
 
 | Path | Role |
 |---|---|
-| [`configs/minicpm5_canary.yaml`](https://github.com/rmems/agoge-forger/blob/main/configs/minicpm5_canary.yaml) | Compatibility canary — 4-bit NF4, seq 512, batch 1, accum 8, grad checkpoint |
+| [`configs/minicpm5_canary.yaml`](https://github.com/rmems/agoge-forger/blob/main/configs/minicpm5_canary.yaml) | Current canary knobs on AF `main` (4-bit NF4, seq 512, batch 1, accum 8, grad checkpoint). Not a pin of the 2026-09-11 row. |
 | [`configs/granite_4_1_flagship.yaml`](https://github.com/rmems/agoge-forger/blob/main/configs/granite_4_1_flagship.yaml) | Flagship QLoRA **template** (seq 2048, same 4-bit shape) until AF [#101](https://github.com/rmems/agoge-forger/issues/101) revision freeze is measured here |
 
 Preflight warnings (`estimate_training_risk`, ≤16.5 GiB gates) stay in the
@@ -49,15 +49,22 @@ Run on ShipOfTheseus only. Capture a one-object JSON under gitignored
 `results/` (for example `results/train-fit-minicpm5-canary.json`). Paste the
 peak-VRAM / min-free row into the table below.
 
-1. Confirm GPU 0 has **≥2048 MiB free**. The same helper CI uses:
+1. Confirm GPU 0 has **≥2048 MiB free** and **no unexpected compute
+   process** (README checklist). Pause the self-hosted runner before train.
+   `wait_gpu_headroom.sh` is a snapshot, not a mutex:
 
    ```bash
    bash kernels/tools/wait_gpu_headroom.sh 2048 1 1
    nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free --format=csv
+   nvidia-smi --query-compute-apps=pid,process_name,used_gpu_memory --format=csv
    ```
 
-   If free VRAM is below 2048 MiB, **stop**. Do not start train and do not
-   start `ci-gpu`.
+   If free VRAM is below 2048 MiB, **stop**. To keep **≥2048 MiB free while
+   the trainer is allocated**, start-free must cover that floor **plus** the
+   expected peak (≈2549 + 2048 ≈ **4597 MiB** for the MiniCPM5 row below).
+   A start-free between 2048 MiB and peak+2048 can still OOM the reserve;
+   do not treat that as headroom-compliant unless min-free during the run
+   stays ≥2048 MiB.
 
 2. From an `agoge-forger` checkout:
 
@@ -82,7 +89,7 @@ emits markers).
 (markers), and [#55](https://github.com/rmems/blackwell-kernel-lab/issues/55)
 (derived peak VRAM / min headroom) are ready:
 
-- Stamp a stable Agoge `run_id` on the canary.
+- Stamp a stable Agoge `agoge_run_id` on the canary.
 - Link the BKL JSONL bundle + #55 summary from the table’s **Bundle** column.
 - Keep this table as the concise train-fit summary. Peak VRAM / min headroom
   here must agree with the #55 derivation within that issue’s aggregation
@@ -95,7 +102,7 @@ schema in this document.
 
 | Date (UTC) | Config | Peak allocated | Start free | Min free during run | Result | Bundle |
 |---|---|---|---|---|---|---|
-| 2026-09-11 | AF MiniCPM5 QLoRA canary (4-bit NF4, seq 512, bs 1, accum 8, grad ckpt; Hub rev `156170697656c48f69915b33a2fb44110242187c`; frozen split `tiny-sft-smoke-v1`) | **2.49 GiB** (~2549 MiB) trainer max | not captured (`nvidia-smi` protocol) | not captured | no OOM; trainer peak only | pending `run_id` + #53/#55 |
+| 2026-09-11 | AF MiniCPM5 QLoRA canary (4-bit NF4, seq 512, bs 1, accum 8, grad ckpt; Hub rev `156170697656c48f69915b33a2fb44110242187c`; frozen split `tiny-sft-smoke-v1`; Agoge commit / yaml digest **not recorded**) | **2.49 GiB** (~2549 MiB) trainer max | not captured (`nvidia-smi` protocol) | not captured | no OOM; trainer peak only | pending `agoge_run_id` + #53/#55 |
 
 **Provenance:** Agoge Trainer lane on ShipOfTheseus, recorded on
 [`agoge-forger#104`](https://github.com/rmems/agoge-forger/issues/104#issuecomment-5629835314)
@@ -105,8 +112,10 @@ an `nvidia-smi` used-memory sample. It shows the canary did not OOM at
 / min-free against the ≥2 GiB snapshot floor (context and other processes
 were not sampled). It is also **not** a correlated #51–#55 bundle.
 
-A later host run of the exact CLI in the protocol should add a second row
-with start-free / min-free MiB and, when ready, `agoge_run_id` + bundle path.
+A later host run of the protocol should add a second row with start-free /
+min-free MiB, the Agoge git SHA and config digest, and, when ready,
+`agoge_run_id` + bundle path. Do not treat the `main` yaml URL as the pin
+for the 2026-09-11 row.
 
 ## Granite 4.1 — template until measured
 
