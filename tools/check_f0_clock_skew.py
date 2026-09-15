@@ -204,11 +204,22 @@ def check_monotonic_regression() -> None:
     require(report["validity"] == "refused", "monotonic regression must refuse correlation")
 
 
+def check_rfc3339_nanoseconds() -> None:
+    whole = f0_clock.rfc3339_to_ns("2026-09-14T18:00:00Z")
+    plus_one = f0_clock.rfc3339_to_ns("2026-09-14T18:00:00.000000001Z")
+    require(plus_one == whole + 1, "RFC3339 nanosecond fraction must survive conversion")
+    require(
+        f0_clock.ns_to_rfc3339_utc(plus_one) == "2026-09-14T18:00:00.000000001Z",
+        "ns_to_rfc3339_utc must emit the nanosecond fraction",
+    )
+
+
 def check_contract_guards() -> None:
     check_capture_shape()
     check_unknown_kind_rejected()
     check_missing_end_drift_is_null()
     check_monotonic_regression()
+    check_rfc3339_nanoseconds()
     f0_clock.check_validity("ok")
     f0_clock.check_validity("degraded")
     f0_clock.check_validity("refused")

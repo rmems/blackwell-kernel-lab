@@ -54,18 +54,29 @@ def datetime_to_ns(dt: datetime) -> int:
     return (delta.days * 86400 + delta.seconds) * NS_PER_S + delta.microseconds * 1000
 
 
+def rfc3339_fraction_ns(timestamp: str) -> int:
+    body = timestamp[:-1]
+    if "." not in body:
+        return 0
+    frac = body.rsplit(".", 1)[1]
+    require(frac.isdigit() and frac, "timestamp_utc fraction must be digits")
+    require(len(frac) <= 9, "timestamp_utc fraction must be at most 9 digits")
+    return int(frac.ljust(9, "0"))
+
+
 def rfc3339_to_ns(timestamp: str) -> int:
-    return datetime_to_ns(parse_rfc3339_utc(timestamp))
+    dt = parse_rfc3339_utc(timestamp)
+    whole = datetime_to_ns(dt.replace(microsecond=0))
+    return whole + rfc3339_fraction_ns(timestamp)
 
 
 def ns_to_rfc3339_utc(ns: int) -> str:
     seconds, frac = divmod(int(ns), NS_PER_S)
     dt = datetime.fromtimestamp(seconds, tz=timezone.utc)
-    base = dt.strftime("%Y-%m-%dT%H:%M:%S")
+    base = dt.replace(tzinfo=None).isoformat(timespec="seconds")
     if frac == 0:
-        return base + "Z"
-    frac_str = f"{frac:09d}".rstrip("0")
-    return f"{base}.{frac_str}Z"
+        return f"{base}Z"
+    return f"{base}.{frac:09d}".rstrip("0") + "Z"
 
 
 def res_ns(clock_id: int) -> int:
@@ -307,10 +318,9 @@ def default_resolution(clock_resolution: dict[str, int] | None) -> dict[str, int
 def normalize_one(item: Any) -> dict[str, Any]:
     require(isinstance(item, dict), "clock observation must be an object")
     timestamp = item.get("timestamp_utc")
-    dt = parse_rfc3339_utc(timestamp)
+    derived_wall = rfc3339_to_ns(timestamp)
     monotonic_ns = item.get("monotonic_ns")
     require_nonneg_int(monotonic_ns, "monotonic_ns must be a non-negative int")
-    derived_wall = datetime_to_ns(dt)
     wall_ns = item.get("wall_ns")
     if wall_ns is None:
         wall_ns = derived_wall
