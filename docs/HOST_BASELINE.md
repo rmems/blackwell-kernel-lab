@@ -29,8 +29,8 @@ nvcc --version
 
 The card has a ~16 GB ceiling. Leave **≥2 GB free** for kernel measurement
 contexts, engine workspace, and the desktop; inspect `nvidia-smi` before a GPU
-run and avoid overlapping long-running workloads with CI. QLoRA canary /
-Granite fit numbers for agoge-forger are in
+run and avoid overlapping long-running workloads with CI. QLoRA canary peak
+VRAM (Granite 4.1 remains an unmeasured template) is in
 [TRAIN_FIT_5080.md](TRAIN_FIT_5080.md) — train and kernel CI must not both
 assume the full card.
 

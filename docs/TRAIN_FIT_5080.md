@@ -19,9 +19,11 @@ From [`HOST_BASELINE.md`](HOST_BASELINE.md):
 | Compute | **12.0** (`sm_120`) — not `sm_100` |
 
 Leave **≥2 GiB (2048 MiB) free** for the desktop and CUDA context. Train and
-kernel CI **serialize** on this one card — neither side may assume the full
-device. Fail closed if `nvidia-smi` shows `< 2048 MiB` free **before** a train
-job or `ci-gpu`. See [`CI.md`](CI.md) and the README checklist.
+kernel CI must not both assume the full card. Occupancy is a **snapshot
+floor** (`nvidia-smi` / `wait_gpu_headroom.sh`), not an exclusive GPU lock —
+`ci-gpu` can still start between a headroom check and allocation. Pause the
+runner or wait; see [`CI.md`](CI.md) and the README checklist. Fail closed if
+free VRAM is `< 2048 MiB` **before** a train job.
 
 Rough budget:
 
@@ -93,14 +95,15 @@ schema in this document.
 
 | Date (UTC) | Config | Peak allocated | Start free | Min free during run | Result | Bundle |
 |---|---|---|---|---|---|---|
-| 2026-09-11 | AF MiniCPM5 QLoRA canary (4-bit NF4, seq 512, bs 1, accum 8, grad ckpt; Hub rev `156170697656c48f69915b33a2fb44110242187c`; frozen split `tiny-sft-smoke-v1`) | **2.49 GiB** (~2549 MiB) trainer max | not captured (`nvidia-smi` protocol) | not captured | PASS, no OOM, 18 steps, 8.6 s | pending `run_id` + #53/#55 |
+| 2026-09-11 | AF MiniCPM5 QLoRA canary (4-bit NF4, seq 512, bs 1, accum 8, grad ckpt; Hub rev `156170697656c48f69915b33a2fb44110242187c`; frozen split `tiny-sft-smoke-v1`) | **2.49 GiB** (~2549 MiB) trainer max | not captured (`nvidia-smi` protocol) | not captured | no OOM; trainer peak only | pending `run_id` + #53/#55 |
 
 **Provenance:** Agoge Trainer lane on ShipOfTheseus, recorded on
 [`agoge-forger#104`](https://github.com/rmems/agoge-forger/issues/104#issuecomment-5629835314)
-(mechanical qualify). Peak is trainer-reported max VRAM, not an `nvidia-smi`
-used-memory sample. That is enough to show the canary fits with large margin
-under the 16 GB ceiling and the ≥2 GiB headroom rule; it is **not** a
-correlated #51–#55 bundle.
+(mechanical qualify; 18 steps, 8.6 s). Peak is trainer-reported max VRAM, not
+an `nvidia-smi` used-memory sample. It shows the canary did not OOM at
+**2.49 GiB allocated** on this 16 GB card; it does **not** validate start-free
+/ min-free against the ≥2 GiB snapshot floor (context and other processes
+were not sampled). It is also **not** a correlated #51–#55 bundle.
 
 A later host run of the exact CLI in the protocol should add a second row
 with start-free / min-free MiB and, when ready, `agoge_run_id` + bundle path.
@@ -130,7 +133,8 @@ contention** on this card. They are not QLoRA hyperparameters.
   — measured prompt-eval speedup with 3.4–3.5 GiB still free (2026-08-30).
 - L2 Green Context isolation: [`recipes/l2-green-ctx-bench.md`](../recipes/l2-green-ctx-bench.md)
   — SM partitioning for a latency-sensitive kernel; not the default for
-  train vs Actions. Train ↔ `ci-gpu` still serialize on the 2 GiB floor.
+  train vs Actions. Train ↔ `ci-gpu` still share the 2 GiB snapshot floor
+  (not a mutex).
 
 ## Non-goals
 
