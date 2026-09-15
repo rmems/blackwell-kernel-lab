@@ -128,7 +128,7 @@ class LiveNvmlBackend:
         handle = self._handle(index)
         lib = self._require_lib()
         mask = ctypes.c_ulonglong()
-        _check(_fn(lib, "nvmlDeviceGetCurrentClocksThrottleReasons")(handle, ctypes.byref(mask)), "throttle")
+        _invoke(lib, "nvmlDeviceGetCurrentClocksThrottleReasons", handle, ctypes.byref(mask), what="throttle")
         return decode_throttle_reasons(int(mask.value))
 
     def _require_lib(self) -> Any:
@@ -157,7 +157,7 @@ class LiveNvmlBackend:
         lib = self._require_lib()
         info = MemoryInfo()
         try:
-            _check(_fn(lib, "nvmlDeviceGetMemoryInfo")(handle, ctypes.byref(info)), "vram")
+            _invoke(lib, "nvmlDeviceGetMemoryInfo", handle, ctypes.byref(info), what="vram")
         except ProbeFailure as error:
             self._vram_error = error
             raise
@@ -170,12 +170,17 @@ def _bind_required(lib: Any) -> None:
         getattr(lib, name).restype = ctypes.c_int
 
 
-def _fn(lib: Any, name: str) -> Any:
+def _fn(lib: Any, name: str) -> Callable[..., int]:
     func = getattr(lib, name, None)
-    if func is None:
+    if not callable(func):
         raise ProbeFailure("unsupported", f"{name} not exported")
     func.restype = ctypes.c_int
     return func
+
+
+def _invoke(lib: Any, name: str, *args: Any, what: str) -> None:
+    fn = _fn(lib, name)
+    _check(fn(*args), what)
 
 
 def _check(code: int, what: str) -> None:
@@ -228,13 +233,13 @@ def _pci_bus_id(lib: Any, handle: Any) -> str | None:
 
 def _power_w(lib: Any, handle: Any) -> float:
     milliwatts = ctypes.c_uint()
-    _check(_fn(lib, "nvmlDeviceGetPowerUsage")(handle, ctypes.byref(milliwatts)), "power")
+    _invoke(lib, "nvmlDeviceGetPowerUsage", handle, ctypes.byref(milliwatts), what="power")
     return int(milliwatts.value) / 1000.0
 
 
 def _temp_gpu(lib: Any, handle: Any) -> int:
     temp = ctypes.c_uint()
-    _check(_fn(lib, "nvmlDeviceGetTemperature")(handle, ctypes.c_int(0), ctypes.byref(temp)), "temp_gpu")
+    _invoke(lib, "nvmlDeviceGetTemperature", handle, ctypes.c_int(0), ctypes.byref(temp), what="temp_gpu")
     return int(temp.value)
 
 
@@ -250,19 +255,19 @@ def _temp_memory(lib: Any, handle: Any) -> int:
 
 def _util(lib: Any, handle: Any, which: str) -> int:
     util = Utilization()
-    _check(_fn(lib, "nvmlDeviceGetUtilizationRates")(handle, ctypes.byref(util)), "util")
+    _invoke(lib, "nvmlDeviceGetUtilizationRates", handle, ctypes.byref(util), what="util")
     return int(util.gpu if which == "gpu" else util.memory)
 
 
 def _clock(lib: Any, handle: Any, clock_type: int) -> int:
     clock = ctypes.c_uint()
-    _check(_fn(lib, "nvmlDeviceGetClockInfo")(handle, ctypes.c_int(clock_type), ctypes.byref(clock)), "clock")
+    _invoke(lib, "nvmlDeviceGetClockInfo", handle, ctypes.c_int(clock_type), ctypes.byref(clock), what="clock")
     return int(clock.value)
 
 
 def _pstate(lib: Any, handle: Any) -> int:
     state = ctypes.c_int()
-    _check(_fn(lib, "nvmlDeviceGetPerformanceState")(handle, ctypes.byref(state)), "pstate")
+    _invoke(lib, "nvmlDeviceGetPerformanceState", handle, ctypes.byref(state), what="pstate")
     return int(state.value)
 
 
