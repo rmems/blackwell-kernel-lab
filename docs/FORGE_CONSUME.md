@@ -54,10 +54,12 @@ build/run is on the self-hosted `ci-gpu` runner — see
 
 Versioned JSONL contract: [`f0-correlation-schema.md`](f0-correlation-schema.md)
 (`bkl.f0_correlation.v1`). Agoge emits `agoge_marker` records (run id, phase,
-step). This lab emits `bkl_gpu_sample` records. Join is `agoge_run_id` plus
-monotonic time on one host. BKL does not infer train phases from GPU load.
-CPU fixtures live under `fixtures/f0-correlation/`. Forge issue #144 should
-emit the Agoge-owned side; the trainer is not implemented here.
+step). This lab emits `bkl_gpu_sample` records and a `bkl_clock_skew` report
+that pairs UTC with monotonic time on one host. Join is `agoge_run_id` plus
+monotonic order; wall-clock jumps are refused or marked degraded. BKL does
+not infer train phases from GPU load. CPU fixtures live under
+`fixtures/f0-correlation/`. Forge issue #144 should emit the Agoge-owned
+side; the trainer is not implemented here.
 
 ## What forge must not do
 
