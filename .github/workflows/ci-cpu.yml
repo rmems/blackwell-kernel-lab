@@ -87,3 +87,8 @@ jobs:
           python3 tools/check_f0_correlation.py \
             --markers fixtures/f0-correlation/agoge-markers.jsonl \
             --samples fixtures/f0-correlation/bkl-gpu-samples.jsonl
+
+      - name: F0 NVML capability discovery (CPU)
+        # RM-1350: fake NVML backends, missingness ≠ zero, digest bind. No GPU.
+        run: |
+          python3 tools/check_nvml_capability.py

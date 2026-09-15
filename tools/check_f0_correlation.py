@@ -14,69 +14,33 @@ from __future__ import annotations
 import argparse
 import bisect
 import json
-import math
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-SCHEMA = "bkl.f0_correlation.v1"
-MARKER = "agoge_marker"
-SAMPLE = "bkl_gpu_sample"
-MEASUREMENT_STATUS = {"ok", "unavailable", "unsupported"}
-
-PHYSICAL = (
-    ("power", "W"),
-    ("temperature_gpu", "C"),
-    ("temperature_memory", "C"),
-    ("utilization_gpu", "%"),
-    ("utilization_memory", "%"),
-    ("clock_graphics", "MHz"),
-    ("clock_memory", "MHz"),
-    ("vram_used", "MiB"),
-    ("vram_free", "MiB"),
-    ("vram_total", "MiB"),
-    ("headroom", "MiB"),
+from f0_measurements import (
+    MARKER,
+    PERCENT_FIELDS,
+    PHYSICAL,
+    SAMPLE,
+    SCHEMA,
+    SchemaError,
+    check_measurement,
+    check_ok_numeric,
+    check_percent_bounds,
+    check_throttle,
+    parse_rfc3339_utc,
+    require,
+    require_capability_digest,
+    require_nonempty_str,
+    require_nonneg_int,
+    require_optional_nonempty_str,
+    require_optional_nonneg_int,
+    require_positive_int,
 )
-PERCENT_FIELDS = {"utilization_gpu", "utilization_memory"}
+
 FIXTURE_IDLE_MONOTONIC_NS = 1_500_000_000
-
-
-class SchemaError(Exception):
-    """A record or join failed validation."""
-
-
-def require(condition: object, message: str) -> None:
-    if not condition:
-        raise SchemaError(message)
-
-
-def require_nonempty_str(value: Any, message: str) -> None:
-    require(isinstance(value, str), message)
-    require(value, message)
-
-
-def require_optional_nonempty_str(value: Any, message: str) -> None:
-    if value is None:
-        return
-    require_nonempty_str(value, message)
-
-
-def require_nonneg_int(value: Any, message: str) -> None:
-    require(isinstance(value, int), message)
-    require(not isinstance(value, bool), message)
-    require(value >= 0, message)
-
-
-def require_optional_nonneg_int(value: Any, message: str) -> None:
-    if value is None:
-        return
-    require_nonneg_int(value, message)
-
-
-def require_positive_int(value: Any, message: str) -> None:
-    require_nonneg_int(value, message)
-    require(value > 0, message)
 
 
 def _reject_nonfinite_json(token: str) -> None:
@@ -100,38 +64,10 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def check_ok_numeric(value: Any, name: str) -> None:
-    require(isinstance(value, (int, float)), f"{name}: ok requires a numeric value, not {value!r}")
-    require(not isinstance(value, bool), f"{name}: ok requires a numeric value, not {value!r}")
-    require(math.isfinite(float(value)), f"{name}: ok requires a finite number, not {value!r}")
-
-
-def check_measurement(obj: Any, name: str, unit: str) -> None:
-    require(isinstance(obj, dict), f"{name} must be a measurement object")
-    require("value" in obj, f"{name}: value key required")
-    require(obj.get("unit") == unit, f"{name}: expected unit {unit}, got {obj.get('unit')}")
-    status = obj.get("status")
-    require(status in MEASUREMENT_STATUS, f"{name}: bad status {status}")
-    value = obj["value"]
-    if status == "ok":
-        check_ok_numeric(value, name)
-        return
-    require(value is None, f"{name}: missing must be null, not {value!r} (missing ≠ zero)")
-
-
 def check_host(rec: dict[str, Any]) -> None:
     host = rec.get("host")
     require(isinstance(host, dict), "host object required")
     require_nonempty_str(host.get("hostname"), "host.hostname required")
-
-
-def parse_rfc3339_utc(timestamp: Any) -> datetime:
-    require(isinstance(timestamp, str), "timestamp_utc must be UTC RFC3339 ending in Z")
-    require(timestamp.endswith("Z"), "timestamp_utc must be UTC RFC3339 ending in Z")
-    try:
-        return datetime.fromisoformat(timestamp[:-1] + "+00:00")
-    except ValueError as error:
-        raise SchemaError("timestamp_utc must be UTC RFC3339 ending in Z") from error
 
 
 def check_time(rec: dict[str, Any]) -> None:
@@ -202,31 +138,6 @@ def check_marker(rec: dict[str, Any]) -> None:
     check_marker_metrics(rec)
 
 
-def check_throttle_reasons(status: str, reasons: Any) -> None:
-    if status == "ok":
-        require(isinstance(reasons, list), "throttle.reasons must be a list when ok")
-        require(all(isinstance(item, str) for item in reasons), "throttle.reasons must be strings")
-        return
-    if reasons is None:
-        return
-    require(isinstance(reasons, list), "throttle.reasons must be null or a list when not ok")
-    require(len(reasons) == 0, "throttle.reasons must be null or empty when not ok")
-
-
-def check_throttle(obj: Any) -> None:
-    require(isinstance(obj, dict), "throttle must be an object")
-    status = obj.get("status")
-    require(status in MEASUREMENT_STATUS, f"throttle: bad status {status}")
-    check_throttle_reasons(status, obj.get("reasons"))
-
-
-def check_percent_bounds(obj: dict[str, Any], name: str) -> None:
-    if obj.get("status") != "ok":
-        return
-    value = obj["value"]
-    require(0 <= value <= 100, f"{name}: ok percent must be in 0–100, got {value!r}")
-
-
 def check_sample_physical(rec: dict[str, Any]) -> None:
     for name, unit in PHYSICAL:
         require(name in rec, f"missing physical field {name}")
@@ -257,6 +168,11 @@ def check_sample(rec: dict[str, Any]) -> None:
         "profile_window_ref must be null or a non-empty string",
     )
     check_cuda(rec)
+    if "capability_digest" in rec:
+        require_capability_digest(
+            rec.get("capability_digest"),
+            "capability_digest must be sha256:<64 lowercase hex>",
+        )
 
 
 def nonempty_id(value: Any) -> str | None:

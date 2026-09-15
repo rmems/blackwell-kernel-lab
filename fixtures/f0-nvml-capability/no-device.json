@@ -1,0 +1,108 @@
+{
+  "agoge_run_id": "cap_fixture_no-device",
+  "capability_digest": "sha256:014b0f23c71429f1ce2d55dcb446055436965c641eb02e04d4052038ff088e50",
+  "collector": {
+    "id": "bkl-nvml-capability",
+    "version": "0.1.0"
+  },
+  "device_status": "no_device",
+  "gpu": {
+    "compute_capability": null,
+    "name": null,
+    "pci_bus_id": null,
+    "uuid": null
+  },
+  "host": {
+    "hostname": "ShipOfTheseus"
+  },
+  "metrics": {
+    "clock_graphics": {
+      "capability": "unsupported",
+      "status": "unsupported",
+      "unit": "MHz",
+      "value": null
+    },
+    "clock_memory": {
+      "capability": "unsupported",
+      "status": "unsupported",
+      "unit": "MHz",
+      "value": null
+    },
+    "headroom": {
+      "capability": "unsupported",
+      "status": "unsupported",
+      "unit": "MiB",
+      "value": null
+    },
+    "performance_state": {
+      "capability": "unsupported",
+      "status": "unsupported",
+      "unit": "pstate",
+      "value": null
+    },
+    "power": {
+      "capability": "unsupported",
+      "status": "unsupported",
+      "unit": "W",
+      "value": null
+    },
+    "temperature_gpu": {
+      "capability": "unsupported",
+      "status": "unsupported",
+      "unit": "C",
+      "value": null
+    },
+    "temperature_memory": {
+      "capability": "unsupported",
+      "status": "unsupported",
+      "unit": "C",
+      "value": null
+    },
+    "throttle": {
+      "capability": "unsupported",
+      "reasons": null,
+      "status": "unsupported",
+      "unit": null,
+      "value": null
+    },
+    "utilization_gpu": {
+      "capability": "unsupported",
+      "status": "unsupported",
+      "unit": "%",
+      "value": null
+    },
+    "utilization_memory": {
+      "capability": "unsupported",
+      "status": "unsupported",
+      "unit": "%",
+      "value": null
+    },
+    "vram_free": {
+      "capability": "unsupported",
+      "status": "unsupported",
+      "unit": "MiB",
+      "value": null
+    },
+    "vram_total": {
+      "capability": "unsupported",
+      "status": "unsupported",
+      "unit": "MiB",
+      "value": null
+    },
+    "vram_used": {
+      "capability": "unsupported",
+      "status": "unsupported",
+      "unit": "MiB",
+      "value": null
+    }
+  },
+  "monotonic_ns": 0,
+  "record_kind": "bkl_gpu_capability",
+  "schema_version": "bkl.f0_capability.v1",
+  "timestamp_utc": "2026-09-14T17:59:59Z",
+  "tools": {
+    "driver_version": "610.43.03",
+    "nvidia_smi": "610.43.03",
+    "nvml_version": "13.3.58"
+  }
+}

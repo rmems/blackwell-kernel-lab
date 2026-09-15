@@ -56,8 +56,11 @@ Versioned JSONL contract: [`f0-correlation-schema.md`](f0-correlation-schema.md)
 (`bkl.f0_correlation.v1`). Agoge emits `agoge_marker` records (run id, phase,
 step). This lab emits `bkl_gpu_sample` records. Join is `agoge_run_id` plus
 monotonic time on one host. BKL does not infer train phases from GPU load.
-CPU fixtures live under `fixtures/f0-correlation/`. Forge issue #144 should
-emit the Agoge-owned side; the trainer is not implemented here.
+CPU fixtures live under `fixtures/f0-correlation/`. NVML capability discovery
+(`bkl.f0_capability.v1`, RM-1350) is [`f0-nvml-capability.md`](f0-nvml-capability.md);
+it is a prerequisite for the #53 sampler and does not occupy this 16 GB card
+in CI. Forge issue #144 should emit the Agoge-owned side; the trainer is not
+implemented here.
 
 ## What forge must not do
 
