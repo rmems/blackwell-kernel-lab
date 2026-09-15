@@ -44,7 +44,9 @@ Do not start both.
    `ci-gpu` run is already queued.
 3. To push kernel CI: same headroom. `ci-gpu` waits up to 10 minutes for
    that floor, then fails (job timeout 30 minutes including smoke).
-   Markdown-only PRs do not schedule the GPU host.
+   Markdown-only PRs do not schedule the GPU host. Compute Sanitizer is
+   opt-in (`ci-gpu-sanitizer`: dispatch or trusted `main` kernel-path
+   pushes) and uses the same headroom wait.
 
 Details: [docs/CI.md](docs/CI.md) · [docs/HOST_BASELINE.md](docs/HOST_BASELINE.md).
 
@@ -62,6 +64,7 @@ cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON && cmake --build build/ke
 ./build/kernels/src/bkl_green_ctx_bench --out results/green-ctx-bench.json        # L2
 
 # Docs: docs/KERNELS.md · kernels/README.md · docs/CI.md · recipes/
+# Opt-in Compute Sanitizer: recipes/compute-sanitizer.md
 # Forge consume: docs/FORGE_CONSUME.md
 ```
 

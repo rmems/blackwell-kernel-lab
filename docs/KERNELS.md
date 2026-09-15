@@ -85,4 +85,5 @@ L3 workspace: [kernels/README.md](../kernels/README.md). Recipes:
 [L1 prefix/KV reuse](../recipes/l1-prefix-kv-reuse.md) ·
 [L2 Green Context contention](../recipes/l2-green-ctx-bench.md) ·
 [L3 device hello](../recipes/l3-device-hello.md) ·
-[L3 graph-launch benchmark](../recipes/l3-graph-launch-bench.md).
+[L3 graph-launch benchmark](../recipes/l3-graph-launch-bench.md) ·
+[Compute Sanitizer](../recipes/compute-sanitizer.md).
