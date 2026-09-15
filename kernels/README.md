@@ -32,7 +32,7 @@ kernels/
     graph_launch_bench.cu   # CUDA graph vs eager launch (#30)
   tools/
     check_green_ctx_report.py   # report self-consistency check (CI + local)
-    run_compute_sanitizer.py     # opt-in memcheck/initcheck suite (RM-1351)
+    run_compute_sanitizer.sh      # opt-in memcheck/initcheck suite (RM-1351)
     wait_gpu_headroom.sh         # ≥2 GiB free wait used by GPU CI
 ```
 

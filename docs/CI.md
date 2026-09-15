@@ -56,7 +56,7 @@ python3 tools/check_f0_correlation.py \
   --markers fixtures/f0-correlation/agoge-markers.jsonl \
   --samples fixtures/f0-correlation/bkl-gpu-samples.jsonl
 python3 tools/check_gpu_ci_policy.py
-python3 tools/check_compute_sanitizer_runner.py
+bash kernels/tools/check_compute_sanitizer_runner.sh
 
 # CUDA smoke and first-party measurements (#17 / #19 / #21 / #30)
 cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON
@@ -73,7 +73,7 @@ python3 kernels/tools/check_green_ctx_report.py results/green-ctx-bench.json
 # Opt-in Compute Sanitizer (RM-1351). Same headroom wait as ci-gpu.
 # --smoke is not a performance measurement. Full commands:
 # recipes/compute-sanitizer.md
-python3 kernels/tools/run_compute_sanitizer.py --suite \
+bash kernels/tools/run_compute_sanitizer.sh --suite \
   --bin-dir build/kernels/src \
   --out-dir results/sanitizer
 ```

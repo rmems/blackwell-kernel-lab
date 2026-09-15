@@ -14,7 +14,7 @@ on:
       - "kernels/src/**"
       - "kernels/CMakeLists.txt"
       - "kernels/src/CMakeLists.txt"
-      - "kernels/tools/run_compute_sanitizer.py"
+      - "kernels/tools/run_compute_sanitizer.sh"
       - ".github/workflows/ci-gpu-sanitizer.yml"
 
 permissions:
@@ -78,7 +78,7 @@ jobs:
       - name: Compute Sanitizer suite
         run: |
           mkdir -p results/sanitizer
-          python3 kernels/tools/run_compute_sanitizer.py --suite \
+          bash kernels/tools/run_compute_sanitizer.sh --suite \
             --bin-dir build/kernels/src \
             --out-dir results/sanitizer
 

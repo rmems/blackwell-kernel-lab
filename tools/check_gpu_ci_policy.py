@@ -20,7 +20,7 @@ SANITIZER_YML = WORKFLOWS / "ci-gpu-sanitizer.yml"
 GPU_YML = WORKFLOWS / "ci-gpu.yml"
 CPU_YML = WORKFLOWS / "ci-cpu.yml"
 LINT_YML = WORKFLOWS / "ci-lint.yml"
-RUNNER = ROOT / "kernels" / "tools" / "run_compute_sanitizer.py"
+RUNNER = ROOT / "kernels" / "tools" / "run_compute_sanitizer.sh"
 HEADROOM = "kernels/tools/wait_gpu_headroom.sh"
 SELF_HOSTED_LABELS = ("self-hosted", "Linux", "X64", "CUDA")
 HOSTED = "ubuntu-latest"
@@ -88,7 +88,7 @@ def check_cpu_workflows() -> None:
         "ci-cpu.yml must run the GPU CI policy checker",
     )
     require(
-        "tools/check_compute_sanitizer_runner.py" in cpu,
+        "kernels/tools/check_compute_sanitizer_runner.sh" in cpu,
         "ci-cpu.yml must run the compute-sanitizer runner tests",
     )
 
@@ -112,7 +112,7 @@ def check_sanitizer_workflow() -> None:
     require_gpu_runner(text)
     require(UPLOAD_PIN in text, "sanitizer logs must upload with a SHA-pinned artifact action")
     require("if: always()" in text, "sanitizer logs must upload even when the job fails")
-    require("run_compute_sanitizer.py --suite" in text, "workflow must call the suite runner")
+    require("run_compute_sanitizer.sh --suite" in text, "workflow must call the suite runner")
     require("retention-days: 14" in text, "sanitizer artifacts must be retention-bounded")
     require(CHECKOUT_PIN in text, "sanitizer checkout must stay SHA-pinned")
     require("timeout-minutes: 45" in text, "sanitizer GPU job must be time-bounded")
@@ -127,7 +127,7 @@ def check_runner_contract() -> None:
     require("bkl_green_ctx_bench" in text, "suite must cover green-ctx")
     require("--smoke" in text, "bench sanitizer jobs must use --smoke")
     require("initcheck" in text, "suite must include an initcheck justified by global memory")
-    require("sha256" in text, "runner must record a binary digest")
+    require("sha256sum" in text, "runner must record a binary digest")
     require("sanitizer_version" in text, "runner must record sanitizer version")
     src = ROOT / "kernels" / "src"
     for path in sorted(src.glob("*.cu")):

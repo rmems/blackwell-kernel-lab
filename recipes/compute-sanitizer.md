@@ -35,7 +35,7 @@ binary SHA-256, the exact command, and `compute-sanitizer --version` next to a
 byte-bounded log.
 
 ```bash
-python3 kernels/tools/run_compute_sanitizer.py --suite \
+bash kernels/tools/run_compute_sanitizer.sh --suite \
   --bin-dir build/kernels/src \
   --out-dir results/sanitizer
 ```
@@ -93,7 +93,7 @@ GitHub-hosted runners with fake tools:
 
 ```bash
 python3 tools/check_gpu_ci_policy.py
-python3 tools/check_compute_sanitizer_runner.py
+bash kernels/tools/check_compute_sanitizer_runner.sh
 ```
 
 Log format fixtures (not a substitute for a ShipOfTheseus run):
