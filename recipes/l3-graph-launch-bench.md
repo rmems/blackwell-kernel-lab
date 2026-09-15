@@ -21,6 +21,9 @@ choose its exact location, including in CI, pass `--out`:
 ./build/kernels/src/bkl_graph_launch_bench --out results/graph-launch-bench.json
 ```
 
+`--smoke` shrinks iteration counts for Compute Sanitizer only; it is not a
+measurement. See [compute-sanitizer.md](compute-sanitizer.md).
+
 Expected banner (numbers vary):
 
 ```text

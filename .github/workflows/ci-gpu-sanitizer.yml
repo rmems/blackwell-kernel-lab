@@ -1,0 +1,92 @@
+# GPU CI — opt-in Compute Sanitizer on ShipOfTheseus (RTX 5080).
+#
+# Opt-in: workflow_dispatch, or a trusted push to main that touches first-party
+# CUDA sources / this workflow. No pull_request trigger, so ordinary PRs
+# (including markdown-only) and fork code never schedule this job.
+# CPU lint/configure stay on ubuntu-latest (ci-cpu.yml / ci-lint.yml).
+name: ci-gpu-sanitizer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "kernels/src/**"
+      - "kernels/CMakeLists.txt"
+      - "kernels/src/CMakeLists.txt"
+      - "kernels/tools/run_compute_sanitizer.py"
+      - ".github/workflows/ci-gpu-sanitizer.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gpu-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Gate runs on GitHub-hosted only — never execute untrusted fork PR code on GPU host.
+  gate:
+    name: Trust gate
+    runs-on: ubuntu-latest
+    outputs:
+      allow: ${{ steps.check.outputs.allow }}
+    steps:
+      - id: check
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ] && \
+             [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            echo "allow=false" >> "$GITHUB_OUTPUT"
+            echo "Fork PR — skip self-hosted GPU"
+          else
+            echo "allow=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  gpu-sanitizer:
+    name: Compute Sanitizer (opt-in)
+    needs: gate
+    if: needs.gate.outputs.allow == 'true'
+    runs-on: [self-hosted, Linux, X64, CUDA]
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: GPU presence
+        run: |
+          # Same serialization rule as ci-gpu.yml: wait for ≥2 GiB free
+          # (HOST_BASELINE) instead of overlapping train / desktop occupancy.
+          bash kernels/tools/wait_gpu_headroom.sh 2048 600 30
+          command -v nvcc && nvcc --version | tail -2 || echo "nvcc not on PATH; kernel build requires it"
+          if [ -x /usr/local/cuda/bin/compute-sanitizer ]; then
+            /usr/local/cuda/bin/compute-sanitizer --version
+          else
+            compute-sanitizer --version
+          fi
+          nvidia-smi --query-gpu=name,driver_version,compute_cap,memory.free --format=csv
+
+      - name: sm_120 kernel build
+        run: |
+          cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON
+          cmake --build build/kernels -j"$(nproc 2>/dev/null || echo 4)"
+          test -x build/kernels/src/bkl_device_hello
+          test -x build/kernels/src/bkl_graph_launch_bench
+          test -x build/kernels/src/bkl_green_ctx_bench
+
+      - name: Compute Sanitizer suite
+        run: |
+          mkdir -p results/sanitizer
+          python3 kernels/tools/run_compute_sanitizer.py --suite \
+            --bin-dir build/kernels/src \
+            --out-dir results/sanitizer
+
+      - name: Upload sanitizer logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: compute-sanitizer-logs
+          path: results/sanitizer/
+          if-no-files-found: ignore
+          retention-days: 14
