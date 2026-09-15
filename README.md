@@ -95,30 +95,30 @@ The reproducible experiments are
 and [recipes/l2-green-ctx-bench.md](recipes/l2-green-ctx-bench.md) (L2 Green
 Context contention).
 
-## Milestones & version bumps
+## Milestones & releases
 
-GitHub milestones include the **release tag in the title**. Closing a milestone
-⇒ cut that tag + GitHub Release (notes = closed issues). Epic
+Milestones are **work tracks**, not a Linear-ordered release ladder. Issue close
+order was never a reliable version sequence, so milestone titles no longer
+promise `v0.x.0` tags. Cut a GitHub Release only when you intentionally tag.
+
+**Tagged so far:** [`v0.1.0`](https://github.com/rmems/blackwell-kernel-lab/releases/tag/v0.1.0)
+(M0 lab identity + host baseline). Epic
 [#1](https://github.com/rmems/blackwell-kernel-lab/issues/1) stays open across
-milestones.
+tracks.
 
-| Milestone | Version | Goal |
-|-----------|---------|------|
-| [**F0** — Forge CUDA backend](https://github.com/rmems/blackwell-kernel-lab/milestone/8) | **v0.2.0** | Honest local CUDA backend for agoge-forger: consume contract, 16 GB train-fit, train↔kernel coexistence |
-| [**M0** — Lab identity + host baseline](https://github.com/rmems/blackwell-kernel-lab/milestone/1) | **v0.1.0** | CUDA-backend identity, onboarding, and 16 GB hardware baseline |
-| [**M1** — Engine CUDA baselines](https://github.com/rmems/blackwell-kernel-lab/milestone/2) | **v0.2.0** | Reproducible L1 engine CUDA measurements and host configuration |
-| [**M2** — Kernel measurement campaign](https://github.com/rmems/blackwell-kernel-lab/milestone/3) | **v0.3.0** | FlashAttention, CUDA graphs, quant-path baselines, and measured gaps |
-| [**K0** — Kernel SoT + L3 workspace](https://github.com/rmems/blackwell-kernel-lab/milestone/4) | **v0.4.0** | Forge↔kernel boundary, `kernels/` layout, L3 smoke |
-| [**M3** — Proven-gap kernel follow-through](https://github.com/rmems/blackwell-kernel-lab/milestone/5) | **v0.5.0** | L2 scheduling evidence and L3 experiments justified by L1 measurements |
-| [**CI** — Self-hosted GPU runner](https://github.com/rmems/blackwell-kernel-lab/milestone/6) | **patch / v0.x.0-ci** | Secure self-hosted **GPU** Actions runner (may ship mid-stream) |
-| [**K1** — CUDA scheduling evidence](https://github.com/rmems/blackwell-kernel-lab/milestone/7) | **v0.6.0** | L2 Green Context isolation and the L1 prefix/KV measurement (#8, #17) |
+| Milestone | Role |
+|-----------|------|
+| [**F0** — Forge CUDA backend](https://github.com/rmems/blackwell-kernel-lab/milestone/8) | Current cut: consume contract, 16 GB train-fit, train↔kernel coexistence for agoge-forger |
+| [**M0** — Lab identity + host baseline](https://github.com/rmems/blackwell-kernel-lab/milestone/1) | Closed; **tagged v0.1.0** |
+| [**M1** — Engine CUDA / measure stack](https://github.com/rmems/blackwell-kernel-lab/milestone/2) | L1 engine CUDA measurements and host configuration |
+| [**M2** — Kernel measurement campaign](https://github.com/rmems/blackwell-kernel-lab/milestone/3) | FlashAttention, CUDA graphs, quant-path baselines, measured gaps |
+| [**K0** — Kernel SoT + L3 workspace](https://github.com/rmems/blackwell-kernel-lab/milestone/4) | Forge↔kernel boundary, `kernels/` layout, L3 smoke |
+| [**M3** — Retired](https://github.com/rmems/blackwell-kernel-lab/milestone/5) | Closed not-planned (agent-product hallucination); never a release |
+| [**CI** — Self-hosted GPU runner](https://github.com/rmems/blackwell-kernel-lab/milestone/6) | GPU Actions runner (may ship mid-stream; optional deliberate tag only) |
+| [**K1** — CUDA scheduling evidence](https://github.com/rmems/blackwell-kernel-lab/milestone/7) | L2 Green Context isolation / scheduling evidence |
 
-**Current cut is F0.** Older GitHub milestone titles for 2, 3, and 5 may still
-carry pre-#33 agent-harness names; the names in this table are the ones that
-matter. Closing F0 tags **v0.2.0** (the next real release after tagged v0.1.0).
-
-**Patch** (`v0.N.M+1`): docs, recipes, and fixups inside an open milestone — no
-new minor.
+Closing F0 (or any other track) does **not** auto-cut the next tag after
+v0.1.0 — pick a version when the release notes are honest.
 
 **CI split:** CPU workflows → GitHub-hosted `ubuntu-latest`; GPU workflows →
 self-hosted `ShipOfTheseus` (`CUDA` label). GPU smoke waits for ≥2 GiB free,
