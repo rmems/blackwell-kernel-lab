@@ -74,6 +74,14 @@ Every physical quantity is an object, never a bare number:
 | `ok` | number (may be `0`) | Measurement was taken. Zero is a real zero. |
 | `unavailable` | `null` | Backend exists but this sample has no reading. |
 | `unsupported` | `null` | This host/tool cannot expose the field. |
+| `permission_denied` | `null` | NVML returned `NO_PERMISSION` for this field. |
+| `transient_failure` | `null` | Timeout / not-ready / unknown backend error. |
+| `device_lost` | `null` | GPU handle lost (`NVML_ERROR_GPU_IS_LOST` / not found). |
+
+These extra missingness statuses are additive. They do not bump
+`bkl.f0_correlation.v1`. Capability discovery (what the device can expose
+before #53 samples) lives in
+[`f0-nvml-capability.md`](f0-nvml-capability.md) (`bkl.f0_capability.v1`).
 
 Encoding “no power reading” as `0` is a schema violation. The CPU validator
 rejects `status != ok` with a non-null `value`, and rejects `status == ok`
@@ -98,8 +106,8 @@ Emitted by the trainer. BKL only stores and joins these fields.
 
 ## BKL-owned payload (`bkl_gpu_sample`)
 
-Designed for #53 (sampler) and #54 (profile window refs). This PR does not
-sample the 5080.
+Designed for #53 (sampler) and #54 (profile window refs). Capability discovery
+for these fields is [`f0-nvml-capability.md`](f0-nvml-capability.md) (RM-1350).
 
 | Field | Unit | Notes |
 |---|---|---|
@@ -117,9 +125,10 @@ sample the 5080.
 | `throttle` | object | `reasons` (list of strings) when `status` is `ok`; else `status` + empty/`null` reasons — see fixture |
 | `profile_window_ref` | string or null | Opaque id for a #54 CUDA window; not a `.cu` dump |
 | `cuda` | object | `driver_version`, `runtime_version`, `tool` (strings; unknown → `null`) |
+| `capability_digest` | string or omit | Optional `sha256:<64 hex>` binding this sample to the run’s `bkl_gpu_capability` snapshot. Required when validating a bound run. |
 
 Do not require every backend to fill every metric. Use `unsupported` /
-`unavailable`.
+`unavailable` / `permission_denied` / `transient_failure` / `device_lost`.
 
 `throttle` shape when present:
 
@@ -176,3 +185,9 @@ python3 tools/check_f0_correlation.py \
 ```
 
 `ci-cpu` runs the same command.
+
+Capability snapshot (RM-1350, CPU):
+
+```bash
+python3 tools/check_nvml_capability.py
+```

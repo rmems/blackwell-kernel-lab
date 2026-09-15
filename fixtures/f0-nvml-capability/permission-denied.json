@@ -1,0 +1,113 @@
+{
+  "agoge_run_id": "cap_fixture_permission-denied",
+  "capability_digest": "sha256:4b9c805f1b291e1369680c8d15af84ec62e316ef4551242b58bbfc549f1e48d6",
+  "collector": {
+    "id": "bkl-nvml-capability",
+    "version": "0.1.0"
+  },
+  "device_status": "ok",
+  "gpu": {
+    "compute_capability": "12.0",
+    "name": "NVIDIA GeForce RTX 5080",
+    "pci_bus_id": "0000:01:00.0",
+    "uuid": "GPU-fixture-0001"
+  },
+  "host": {
+    "hostname": "ShipOfTheseus"
+  },
+  "metric_notes": {
+    "power": "NVML_ERROR_NO_PERMISSION",
+    "temperature_gpu": "NVML_ERROR_NO_PERMISSION",
+    "temperature_memory": "NVML_ERROR_NO_PERMISSION"
+  },
+  "metrics": {
+    "clock_graphics": {
+      "capability": "supported",
+      "status": "ok",
+      "unit": "MHz",
+      "value": 300
+    },
+    "clock_memory": {
+      "capability": "supported",
+      "status": "ok",
+      "unit": "MHz",
+      "value": 5000
+    },
+    "headroom": {
+      "capability": "supported",
+      "status": "ok",
+      "unit": "MiB",
+      "value": 14203
+    },
+    "performance_state": {
+      "capability": "supported",
+      "status": "ok",
+      "unit": "pstate",
+      "value": 8
+    },
+    "power": {
+      "capability": "permission_denied",
+      "status": "permission_denied",
+      "unit": "W",
+      "value": null
+    },
+    "temperature_gpu": {
+      "capability": "permission_denied",
+      "status": "permission_denied",
+      "unit": "C",
+      "value": null
+    },
+    "temperature_memory": {
+      "capability": "permission_denied",
+      "status": "permission_denied",
+      "unit": "C",
+      "value": null
+    },
+    "throttle": {
+      "capability": "supported",
+      "reasons": [],
+      "status": "ok",
+      "unit": null,
+      "value": null
+    },
+    "utilization_gpu": {
+      "capability": "supported",
+      "status": "ok",
+      "unit": "%",
+      "value": 5.0
+    },
+    "utilization_memory": {
+      "capability": "supported",
+      "status": "ok",
+      "unit": "%",
+      "value": 12.0
+    },
+    "vram_free": {
+      "capability": "supported",
+      "status": "ok",
+      "unit": "MiB",
+      "value": 14203
+    },
+    "vram_total": {
+      "capability": "supported",
+      "status": "ok",
+      "unit": "MiB",
+      "value": 16303
+    },
+    "vram_used": {
+      "capability": "supported",
+      "status": "ok",
+      "unit": "MiB",
+      "value": 2100
+    }
+  },
+  "monotonic_ns": 0,
+  "record_kind": "bkl_gpu_capability",
+  "schema_version": "bkl.f0_capability.v1",
+  "timestamp_utc": "2026-09-15T04:00:00Z",
+  "tools": {
+    "driver_version": "610.43.03",
+    "nvidia_smi": "610.43.03",
+    "nvml_version": "13.3.58"
+  }
+}
