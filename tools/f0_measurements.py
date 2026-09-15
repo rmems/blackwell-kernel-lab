@@ -7,6 +7,7 @@ Physical quantities are objects with ``value``, ``unit``, and ``status``.
 from __future__ import annotations
 
 import math
+from datetime import datetime
 from typing import Any, Mapping
 
 SCHEMA = "bkl.f0_correlation.v1"
@@ -158,6 +159,15 @@ def check_throttle(obj: Any) -> None:
     status = obj.get("status")
     require(status in MEASUREMENT_STATUS, f"throttle: bad status {status}")
     check_throttle_reasons(status, obj.get("reasons"))
+
+
+def parse_rfc3339_utc(timestamp: Any) -> datetime:
+    require(isinstance(timestamp, str), "timestamp_utc must be UTC RFC3339 ending in Z")
+    require(timestamp.endswith("Z"), "timestamp_utc must be UTC RFC3339 ending in Z")
+    try:
+        return datetime.fromisoformat(timestamp[:-1] + "+00:00")
+    except ValueError as error:
+        raise SchemaError("timestamp_utc must be UTC RFC3339 ending in Z") from error
 
 
 def require_capability_digest(value: Any, message: str) -> None:

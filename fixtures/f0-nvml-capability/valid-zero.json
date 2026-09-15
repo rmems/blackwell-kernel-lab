@@ -99,7 +99,7 @@
   "monotonic_ns": 0,
   "record_kind": "bkl_gpu_capability",
   "schema_version": "bkl.f0_capability.v1",
-  "timestamp_utc": "2026-09-15T04:00:00Z",
+  "timestamp_utc": "2026-09-14T17:59:59Z",
   "tools": {
     "driver_version": "610.43.03",
     "nvidia_smi": "610.43.03",

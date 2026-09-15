@@ -57,10 +57,11 @@ class LiveNvmlBackend:
         self._init_error: ProbeFailure | None = None
         try:
             self._lib = ctypes.CDLL(library)
-        except OSError as error:
-            self._init_error = ProbeFailure("unsupported", f"NVML library not loadable: {error}")
+            _bind_nvml(self._lib)
+        except (OSError, AttributeError) as error:
+            self._init_error = ProbeFailure("unsupported", f"NVML library not usable: {error}")
+            self._lib = None
             return
-        _bind_nvml(self._lib)
         code = int(self._lib.nvmlInit_v2())
         if code != NVML_SUCCESS:
             self._init_error = ProbeFailure(map_nvml_error(code), f"nvmlInit_v2={code}")

@@ -15,7 +15,7 @@ from nvml_capability import (
 )
 
 SCENARIO_ENVELOPE = {
-    "timestamp_utc": "2026-09-15T04:00:00Z",
+    "timestamp_utc": "2026-09-14T17:59:59Z",
     "monotonic_ns": 0,
     "hostname": "ShipOfTheseus",
 }

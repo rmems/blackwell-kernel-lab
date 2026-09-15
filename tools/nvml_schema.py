@@ -19,6 +19,7 @@ from f0_measurements import (
     check_measurement,
     check_percent_bounds,
     check_throttle,
+    parse_rfc3339_utc,
     require,
     require_capability_digest,
     require_nonempty_str,
@@ -86,8 +87,7 @@ def check_device_identity_rule(rec: dict[str, Any]) -> None:
 
 
 def check_capability_time(rec: dict[str, Any]) -> None:
-    require_nonempty_str(rec.get("timestamp_utc"), "timestamp_utc required")
-    require(str(rec.get("timestamp_utc", "")).endswith("Z"), "timestamp_utc must end in Z")
+    parse_rfc3339_utc(rec.get("timestamp_utc"))
     require_nonneg_int(rec.get("monotonic_ns"), "monotonic_ns must be a non-negative int")
 
 
@@ -122,19 +122,34 @@ def check_capability_snapshot(rec: Any) -> None:
     check_device_identity_rule(rec)
 
 
+def check_discovery_precedes_sample(snapshot: dict[str, Any], sample: dict[str, Any], index: int) -> None:
+    require(
+        snapshot["monotonic_ns"] <= sample["monotonic_ns"],
+        f"sample {index} monotonic_ns precedes capability discovery",
+    )
+    cap_time = parse_rfc3339_utc(snapshot["timestamp_utc"])
+    sample_time = parse_rfc3339_utc(sample["timestamp_utc"])
+    require(cap_time <= sample_time, f"sample {index} is timestamped before capability discovery")
+
+
+def bind_one_sample(snapshot: dict[str, Any], sample: Any, index: int, digest: str, run_id: str) -> None:
+    require(isinstance(sample, dict), f"sample {index} must be an object")
+    require(sample.get("agoge_run_id") == run_id, f"sample {index} agoge_run_id mismatch")
+    require_capability_digest(
+        sample.get("capability_digest"),
+        f"sample {index} capability_digest must match the run snapshot",
+    )
+    require(sample["capability_digest"] == digest, f"sample {index} capability_digest mismatch")
+    check_discovery_precedes_sample(snapshot, sample, index)
+
+
 def bind_samples(snapshot: dict[str, Any], samples: list[dict[str, Any]]) -> None:
     check_capability_snapshot(snapshot)
     digest = snapshot["capability_digest"]
     run_id = snapshot["agoge_run_id"]
     require(samples, "no samples to bind")
     for index, sample in enumerate(samples):
-        require(isinstance(sample, dict), f"sample {index} must be an object")
-        require(sample.get("agoge_run_id") == run_id, f"sample {index} agoge_run_id mismatch")
-        require_capability_digest(
-            sample.get("capability_digest"),
-            f"sample {index} capability_digest must match the run snapshot",
-        )
-        require(sample["capability_digest"] == digest, f"sample {index} capability_digest mismatch")
+        bind_one_sample(snapshot, sample, index, digest, run_id)
 
 
 def reject_fabricated_zero(status: str) -> None:

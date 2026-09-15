@@ -70,7 +70,7 @@ Envelope matches the correlation records so a run can carry both files:
 | `tools` | `nvml_version`, `driver_version`, `nvidia_smi`. Live probes fill NVML/driver from libnvidia-ml and leave `nvidia_smi` null (nvidia-smi is **not** invoked and is **not** a metric source). Unknown → `null`. |
 | `collector` | `id` = `bkl-nvml-capability`, `version` string. |
 | `metrics` | One object per F0 field below. |
-| `capability_digest` | `sha256:` + 64 lowercase hex of identity + tool versions + per-metric capability/unit (not probe values). |
+| `capability_digest` | `sha256:` + 64 lowercase hex over canonical JSON of `schema_version`, `device_status`, `gpu`, `tools`, and per-metric `capability`+`unit` (not probe values). |
 | `metric_notes` | Optional NVML detail strings. Never a substitute for `status`. |
 
 ### Metrics probed
@@ -98,7 +98,9 @@ this probe is NVML-only and must not start a CUDA context.
 
 ## Binding
 
-1. Write one `bkl_gpu_capability` JSON for the run (`agoge_run_id`).
+1. Write one `bkl_gpu_capability` JSON for the run (`agoge_run_id`) **before**
+   sampling. The snapshot’s `timestamp_utc` and `monotonic_ns` must not be later
+   than bound `bkl_gpu_sample` records.
 2. Stamp that snapshot's `capability_digest` onto each `bkl_gpu_sample`.
 3. The CPU checker rejects samples whose digest does not match.
 

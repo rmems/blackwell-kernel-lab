@@ -197,6 +197,15 @@ def check_zero_substitution_guards() -> None:
     )
 
 
+def check_malformed_timestamp() -> None:
+    snapshot = discover_scenario("full-support")
+    snapshot["timestamp_utc"] = "not-a-dateZ"
+    expect_schema_error(
+        lambda: check_capability_snapshot(snapshot),
+        "malformed timestamp must be rejected",
+    )
+
+
 def check_optional_failure_does_not_abort() -> None:
     class BoomPower(FakeNvmlBackend):
         def read_numeric(self, index: int, metric: str) -> int | float:
@@ -233,6 +242,7 @@ def check_committed_fixtures(snapshots: dict[str, dict[str, Any]]) -> None:
 
 def run_self_test() -> None:
     check_zero_substitution_guards()
+    check_malformed_timestamp()
     snapshots = {
         "full-support": check_full_support(),
         "partial-support": check_partial_support(),

@@ -30,6 +30,7 @@ from f0_measurements import (
     check_ok_numeric,
     check_percent_bounds,
     check_throttle,
+    parse_rfc3339_utc,
     require,
     require_capability_digest,
     require_nonempty_str,
@@ -67,15 +68,6 @@ def check_host(rec: dict[str, Any]) -> None:
     host = rec.get("host")
     require(isinstance(host, dict), "host object required")
     require_nonempty_str(host.get("hostname"), "host.hostname required")
-
-
-def parse_rfc3339_utc(timestamp: Any) -> datetime:
-    require(isinstance(timestamp, str), "timestamp_utc must be UTC RFC3339 ending in Z")
-    require(timestamp.endswith("Z"), "timestamp_utc must be UTC RFC3339 ending in Z")
-    try:
-        return datetime.fromisoformat(timestamp[:-1] + "+00:00")
-    except ValueError as error:
-        raise SchemaError("timestamp_utc must be UTC RFC3339 ending in Z") from error
 
 
 def check_time(rec: dict[str, Any]) -> None:
