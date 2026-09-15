@@ -74,8 +74,17 @@ emit the Agoge-owned side; the trainer is not implemented here.
   **or** `ci-gpu` (which waits up to 10 minutes then fails). See
   [`docs/CI.md`](CI.md) and the README checklist.
 
+## QLoRA train-fit (this host)
+
+Measured MiniCPM5 canary peak VRAM and the Granite 4.1 **unmeasured
+template** live in [`TRAIN_FIT_5080.md`](TRAIN_FIT_5080.md) (#44 /
+RM-1053). Forge owns the trainer YAML; this lab does not. When #53/#55
+and Agoge #144 are ready, that page links the `bkl.f0_correlation.v1`
+bundle instead of growing a second measurement format.
+
 ## Acceptance
 
 A reader who has only this file should be able to find the host rules above,
-run one L1 recipe and one L3 smoke binary, and know that this repo is the
-CUDA backend while training orchestration stays in `agoge-forger`.
+run one L1 recipe and one L3 smoke binary, find the measured QLoRA train-fit
+notes, and know that this repo is the CUDA backend while training
+orchestration stays in `agoge-forger`.
