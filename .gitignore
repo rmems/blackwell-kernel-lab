@@ -28,6 +28,10 @@
 # Local CMake builds
 /build/
 
+# Python
+__pycache__/
+*.py[cod]
+
 # Secrets / local engine
 .env
 .env.*
