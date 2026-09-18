@@ -1,0 +1,19 @@
+tools/f0_efficiency_numbers.py
+  s_7497d1f10034f2::t_57b6c270b477fb 466-484,492,494,496-504,517-520,522
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5cf43e270d196f318dbf2a2cee30a59c065ffaef",
+  "prompts": {},
+  "sessions": {
+    "s_7497d1f10034f2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e371602e-551e-49b3-9f13-7d40aa10bcad",
+        "model": "grok-4.6"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
