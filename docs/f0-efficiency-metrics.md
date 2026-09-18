@@ -59,8 +59,10 @@ summed). Extrema and means use **ok samples only**.
 | step-time | `Δmonotonic_ns / 1e9` between consecutive markers whose `global_step` **increases**. Report count, min, max, mean, sample variance, stdev. Variance/stdev are `null` when `n < 2`. |
 | peak VRAM used | `max(vram_used)` among ok samples |
 | min VRAM free | `min(vram_free)` among ok samples |
-| min headroom | `min(headroom)` among ok samples; if headroom is all missing, effective headroom falls back to min free |
-| host floor | `effective_min_headroom ≥ 2048 MiB` (the existing 2 GiB rule). `null` if no ok free/headroom samples. |
+| min headroom | `min(headroom)` among ok samples |
+| effective min headroom | Per sample: ok `headroom`, else ok `vram_free`. Then `min` of those coalesced values. A later missing-headroom / low-free sample can fail the floor. |
+| host floor | `effective_min_headroom ≥ 2048 MiB` (the existing 2 GiB rule). `null` if no coalesced values. |
+| device filter | Physical metrics use samples whose `host.hostname` and GPU identity match the first marker (or first sample). Other-device rows are counted in `excluded_foreign_sample_count` and are not folded into VRAM/energy/util. |
 | avg / peak board power | mean / max of ok `power` |
 | peak GPU temperature | max of ok `temperature_gpu` |
 | avg GPU / memory util by phase | join samples to the latest marker (`f0-correlation-schema.md`); group by `marker.phase`; mean of ok util in that group. Unjoined samples are **not** assigned a guessed phase. |
@@ -81,10 +83,10 @@ PUE number.
 | Cadence | Each sample carries planned `cadence_ms`. The report lists the unique planned cadences and the observed median interval. |
 | Max gap | Default `max_gap_factor = 3`. If `Δt > 3 × min(cadence_i, cadence_{i+1})`, **do not interpolate**. Count the pair as a long gap. |
 | No cadence | If either sample lacks a positive cadence, treat the pair as unbounded and skip. |
-| Missing power | If either `power.status != ok`, skip the pair. Do not substitute `0 W`. |
+| Missing power | If either `power.status != ok`, skip the pair. Do not substitute `0 W`. A pair that is also longer than the allowed cadence is recorded as a long gap **and** a missing-power skip. |
 | Result | If no pair integrates, `approximate_joules` is `null` (missing ≠ `0 J`). |
-| J/step | `approximate_joules / n` where `n` is the number of increasing-step marker intervals. `null` if energy is null or `n = 0`. |
-| J/token | `approximate_joules / tokens_accepted_delta`. `null` if energy is null or the token delta is missing/`0`. |
+| J/step | `approximate_joules / n` only when the energy window matches the Agoge counter window: no long-gap or missing-power skips, every sample inside the marker range, and `integrated_span_s` equals marker `elapsed_s`. Otherwise `null` with `rates_omitted_reason: energy_window_mismatch`. |
+| J/token | Same alignment rule, then `approximate_joules / tokens_accepted_delta`. |
 
 The JSON and the human report both set `energy_is_approximate: true` and
 repeat this caveat.
@@ -94,6 +96,7 @@ repeat this caveat.
 ```text
 expected_samples = 1 + floor((t_last − t_first) / median_planned_cadence)
 coverage_ratio   = observed_samples / expected_samples
+# median_planned_cadence keeps a fractional median (do not truncate to int)
 ```
 
 A single sample has `expected_samples = 1`. If cadence is missing, expected
@@ -119,8 +122,9 @@ The 2026-09-11 MiniCPM5 canary peak (**2.49 GiB** trainer
 `max_memory_allocated`) is a different measurement basis than sampler
 `vram_used`. The summarizer therefore reports `comparable_peak: false` unless
 the optional `--train-fit-ref` JSON sets `peak_basis` to
-`bkl_gpu_sample.vram_used`. Headroom comparison requires a captured min-free
-on `bkl_gpu_sample.vram_free`. Disagreement across bases is **not** a license
+`bkl_gpu_sample.vram_used`. Headroom comparison on
+`bkl_gpu_sample.vram_free` uses derived `min_free_mib`, not
+`effective_min_headroom_mib`. Disagreement across bases is **not** a license
 to rewrite the #44 table.
 
 The correlation fixture (`run_minicpm5_fixture_001`) is synthetic join data

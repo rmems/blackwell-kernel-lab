@@ -234,6 +234,117 @@ def check_phase_and_profile() -> None:
     require(window["compact_summary"]["kernel_count"] == 4, "compact #54 summary should join")
 
 
+def check_vram_free_compares_min_free() -> None:
+    markers, samples = load_minicpm5()
+    mixed = [clone(sample) for sample in samples]
+    set_measurement(mixed[0], "headroom", 9000.0, "MiB", "ok")
+    set_measurement(mixed[0], "vram_free", 1000.0, "MiB", "ok")
+    set_measurement(mixed[1], "headroom", 9000.0, "MiB", "ok")
+    set_measurement(mixed[1], "vram_free", 1000.0, "MiB", "ok")
+    reference = {
+        "peak_allocated_mib": 9800,
+        "peak_basis": "bkl_gpu_sample.vram_used",
+        "min_free_mib": 1000,
+        "min_free_basis": "bkl_gpu_sample.vram_free",
+    }
+    summary = f0eff.summarize_run(
+        markers, mixed, max_gap_factor=3.0, profile_rows=[], train_fit_ref=reference
+    )
+    require(summary["train_fit_comparison"]["comparable_headroom"] is True, "vram_free basis is comparable")
+    require(summary["train_fit_comparison"]["min_headroom"]["agreement"] is True, "compare min free, not headroom")
+    close(summary["vram"]["min_free_mib"], 1000.0, "min free stays 1000")
+
+
+def check_foreign_gpu_excluded() -> None:
+    markers, samples = load_minicpm5()
+    foreign = clone(samples[-1])
+    foreign["gpu"] = {
+        "pci_bus_id": "0000:02:00.0",
+        "uuid": "GPU-fixture-other",
+        "name": "NVIDIA GeForce RTX 5080",
+        "compute_capability": "12.0",
+    }
+    set_measurement(foreign, "vram_used", 16000.0, "MiB", "ok")
+    set_measurement(foreign, "vram_free", 100.0, "MiB", "ok")
+    set_measurement(foreign, "headroom", 100.0, "MiB", "ok")
+    f0corr.check_sample(foreign)
+    summary = f0eff.summarize_run(
+        markers, samples + [foreign], max_gap_factor=3.0, profile_rows=[], train_fit_ref=None
+    )
+    close(summary["vram"]["peak_used_mib"], 9800.0, "foreign GPU must not raise peak")
+    require(summary["vram"]["meets_host_floor"] is True, "foreign 100 MiB must not flip the floor")
+    require(summary.get("excluded_foreign_sample_count") == 1, "record the dropped other-device sample")
+
+
+def check_partial_headroom_cannot_hide_floor() -> None:
+    markers, samples = load_minicpm5()
+    mixed = [clone(sample) for sample in samples]
+    set_measurement(mixed[0], "headroom", 5000.0, "MiB", "ok")
+    set_measurement(mixed[0], "vram_free", 5000.0, "MiB", "ok")
+    set_measurement(mixed[1], "headroom", None, "MiB", "unavailable")
+    set_measurement(mixed[1], "vram_free", 1000.0, "MiB", "ok")
+    summary = f0eff.summarize_run(
+        markers, mixed, max_gap_factor=3.0, profile_rows=[], train_fit_ref=None
+    )
+    require(summary["vram"]["meets_host_floor"] is False, "1000 MiB free must fail the 2048 floor")
+    close(summary["vram"]["effective_min_headroom_mib"], 1000.0, "coalesce per-sample free when headroom is missing")
+
+
+def check_energy_rates_require_aligned_window() -> None:
+    markers, samples = load_minicpm5()
+    template = samples[0]
+    grid = []
+    for index, power in enumerate((100.0, 100.0)):
+        sample = clone(template, monotonic_ns=1_000_000_000 + index * 500_000_000)
+        set_measurement(sample, "power", power, "W", "ok")
+        sample["cadence_ms"] = 500
+        grid.append(sample)
+    energy = f0eff.integrate_board_power(grid, 3.0)
+    close(energy["approximate_joules"], 50.0, "0.5*(100+100)*0.5")
+    throughput = f0eff.throughput_from_markers(markers)
+    rated = f0eff.energy_rates(dict(energy), throughput, 1, markers=markers, samples=grid)
+    require(rated["approximate_joules_per_token"] is None, "0.5 s integral must not divide by the 2.0 s token delta")
+    require(rated.get("rates_omitted_reason") == "energy_window_mismatch", "record why rates are omitted")
+
+
+def check_long_gap_recorded_when_power_missing() -> None:
+    _markers, samples = load_minicpm5()
+    template = samples[0]
+    prev = clone(template, monotonic_ns=1_000_000_000)
+    cur = clone(template, monotonic_ns=2_000_000_000)
+    set_measurement(prev, "power", 100.0, "W", "ok")
+    set_measurement(cur, "power", None, "W", "unavailable")
+    prev["cadence_ms"] = 100
+    cur["cadence_ms"] = 100
+    energy = f0eff.integrate_board_power([prev, cur], 3.0)
+    require(energy["pairs_skipped_missing_power"] == 1, "unavailable power still skips")
+    require(energy["pairs_skipped_long_gap"] == 1, "1 s gap at 100 ms cadence is also a long gap")
+    require(len(energy["long_gaps"]) == 1, "coverage must see the cadence gap")
+
+
+def check_fractional_cadence_median() -> None:
+    _markers, samples = load_minicpm5()
+    first = clone(samples[0], monotonic_ns=0)
+    second = clone(samples[1], monotonic_ns=6_000_000)
+    first["cadence_ms"] = 1
+    second["cadence_ms"] = 2
+    expected = f0eff.expected_sample_count([first, second])
+    require(expected == 5, f"median 1.5 ms over 6 ms expects 5 samples, got {expected}")
+
+
+def check_max_gap_factor_rejects_inf() -> None:
+    argv = [
+        "summarize_f0_efficiency.py",
+        "--markers",
+        str(MARKERS),
+        "--samples",
+        str(SAMPLES),
+        "--max-gap-factor",
+        "inf",
+    ]
+    require(f0eff.main(argv) == 1, "non-finite max-gap-factor must be a handled CLI error")
+
+
 def check_cli_minicpm5() -> None:
     argv = [
         "summarize_f0_efficiency.py",
@@ -267,6 +378,13 @@ CASES = (
     ("missing_counts", check_missing_counts),
     ("granite_same_formulas", check_granite_same_formulas),
     ("train_fit_not_overwritten", check_train_fit_not_overwritten),
+    ("vram_free_compares_min_free", check_vram_free_compares_min_free),
+    ("foreign_gpu_excluded", check_foreign_gpu_excluded),
+    ("partial_headroom_cannot_hide_floor", check_partial_headroom_cannot_hide_floor),
+    ("energy_rates_require_aligned_window", check_energy_rates_require_aligned_window),
+    ("long_gap_recorded_when_power_missing", check_long_gap_recorded_when_power_missing),
+    ("fractional_cadence_median", check_fractional_cadence_median),
+    ("max_gap_factor_rejects_inf", check_max_gap_factor_rejects_inf),
     ("phase_and_profile", check_phase_and_profile),
     ("cli_minicpm5", check_cli_minicpm5),
 )
@@ -278,7 +396,16 @@ def main(argv: list[str]) -> int:
     for name, fn in CASES:
         try:
             fn()
-        except (CheckError, f0corr.SchemaError, f0eff.SummaryError, OSError, KeyError, TypeError, ValueError) as error:
+        except (
+            CheckError,
+            f0corr.SchemaError,
+            f0eff.SummaryError,
+            OSError,
+            KeyError,
+            TypeError,
+            ValueError,
+            OverflowError,
+        ) as error:
             print(f"FAIL {name}: {error}", file=sys.stderr)
             failed += 1
             continue
