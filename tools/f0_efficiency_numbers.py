@@ -463,29 +463,45 @@ def marker_window_ns(markers: list[dict[str, Any]]) -> tuple[int, int] | None:
     return ordered[0]["monotonic_ns"], ordered[-1]["monotonic_ns"]
 
 
+def energy_has_complete_integral(energy: dict[str, Any]) -> bool:
+    if energy.get("approximate_joules") is None:
+        return False
+    return not (energy.get("pairs_skipped_long_gap") or energy.get("pairs_skipped_missing_power"))
+
+
+def samples_inside_marker_window(samples: list[dict[str, Any]], window: tuple[int, int]) -> bool:
+    start_ns, end_ns = window
+    return all(start_ns <= sample["monotonic_ns"] <= end_ns for sample in samples)
+
+
+def spans_match(elapsed: Any, span: Any) -> bool:
+    if not isinstance(elapsed, (int, float)) or not isinstance(span, (int, float)):
+        return False
+    if isinstance(elapsed, bool) or isinstance(span, bool):
+        return False
+    return math.isclose(float(elapsed), float(span), rel_tol=0.0, abs_tol=1e-6)
+
+
 def energy_window_matches_counters(
     energy: dict[str, Any],
     throughput: dict[str, Any],
     markers: list[dict[str, Any]] | None,
     samples: list[dict[str, Any]] | None,
 ) -> bool:
-    if energy.get("approximate_joules") is None:
-        return False
-    if energy.get("pairs_skipped_long_gap") or energy.get("pairs_skipped_missing_power"):
-        return False
     window = marker_window_ns(markers or [])
-    if window is None:
+    if not energy_has_complete_integral(energy) or window is None:
         return False
-    start_ns, end_ns = window
-    for sample in samples or []:
-        stamp = sample["monotonic_ns"]
-        if stamp < start_ns or stamp > end_ns:
-            return False
-    elapsed = throughput.get("elapsed_s")
-    span = energy.get("integrated_span_s")
-    if not isinstance(elapsed, (int, float)) or not isinstance(span, (int, float)):
+    if not samples_inside_marker_window(samples or [], window):
         return False
-    return math.isclose(float(elapsed), float(span), rel_tol=0.0, abs_tol=1e-6)
+    return spans_match(throughput.get("elapsed_s"), energy.get("integrated_span_s"))
+
+
+def aligned_quotient(joules: Any, aligned: bool, denominator: Any) -> float | None:
+    if not aligned or not isinstance(joules, (int, float)) or isinstance(joules, bool):
+        return None
+    if not isinstance(denominator, (int, float)) or isinstance(denominator, bool) or denominator <= 0:
+        return None
+    return float(joules) / float(denominator)
 
 
 def energy_rates(
@@ -497,18 +513,13 @@ def energy_rates(
     samples: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     joules = energy.get("approximate_joules")
-    tokens = throughput.get("tokens_accepted_delta")
     aligned = energy_window_matches_counters(energy, throughput, markers, samples)
-    per_step = None
-    per_token = None
-    if aligned and joules is not None and step_count > 0:
-        per_step = joules / step_count
-    if aligned and joules is not None and isinstance(tokens, int) and tokens > 0:
-        per_token = joules / tokens
-    energy["approximate_joules_per_step"] = r6(per_step)
-    energy["approximate_joules_per_token"] = r6(per_token)
+    energy["approximate_joules_per_step"] = r6(aligned_quotient(joules, aligned, step_count))
+    energy["approximate_joules_per_token"] = r6(
+        aligned_quotient(joules, aligned, throughput.get("tokens_accepted_delta"))
+    )
     energy["step_count_for_energy"] = step_count
-    energy["token_count_for_energy"] = tokens
+    energy["token_count_for_energy"] = throughput.get("tokens_accepted_delta")
     energy["rates_omitted_reason"] = None if aligned else ENERGY_WINDOW_MISMATCH
     return energy
 
