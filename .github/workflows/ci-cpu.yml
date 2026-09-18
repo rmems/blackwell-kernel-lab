@@ -87,3 +87,15 @@ jobs:
           python3 tools/check_f0_correlation.py \
             --markers fixtures/f0-correlation/agoge-markers.jsonl \
             --samples fixtures/f0-correlation/bkl-gpu-samples.jsonl
+
+      - name: F0 efficiency formulas (CPU)
+        # Issue #55: derive tokens/s, step-time, VRAM/headroom, approximate energy.
+        run: |
+          python3 tools/check_f0_efficiency.py
+          python3 tools/summarize_f0_efficiency.py \
+            --markers fixtures/f0-correlation/agoge-markers.jsonl \
+            --samples fixtures/f0-correlation/bkl-gpu-samples.jsonl \
+            --profile-windows fixtures/f0-efficiency/profile-windows.jsonl \
+            --train-fit-ref fixtures/f0-efficiency/train-fit-reference.json \
+            --print-json >/tmp/f0-efficiency.json
+          python3 -m json.tool /tmp/f0-efficiency.json >/dev/null

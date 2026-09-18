@@ -57,7 +57,11 @@ Versioned JSONL contract: [`f0-correlation-schema.md`](f0-correlation-schema.md)
 step). This lab emits `bkl_gpu_sample` records. Join is `agoge_run_id` plus
 monotonic time on one host. BKL does not infer train phases from GPU load.
 CPU fixtures live under `fixtures/f0-correlation/`. Forge issue #144 should
-emit the Agoge-owned side; the trainer is not implemented here.
+emit the Agoge-owned side; the trainer is not implemented here. Derived
+tokens/s, step-time, peak VRAM / min headroom, and approximate board-power
+energy live in [`f0-efficiency-metrics.md`](f0-efficiency-metrics.md)
+(`bkl.f0_efficiency.v1`, #55). That summary does not replace the #44
+train-fit table.
 
 ## What forge must not do
 

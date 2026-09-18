@@ -1,0 +1,15 @@
+{
+  "document": "docs/TRAIN_FIT_5080.md",
+  "issue": "#44",
+  "linear": "RM-1053",
+  "model_family": "minicpm5",
+  "config": "agoge-forger configs/minicpm5_canary.yaml",
+  "date_utc": "2026-09-11",
+  "peak_allocated_mib": 2549,
+  "peak_basis": "torch.cuda.max_memory_allocated",
+  "min_free_mib": null,
+  "start_free_mib": null,
+  "min_free_basis": null,
+  "result": "no OOM; trainer peak only; start-free/min-free not captured",
+  "note": "Concise train-fit SoT for this host. Sampler vram_used is correlated evidence, not a replacement row."
+}
