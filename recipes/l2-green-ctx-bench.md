@@ -18,6 +18,10 @@ cmake --build build/kernels -j"$(nproc)"
 python3 -m json.tool results/green-ctx-bench.json >/dev/null
 ```
 
+`--smoke` (one invocation, one sample) is for Compute Sanitizer only. Do not
+use smoke JSON with `kernels/tools/check_green_ctx_report.py`. See
+[compute-sanitizer.md](compute-sanitizer.md).
+
 The executable queries the device resource rather than assuming this card has
 84 SMs. It derives a legal symmetric split from `minSmPartitionSize` and
 `smCoscheduledAlignment`, generates two resource descriptors, creates two

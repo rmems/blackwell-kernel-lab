@@ -171,12 +171,28 @@ float bench_graph_saxpy(cudaStream_t stream, int iters, float a, const float* x,
 
 int main(int argc, char** argv) {
   std::filesystem::path out_path;
-  if (argc == 3 && std::string(argv[1]) == "--out") {
-    out_path = argv[2];
-  } else if (argc != 1) {
-    std::fprintf(stderr, "usage: %s [--out PATH]\n", argv[0]);
+  bool smoke = false;
+  for (int i = 1; i < argc; ++i) {
+    const std::string arg = argv[i];
+    if (arg == "--smoke") {
+      smoke = true;
+      continue;
+    }
+    if (arg == "--out") {
+      if (i + 1 >= argc) {
+        std::fprintf(stderr, "usage: %s [--smoke] [--out PATH]\n", argv[0]);
+        return 2;
+      }
+      out_path = argv[++i];
+      continue;
+    }
+    std::fprintf(stderr, "usage: %s [--smoke] [--out PATH]\n", argv[0]);
     return 2;
   }
+  const int runs = smoke ? 1 : kRuns;
+  const int empty_iters = smoke ? 2 : kEmptyIters;
+  const int chain_iters = smoke ? 1 : kChainIters;
+  const int saxpy_iters = smoke ? 1 : kSaxpyIters;
   int count = 0;
   BKL_CUDA(cudaGetDeviceCount(&count));
   if (count < 1) {
@@ -187,6 +203,10 @@ int main(int argc, char** argv) {
   cudaDeviceProp prop{};
   BKL_CUDA(cudaGetDeviceProperties(&prop, 0));
   std::printf("device0: %s compute %d.%d\n", prop.name, prop.major, prop.minor);
+  if (smoke) {
+    std::printf("scale=smoke runs=%d empty_iters=%d chain_iters=%d saxpy_iters=%d\n",
+                runs, empty_iters, chain_iters, saxpy_iters);
+  }
   if (prop.major != 12 || prop.minor != 0) {
     std::fprintf(stderr, "expected compute 12.0 (sm_120), got %d.%d\n",
                  prop.major, prop.minor);
@@ -203,14 +223,14 @@ int main(int argc, char** argv) {
   BKL_CUDA(cudaGetLastError());
   BKL_CUDA(cudaStreamSynchronize(stream));
 
-  // Run each benchmark kRuns times, report median.
+  // Run each benchmark `runs` times, report median.
   std::vector<float> eager_empty_times, graph_empty_times;
   std::vector<float> eager_chain_times, graph_chain_times;
-  for (int r = 0; r < kRuns; ++r) {
-    eager_empty_times.push_back(bench_eager_empty(stream, kEmptyIters));
-    graph_empty_times.push_back(bench_graph_empty(stream, kEmptyIters));
-    eager_chain_times.push_back(bench_eager_empty_chain(stream, kChain, kChainIters));
-    graph_chain_times.push_back(bench_graph_empty_chain(stream, kChain, kChainIters));
+  for (int r = 0; r < runs; ++r) {
+    eager_empty_times.push_back(bench_eager_empty(stream, empty_iters));
+    graph_empty_times.push_back(bench_graph_empty(stream, empty_iters));
+    eager_chain_times.push_back(bench_eager_empty_chain(stream, kChain, chain_iters));
+    graph_chain_times.push_back(bench_graph_empty_chain(stream, kChain, chain_iters));
   }
   const float eager_empty_ms = median(eager_empty_times);
   const float graph_empty_ms = median(graph_empty_times);
@@ -229,9 +249,9 @@ int main(int argc, char** argv) {
   BKL_CUDA(cudaStreamSynchronize(stream));
 
   std::vector<float> eager_saxpy_times, graph_saxpy_times;
-  for (int r = 0; r < kRuns; ++r) {
-    eager_saxpy_times.push_back(bench_eager_saxpy(stream, kSaxpyIters, 1.0f, x, y));
-    graph_saxpy_times.push_back(bench_graph_saxpy(stream, kSaxpyIters, 1.0f, x, y));
+  for (int r = 0; r < runs; ++r) {
+    eager_saxpy_times.push_back(bench_eager_saxpy(stream, saxpy_iters, 1.0f, x, y));
+    graph_saxpy_times.push_back(bench_graph_saxpy(stream, saxpy_iters, 1.0f, x, y));
   }
   const float eager_saxpy_ms = median(eager_saxpy_times);
   const float graph_saxpy_ms = median(graph_saxpy_times);
@@ -241,7 +261,7 @@ int main(int argc, char** argv) {
                       cudaMemcpyDeviceToHost));
   // One eager warmup, plus one untimed graph-exec warmup for each graph run.
   const float expected_saxpy =
-      1.0f + kRuns * (2.0f * kSaxpyIters + 1.0f);
+      1.0f + static_cast<float>(runs) * (2.0f * static_cast<float>(saxpy_iters) + 1.0f);
   if (saxpy_sentinel != expected_saxpy) {
     std::fprintf(stderr, "SAXPY validation failed: got %.1f, expected %.1f\n",
                  saxpy_sentinel, expected_saxpy);
@@ -252,25 +272,25 @@ int main(int argc, char** argv) {
   BKL_CUDA(cudaFree(y));
   BKL_CUDA(cudaStreamDestroy(stream));
 
-  const double eager_empty_us = 1e3 * eager_empty_ms / kEmptyIters;
-  const double graph_empty_us = 1e3 * graph_empty_ms / kEmptyIters;
+  const double eager_empty_us = 1e3 * eager_empty_ms / empty_iters;
+  const double graph_empty_us = 1e3 * graph_empty_ms / empty_iters;
   const double eager_chain_us =
-      1e3 * eager_chain_ms / (static_cast<double>(kChainIters) * kChain);
+      1e3 * eager_chain_ms / (static_cast<double>(chain_iters) * kChain);
   const double graph_chain_us =
-      1e3 * graph_chain_ms / (static_cast<double>(kChainIters) * kChain);
-  const double eager_saxpy_us = 1e3 * eager_saxpy_ms / kSaxpyIters;
-  const double graph_saxpy_us = 1e3 * graph_saxpy_ms / kSaxpyIters;
+      1e3 * graph_chain_ms / (static_cast<double>(chain_iters) * kChain);
+  const double eager_saxpy_us = 1e3 * eager_saxpy_ms / saxpy_iters;
+  const double graph_saxpy_us = 1e3 * graph_saxpy_ms / saxpy_iters;
 
   std::printf("bkl graph_launch_bench sm_120\n");
   std::printf("empty iters=%d  eager_us/launch=%.4f  graph_us/launch=%.4f  speedup=%.2fx\n",
-              kEmptyIters, eager_empty_us, graph_empty_us,
+              empty_iters, eager_empty_us, graph_empty_us,
               graph_empty_us > 0.0 ? eager_empty_us / graph_empty_us : 0.0);
   std::printf(
       "empty_chain k=%d iters=%d  eager_us/kern=%.4f  graph_us/kern=%.4f  speedup=%.2fx\n",
-      kChain, kChainIters, eager_chain_us, graph_chain_us,
+      kChain, chain_iters, eager_chain_us, graph_chain_us,
       graph_chain_us > 0.0 ? eager_chain_us / graph_chain_us : 0.0);
   std::printf("saxpy n=%d iters=%d  eager_us/launch=%.4f  graph_us/launch=%.4f  speedup=%.2fx\n",
-              kSaxpyN, kSaxpyIters, eager_saxpy_us, graph_saxpy_us,
+              kSaxpyN, saxpy_iters, eager_saxpy_us, graph_saxpy_us,
               graph_saxpy_us > 0.0 ? eager_saxpy_us / graph_saxpy_us : 0.0);
 
   const auto now = std::chrono::system_clock::now();
@@ -314,8 +334,8 @@ int main(int argc, char** argv) {
       "  \"notes\": \"Synthetic CUDA launch benchmark; not a model or decode workload. Explicit SAXPY buffers use 8 MiB.\"\n}\n",
       run_id, timestamp, prop.name,
       static_cast<double>(prop.totalGlobalMem) / (1024.0 * 1024.0), runtime_version,
-      kEmptyIters, eager_empty_us, graph_empty_us, empty_speedup, kChain, kChainIters,
-      eager_chain_us, graph_chain_us, chain_speedup, kSaxpyN, kSaxpyIters,
+      empty_iters, eager_empty_us, graph_empty_us, empty_speedup, kChain, chain_iters,
+      eager_chain_us, graph_chain_us, chain_speedup, kSaxpyN, saxpy_iters,
       eager_saxpy_us, graph_saxpy_us, saxpy_speedup);
   if (std::fclose(out) != 0) {
     std::perror(out_path.c_str());

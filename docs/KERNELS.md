@@ -8,7 +8,8 @@ proves a gap.
 
 Keep at least **2 GiB of VRAM free** before a measurement or train job on this
 16 GB host; see [HOST_BASELINE.md](HOST_BASELINE.md) for the operational
-headroom rule.
+headroom rule and [TRAIN_FIT_5080.md](TRAIN_FIT_5080.md) for the MiniCPM5
+QLoRA canary peak on this card.
 
 Not neuromorphic-first. Not greenfield attention from day one. The trainer
 stays in `agoge-forger`; its `cuda/` tree is a stub that points here.
@@ -85,4 +86,5 @@ L3 workspace: [kernels/README.md](../kernels/README.md). Recipes:
 [L1 prefix/KV reuse](../recipes/l1-prefix-kv-reuse.md) ·
 [L2 Green Context contention](../recipes/l2-green-ctx-bench.md) ·
 [L3 device hello](../recipes/l3-device-hello.md) ·
-[L3 graph-launch benchmark](../recipes/l3-graph-launch-bench.md).
+[L3 graph-launch benchmark](../recipes/l3-graph-launch-bench.md) ·
+[Compute Sanitizer](../recipes/compute-sanitizer.md).

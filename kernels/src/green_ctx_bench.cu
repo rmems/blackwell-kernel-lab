@@ -33,6 +33,12 @@ constexpr unsigned int kIndependentInvocations = 3;
 constexpr unsigned int kSamplesPerMode = 7;
 constexpr std::size_t kRequiredHeadroomBytes = 2ULL * 1024ULL * 1024ULL * 1024ULL;
 
+// Full-bench defaults stay constexpr. `--smoke` only shrinks host-side
+// invocation/sample counts so compute-sanitizer stays bounded; the device
+// loop in sensitive_value() cannot change at runtime.
+unsigned int g_independent_invocations = kIndependentInvocations;
+unsigned int g_samples_per_mode = kSamplesPerMode;
+
 #if defined(CUDA_VERSION) && CUDA_VERSION >= 13000 && \
     !defined(BKL_FORCE_NO_GREEN_CONTEXT_API)
 #define BKL_HAS_GREEN_CONTEXT_API 1
@@ -457,8 +463,8 @@ std::string render_report(const Report& report) {
       << "    \"sensitive_block_threads\": " << kBlockThreads << ",\n"
       << "    \"sensitive_blocks\": 1,\n"
       << "    \"sensitive_iterations\": " << kSensitiveIterations << ",\n"
-      << "    \"samples_per_mode\": " << kSamplesPerMode << ",\n"
-      << "    \"independent_invocations\": " << kIndependentInvocations
+      << "    \"samples_per_mode\": " << g_samples_per_mode << ",\n"
+      << "    \"independent_invocations\": " << g_independent_invocations
       << "\n  },\n";
 
   out << "  \"invocations\": [";
@@ -818,9 +824,9 @@ ModeResult run_mode(cudaStream_t sensitive_stream,
   }
 
   ModeResult result;
-  result.gpu_latency_ms.reserve(kSamplesPerMode);
-  result.host_launch_to_sync_ms.reserve(kSamplesPerMode);
-  for (unsigned int sample = 0; sample < kSamplesPerMode; ++sample) {
+  result.gpu_latency_ms.reserve(g_samples_per_mode);
+  result.host_launch_to_sync_ms.reserve(g_samples_per_mode);
+  for (unsigned int sample = 0; sample < g_samples_per_mode; ++sample) {
     const std::uint32_t seed =
         0x9e3779b9U ^ (invocation_index * 131U + sample * 17U);
     const SampleResult sample_result =
@@ -1133,6 +1139,12 @@ class GreenPair {
 void print_summary(const Report& report,
                    const std::filesystem::path& output_path) {
   std::printf("bkl green_ctx_bench sm_120\n");
+  std::printf("scale=%s invocations=%u samples_per_mode=%u\n",
+              g_independent_invocations == kIndependentInvocations &&
+                      g_samples_per_mode == kSamplesPerMode
+                  ? "full"
+                  : "smoke",
+              g_independent_invocations, g_samples_per_mode);
   std::printf("outcome=%s sm_total=%u min_partition=%u alignment=%u\n",
               report.outcome.c_str(), report.sm_total,
               report.min_sm_partition_size,
@@ -1359,7 +1371,7 @@ int run_benchmark(const std::filesystem::path& requested_output) {
   };
 
   for (unsigned int invocation_index = 0;
-       invocation_index < kIndependentInvocations; ++invocation_index) {
+       invocation_index < g_independent_invocations; ++invocation_index) {
     InvocationResult invocation;
     invocation.index = invocation_index + 1;
     if (invocation_index % 2 == 0) {
@@ -1408,8 +1420,8 @@ int run_benchmark(const std::filesystem::path& requested_output) {
   BKL_CUDA_STAGE("synchronize device before reporting", cudaDeviceSynchronize());
 
   if (report.outcome == "measured") {
-    if (report.invocations.size() != kIndependentInvocations) {
-      throw BenchError("measurement did not produce three invocations");
+    if (report.invocations.size() != g_independent_invocations) {
+      throw BenchError("measurement did not produce the requested invocations");
     }
     report.follow_up_justified =
         std::all_of(report.invocations.begin(), report.invocations.end(),
@@ -1444,11 +1456,27 @@ int run_benchmark(const std::filesystem::path& requested_output) {
 
 int main(int argc, char** argv) {
   std::filesystem::path output_path;
-  if (argc == 3 && std::string(argv[1]) == "--out") {
-    output_path = argv[2];
-  } else if (argc != 1) {
-    std::fprintf(stderr, "usage: %s [--out PATH]\n", argv[0]);
+  bool smoke = false;
+  for (int i = 1; i < argc; ++i) {
+    const std::string arg = argv[i];
+    if (arg == "--smoke") {
+      smoke = true;
+      continue;
+    }
+    if (arg == "--out") {
+      if (i + 1 >= argc) {
+        std::fprintf(stderr, "usage: %s [--smoke] [--out PATH]\n", argv[0]);
+        return 2;
+      }
+      output_path = argv[++i];
+      continue;
+    }
+    std::fprintf(stderr, "usage: %s [--smoke] [--out PATH]\n", argv[0]);
     return 2;
+  }
+  if (smoke) {
+    g_independent_invocations = 1;
+    g_samples_per_mode = 1;
   }
 
   try {
