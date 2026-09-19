@@ -87,3 +87,11 @@ jobs:
           python3 tools/check_f0_correlation.py \
             --markers fixtures/f0-correlation/agoge-markers.jsonl \
             --samples fixtures/f0-correlation/bkl-gpu-samples.jsonl
+
+      - name: GPU CI policy + sanitizer runner (CPU)
+        # RM-1351: workflow trigger/trust/headroom contract, and the
+        # compute-sanitizer wrapper's pass/fail behaviour with fake tools.
+        # Does not schedule the self-hosted GPU.
+        run: |
+          python3 tools/check_gpu_ci_policy.py
+          bash kernels/tools/check_compute_sanitizer_runner.sh
