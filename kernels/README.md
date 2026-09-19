@@ -32,6 +32,8 @@ kernels/
     graph_launch_bench.cu   # CUDA graph vs eager launch (#30)
   tools/
     check_green_ctx_report.py   # report self-consistency check (CI + local)
+    run_compute_sanitizer.sh      # opt-in memcheck/initcheck suite (RM-1351)
+    wait_gpu_headroom.sh         # ≥2 GiB free wait used by GPU CI
 ```
 
 ## Build (GPU host)
@@ -79,6 +81,7 @@ Without a supported host and without the opt-in above, configure **fails** (no s
 - [L2 Green Context contention](../recipes/l2-green-ctx-bench.md)
 - [L3 device hello](../recipes/l3-device-hello.md)
 - [L3 graph-launch benchmark](../recipes/l3-graph-launch-bench.md)
+- [Compute Sanitizer (opt-in)](../recipes/compute-sanitizer.md)
 
 ## Issues
 
@@ -87,4 +90,5 @@ Without a supported host and without the opt-in above, configure **fails** (no s
 - #19 / RM-487 — workspace layout
 - #21 / RM-488 — device smoke + GPU CI hook
 - #30 — CUDA graph vs eager launch bench
+- RM-1351 — opt-in Compute Sanitizer on the three first-party binaries
  

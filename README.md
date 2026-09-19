@@ -44,9 +44,12 @@ Do not start both.
    `ci-gpu` run is already queued.
 3. To push kernel CI: same headroom. `ci-gpu` waits up to 10 minutes for
    that floor, then fails (job timeout 30 minutes including smoke).
-   Markdown-only PRs do not schedule the GPU host.
+   Markdown-only PRs do not schedule the GPU host. Compute Sanitizer is
+   opt-in (`ci-gpu-sanitizer`: dispatch or trusted `main` kernel-path
+   pushes) and uses the same headroom wait.
 
-Details: [docs/CI.md](docs/CI.md) · [docs/HOST_BASELINE.md](docs/HOST_BASELINE.md).
+Details: [docs/CI.md](docs/CI.md) · [docs/HOST_BASELINE.md](docs/HOST_BASELINE.md) ·
+[docs/TRAIN_FIT_5080.md](docs/TRAIN_FIT_5080.md) (MiniCPM5 canary peak VRAM).
 
 ## Quick start
 
@@ -61,18 +64,19 @@ cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON && cmake --build build/ke
 ./build/kernels/src/bkl_graph_launch_bench --out results/graph-launch-bench.json  # L3
 ./build/kernels/src/bkl_green_ctx_bench --out results/green-ctx-bench.json        # L2
 
-# Docs: docs/KERNELS.md · kernels/README.md · docs/CI.md · recipes/
+# Docs: docs/KERNELS.md · docs/TRAIN_FIT_5080.md · kernels/README.md · docs/CI.md · recipes/
+# Opt-in Compute Sanitizer: recipes/compute-sanitizer.md
 # Forge consume: docs/FORGE_CONSUME.md
 ```
 
 ## Repo layout
 
 ```text
-docs/           Mission, hardware baseline, kernel layering, CI, forge consume/boundary
-fixtures/       CPU JSONL/JSON fixtures (F0 correlation + NVML capability)
+docs/           Mission, hardware baseline, train-fit, kernel layering, CI, forge consume/boundary
+fixtures/       CPU JSON/JSONL fixtures (F0 correlation, clock skew, NVML capability)
 recipes/        Human-run kernel measurement playbooks
 kernels/        First-party L3 CUDA workspace (sm_120) — see kernels/README.md
-tools/          CPU validators (correlation join; NVML capability; no GPU in CI)
+tools/          CPU validators (correlation join, clock skew, NVML capability; no GPU in CI)
 results/        Kernel measurement outputs (gitignored)
 ```
 
