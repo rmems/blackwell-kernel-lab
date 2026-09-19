@@ -71,8 +71,8 @@ emit the Agoge-owned side; the trainer is not implemented here.
   recipes; forge's own preflight (`uv run agoge check-torch`) already warns
   on the relevant threshold.
 - Dual-occupy this card with GPU CI. Serialize: ≥2 GiB free, then train
-  **or** `ci-gpu` (which waits up to 10 minutes then fails). See
-  [`docs/CI.md`](CI.md) and the README checklist.
+  **or** `ci-gpu` / `ci-gpu-sanitizer` (each waits up to 10 minutes then fails).
+  See [`docs/CI.md`](CI.md) and the README checklist.
 
 ## Acceptance
 
