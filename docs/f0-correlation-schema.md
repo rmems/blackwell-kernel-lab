@@ -26,13 +26,15 @@ bump; consumers must ignore unknown keys (forward compatibility).
 
 ## Record kinds
 
-JSONL, one JSON object per line. Two kinds share an envelope and differ in
-payload ownership:
+JSONL, one JSON object per line. Marker and sample kinds share an envelope
+and differ in payload ownership. `bkl_clock_skew` uses the same envelope and
+is a per-run sidecar (not mixed into the marker or sample JSONL streams):
 
 | `record_kind` | Owner | File in this repo (fixture) |
 |---|---|---|
 | `agoge_marker` | **agoge-forger** | `fixtures/f0-correlation/agoge-markers.jsonl` |
 | `bkl_gpu_sample` | **this repo** | `fixtures/f0-correlation/bkl-gpu-samples.jsonl` |
+| `bkl_clock_skew` | **this repo** | `fixtures/f0-correlation/clock-skew.json` |
 
 BKL **must not** infer `phase`, `global_step`, or other Agoge semantics from
 GPU load, clocks, or power. If a marker is missing, the join leaves Agoge
@@ -42,19 +44,19 @@ There is no permanent collector process in this contract. A train wrapper
 (#53) and Agoge (#144) may write append-only JSONL for the life of one run
 and exit.
 
-## Envelope (both kinds)
+## Envelope (all kinds)
 
 | Field | Type | Owner of the *value* | Notes |
 |---|---|---|---|
 | `schema_version` | string | contract | Must be `bkl.f0_correlation.v1` |
-| `record_kind` | string | contract | `agoge_marker` or `bkl_gpu_sample` |
+| `record_kind` | string | contract | `agoge_marker`, `bkl_gpu_sample`, or `bkl_clock_skew` |
 | `agoge_run_id` | string | **Agoge** | Stable id for one train invocation. Join key. |
 | `host` | object | capturing process | `hostname` (string). Same-host capture assumed. |
 | `gpu` | object | capturing process | Identity only: `pci_bus_id` and/or `uuid`, `name`, `compute_capability` (`"12.0"` on this 5080). |
 | `timestamp_utc` | string | capturing process | RFC 3339 UTC with `Z`. Wall clock. |
 | `monotonic_ns` | integer ≥ 0 | capturing process | `CLOCK_MONOTONIC` nanoseconds. Local order. |
-| `collector` | object | capturing process | `id` (e.g. `agoge-forger`, `bkl-gpu-sampler`), `version` (string). |
-| `cadence_ms` | integer or null | BKL samples | Planned sample interval. Markers use `null`. |
+| `collector` | object | capturing process | `id` (e.g. `agoge-forger`, `bkl-gpu-sampler`, `bkl-clock-calibrator`), `version` (string). |
+| `cadence_ms` | integer or null | BKL samples | Planned sample interval. Markers and clock-skew reports use `null`. |
 
 `gpu` identity is copied onto Agoge markers when Agoge knows the device so
 joins can assert one card. BKL samples always fill it. Missing identity is
@@ -142,12 +144,73 @@ Deterministic join used by `tools/check_f0_correlation.py`:
    or missing identities stay unjoined.
 4. If no such marker exists, the sample is **unjoined** (allowed in production
    streams; the CPU fixture in this repo requires ≥1 joined pair).
-5. Wall clock is for humans and for skew notes. Ordering is monotonic.
-   Same-host capture: assume NTP/chrony keeps UTC within **1 s**; do not
-   invent a distributed trace. Cross-machine join is a non-goal.
+5. Wall clock is for humans and for the skew report below. Ordering is
+   monotonic. Same-host capture: assume NTP/chrony keeps UTC within **1 s**;
+   do not invent a distributed trace. Cross-machine join is a non-goal.
+6. After the monotonic candidate is chosen, apply the clock-skew gate:
+   pairs that straddle a **backward** wall-clock jump or a monotonic
+   regression are **refused**; pairs that straddle a **forward** jump larger
+   than the 1 s bound are kept but marked **degraded**. Pairs that stay on
+   one side of a discontinuity still join.
 
 Clock domains: `monotonic_ns` is comparable only across processes on the same
 boot of the same host. The fixture uses one synthetic domain.
+
+## Clock calibration (one-host skew report)
+
+`bkl_clock_skew` is the timestamp bridge that lets Agoge markers, BKL GPU
+samples, and later #54 profiling windows share one local timebase. It is
+**not** NTP management, not a daemon, and not a distributed clock.
+
+Capture paired UTC wall-clock and `CLOCK_MONOTONIC` observations at run
+**start** and **end** (`tools/f0_clock.py:capture_observation`). From those
+pairs the calibrator records:
+
+| Field | Meaning |
+|---|---|
+| `observations` / `start_observation` / `end_observation` | Paired `timestamp_utc` + `monotonic_ns` (+ derived `wall_ns`) |
+| `offset_ns` | `wall_ns - monotonic_ns` at start |
+| `end_offset_ns` | Same at end, or `null` if the end observation is missing |
+| `drift_ns_per_s` | `(end_offset - start_offset)` per monotonic second; `null` without an end pair |
+| `clock_resolution` | `monotonic_ns` and `realtime_ns` (fixture uses 1 ns; live capture may read `clock_getres`) |
+| `assumed_utc_bound_ns` | 1_000_000_000 (the 1 s same-host bound) |
+| `discontinuities` | Detected jumps, each with `kind` and `correlation` |
+| `validity` | `ok`, `degraded`, or `refused` |
+| `join_order` | Always `monotonic` |
+| `correlation_across_discontinuity` | `allowed`, `degraded`, or `refused` |
+
+Envelope matches the other kinds (`schema_version`, `agoge_run_id`, `host`,
+`gpu`, `collector`, start `timestamp_utc` / `monotonic_ns`). `cadence_ms`
+is `null`. Additive optional kind: bump is not required; unknown keys stay
+ignored.
+
+### Discontinuity kinds
+
+| `kind` | Detection | Join across it |
+|---|---|---|
+| `backward_wall_clock` | Wall delta `< 0`, or wall lagged monotonic by more than the 1 s bound | **refused** |
+| `forward_jump` | Wall jumped ahead of monotonic by more than the 1 s bound | **degraded** |
+| `monotonic_regression` | `monotonic_ns` went backwards (should not happen for `CLOCK_MONOTONIC`) | **refused** |
+
+Missing the end observation is **degraded** (offset is still known; drift is
+null). Sparse markers are not a clock fault: join still uses the latest
+preceding marker by monotonic time.
+
+### Assumptions and limits
+
+- One host, one boot. `monotonic_ns` is not comparable after reboot or across
+  machines.
+- UTC is best-effort. Chrony/NTP may slew or step; this report detects the
+  step, it does not correct the host clock.
+- Python `datetime` stores microseconds. Live `time.time_ns()` pairs keep
+  integer `wall_ns` for exact offset; RFC 3339 is the portable form.
+- No training-phase inference from GPU load. This file only calibrates time.
+- CPU-only. It does not run on the RTX 5080 and does not consume the 16 GB
+  VRAM budget; leave ≥2 GiB free when a later #53/#54 GPU capture runs.
+
+Scenario fixtures: `fixtures/f0-correlation/clock-skew/` (`stable`,
+`bounded_drift`, `backward_jump`, `forward_jump`, `sparse_markers`,
+`missing_end`).
 
 ## What Agoge should emit (#144)
 
@@ -172,7 +235,10 @@ this schema is CPU-only.
 ```bash
 python3 tools/check_f0_correlation.py \
   --markers fixtures/f0-correlation/agoge-markers.jsonl \
-  --samples fixtures/f0-correlation/bkl-gpu-samples.jsonl
+  --samples fixtures/f0-correlation/bkl-gpu-samples.jsonl \
+  --clock-skew fixtures/f0-correlation/clock-skew.json
+python3 tools/check_f0_clock_skew.py \
+  --fixtures fixtures/f0-correlation/clock-skew
 ```
 
-`ci-cpu` runs the same command.
+`ci-cpu` runs the same commands.

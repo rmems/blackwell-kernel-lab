@@ -1,0 +1,63 @@
+{
+  "name": "forward_jump",
+  "assumed_utc_bound_ns": 1000000000,
+  "clock_resolution": {"monotonic_ns": 1, "realtime_ns": 1},
+  "envelope": {
+    "agoge_run_id": "run_clock_skew_fixture",
+    "host": {"hostname": "ShipOfTheseus"},
+    "gpu": {
+      "pci_bus_id": "0000:01:00.0",
+      "uuid": "GPU-fixture-0001",
+      "name": "NVIDIA GeForce RTX 5080",
+      "compute_capability": "12.0"
+    },
+    "collector": {"id": "bkl-clock-calibrator", "version": "fixture"}
+  },
+  "observations": [
+    {"role": "start", "timestamp_utc": "2026-09-14T18:00:00Z", "monotonic_ns": 1000000000},
+    {"role": "sample", "timestamp_utc": "2026-09-14T18:00:10Z", "monotonic_ns": 1100000000},
+    {"role": "end", "timestamp_utc": "2026-09-14T18:00:10.100Z", "monotonic_ns": 1200000000}
+  ],
+  "markers": [
+    {
+      "agoge_run_id": "run_clock_skew_fixture",
+      "host": {"hostname": "ShipOfTheseus"},
+      "gpu": {"uuid": "GPU-fixture-0001"},
+      "monotonic_ns": 1000000000,
+      "timestamp_utc": "2026-09-14T18:00:00Z"
+    },
+    {
+      "agoge_run_id": "run_clock_skew_fixture",
+      "host": {"hostname": "ShipOfTheseus"},
+      "gpu": {"uuid": "GPU-fixture-0001"},
+      "monotonic_ns": 1150000000,
+      "timestamp_utc": "2026-09-14T18:00:10.050Z"
+    }
+  ],
+  "samples": [
+    {
+      "agoge_run_id": "run_clock_skew_fixture",
+      "host": {"hostname": "ShipOfTheseus"},
+      "gpu": {"uuid": "GPU-fixture-0001"},
+      "monotonic_ns": 1120000000,
+      "timestamp_utc": "2026-09-14T18:00:10.020Z"
+    },
+    {
+      "agoge_run_id": "run_clock_skew_fixture",
+      "host": {"hostname": "ShipOfTheseus"},
+      "gpu": {"uuid": "GPU-fixture-0001"},
+      "monotonic_ns": 1180000000,
+      "timestamp_utc": "2026-09-14T18:00:10.080Z"
+    }
+  ],
+  "expect": {
+    "validity": "degraded",
+    "correlation_across_discontinuity": "degraded",
+    "discontinuity_kinds": ["forward_jump"],
+    "has_end_observation": true,
+    "offset_matches_start": true,
+    "joined_ok": 1,
+    "joined_degraded": 1,
+    "refused": 0
+  }
+}

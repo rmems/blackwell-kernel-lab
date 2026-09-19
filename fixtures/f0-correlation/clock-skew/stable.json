@@ -1,0 +1,49 @@
+{
+  "name": "stable",
+  "assumed_utc_bound_ns": 1000000000,
+  "clock_resolution": {"monotonic_ns": 1, "realtime_ns": 1},
+  "envelope": {
+    "agoge_run_id": "run_clock_skew_fixture",
+    "host": {"hostname": "ShipOfTheseus"},
+    "gpu": {
+      "pci_bus_id": "0000:01:00.0",
+      "uuid": "GPU-fixture-0001",
+      "name": "NVIDIA GeForce RTX 5080",
+      "compute_capability": "12.0"
+    },
+    "collector": {"id": "bkl-clock-calibrator", "version": "fixture"}
+  },
+  "observations": [
+    {"role": "start", "timestamp_utc": "2026-09-14T18:00:00Z", "monotonic_ns": 1000000000},
+    {"role": "end", "timestamp_utc": "2026-09-14T18:00:10Z", "monotonic_ns": 11000000000}
+  ],
+  "markers": [
+    {
+      "agoge_run_id": "run_clock_skew_fixture",
+      "host": {"hostname": "ShipOfTheseus"},
+      "gpu": {"uuid": "GPU-fixture-0001"},
+      "monotonic_ns": 1000000000,
+      "timestamp_utc": "2026-09-14T18:00:00Z"
+    }
+  ],
+  "samples": [
+    {
+      "agoge_run_id": "run_clock_skew_fixture",
+      "host": {"hostname": "ShipOfTheseus"},
+      "gpu": {"uuid": "GPU-fixture-0001"},
+      "monotonic_ns": 5000000000,
+      "timestamp_utc": "2026-09-14T18:00:04Z"
+    }
+  ],
+  "expect": {
+    "validity": "ok",
+    "correlation_across_discontinuity": "allowed",
+    "discontinuity_kinds": [],
+    "has_end_observation": true,
+    "drift_ns_per_s": 0.0,
+    "offset_matches_start": true,
+    "joined_ok": 1,
+    "joined_degraded": 0,
+    "refused": 0
+  }
+}

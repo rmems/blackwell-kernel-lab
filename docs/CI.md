@@ -2,7 +2,7 @@
 
 | Workflow | Runner | Purpose |
 |---|---|---|
-| [`.github/workflows/ci-cpu.yml`](../.github/workflows/ci-cpu.yml) | **`ubuntu-latest`** | Kernel-tree checks, CUDA-disabled CMake configure, F0 correlation join (#52), and GPU-workflow policy / sanitizer-runner tests (RM-1351) |
+| [`.github/workflows/ci-cpu.yml`](../.github/workflows/ci-cpu.yml) | **`ubuntu-latest`** | Kernel-tree checks, CUDA-disabled CMake configure, F0 correlation join (#52), one-host clock-skew calibration (RM-1349), and GPU-workflow policy / sanitizer-runner tests (RM-1351) |
 | [`.github/workflows/ci-gpu.yml`](../.github/workflows/ci-gpu.yml) | **Self-hosted** `ShipOfTheseus` (`self-hosted`, `Linux`, `X64`, `CUDA`) | GPU probe plus sm_120 build, binaries, graph JSON, and Green Context capability/measurement JSON |
 | [`.github/workflows/ci-gpu-sanitizer.yml`](../.github/workflows/ci-gpu-sanitizer.yml) | **Self-hosted** `ShipOfTheseus` (same labels) | Opt-in Compute Sanitizer (`memcheck` / `initcheck`) on first-party CUDA smokes. Manual dispatch or trusted `main` kernel-path pushes only; never pull requests |
 
@@ -54,7 +54,10 @@ Green Context isolation is not the default for train vs Actions.
 cmake -S kernels -B build/kernels-cpu -DBKL_ENABLE_CUDA=OFF
 python3 tools/check_f0_correlation.py \
   --markers fixtures/f0-correlation/agoge-markers.jsonl \
-  --samples fixtures/f0-correlation/bkl-gpu-samples.jsonl
+  --samples fixtures/f0-correlation/bkl-gpu-samples.jsonl \
+  --clock-skew fixtures/f0-correlation/clock-skew.json
+python3 tools/check_f0_clock_skew.py \
+  --fixtures fixtures/f0-correlation/clock-skew
 python3 tools/check_gpu_ci_policy.py
 bash kernels/tools/check_compute_sanitizer_runner.sh
 
