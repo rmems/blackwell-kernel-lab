@@ -1,0 +1,20 @@
+docs/TRAIN_FIT_5080.md
+  s_0d6518bd33fa8e::t_3d26e5627830ae 120,122,130-137
+  s_0d6518bd33fa8e::t_8b626ab985d211 69-78,81,84-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d2ec8d6280350426bfd072d23f3edf4840de8d0b",
+  "prompts": {},
+  "sessions": {
+    "s_0d6518bd33fa8e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "aa5161f1-2b58-4583-8f0d-390988ffff0b",
+        "model": "composer-2.5"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
