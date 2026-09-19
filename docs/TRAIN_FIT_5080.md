@@ -66,11 +66,25 @@ peak-VRAM / min-free row into the table below.
    do not treat that as headroom-compliant unless min-free during the run
    stays ≥2048 MiB.
 
-2. From an `agoge-forger` checkout:
+2. From an `agoge-forger` checkout, use a config that satisfies current train
+   provenance (Agoge **#148+**): content-addressed Hub `revision` and a
+   `dataset_path` under a **frozen** split (`split_manifest.json` beside the
+   split tree). Stock [`configs/minicpm5_canary.yaml`](https://github.com/rmems/agoge-forger/blob/main/configs/minicpm5_canary.yaml)
+   still points at `datasets/samples/tiny_sft.jsonl` with no `revision` — it
+   will fail with `cannot construct producer_provenance` until AF updates that
+   file. The 2026-09-11 row used a host overlay with pinned revision and
+   `~/agoge-data/splits/tiny-sft-smoke-v1` (not a pin of `main` yaml).
+
+   ShipOfTheseus replay (matches the proven row):
 
    ```bash
-   uv run agoge train-qlora --config configs/minicpm5_canary.yaml
+   uv run agoge train-qlora --config /home/raulmc/agoge-data/scratch/smoke/configs/local_minicpm5_canary.yaml
    ```
+
+   Or an equivalent overlay: same knobs as the canary, plus `revision:
+   "156170697656c48f69915b33a2fb44110242187c"` and `dataset_path` set to the
+   frozen train shard (for example
+   `.../tiny-sft-smoke-v1/splits/train.jsonl`).
 
 3. Record **peak allocated** (trainer / `torch.cuda.max_memory_allocated`) and
    **minimum free** (`nvidia-smi` `memory.free` while the process is alive,
@@ -103,8 +117,9 @@ schema in this document.
 | Date (UTC) | Config | Peak allocated | Start free | Min free during run | Result | Bundle |
 |---|---|---|---|---|---|---|
 | 2026-09-11 | AF MiniCPM5 QLoRA canary (4-bit NF4, seq 512, bs 1, accum 8, grad ckpt; Hub rev `156170697656c48f69915b33a2fb44110242187c`; frozen split `tiny-sft-smoke-v1`; Agoge commit / yaml digest **not recorded**) | **2.49 GiB** (~2549 MiB) trainer max | not captured (`nvidia-smi` protocol) | not captured | no OOM; trainer peak only | pending `agoge_run_id` + #53/#55 |
+| 2026-09-19 | Host overlay `local_minicpm5_canary.yaml` (same 4-bit / seq 512 / bs 1 / grad ckpt; **accum 4**; same Hub rev + frozen split; Agoge `76c3fa3f`) | **2.49 GiB** (~2550 MiB) trainer max | **13503 MiB** | **10358 MiB** (`nvidia-smi` free, step loop) | no OOM; 18 steps, 10.6 s, `train_loss` 2.683; min-free ≥2048 MiB headroom floor | pending `agoge_run_id` + #53/#55; local JSON `results/train-fit-minicpm5-canary.json` |
 
-**Provenance:** Agoge Trainer lane on ShipOfTheseus, recorded on
+**Provenance:** The 2026-09-11 row is Agoge Trainer lane on ShipOfTheseus, recorded on
 [`agoge-forger#104`](https://github.com/rmems/agoge-forger/issues/104#issuecomment-5629835314)
 (mechanical qualify; 18 steps, 8.6 s). Peak is trainer-reported max VRAM, not
 an `nvidia-smi` used-memory sample. It shows the canary did not OOM at
@@ -112,10 +127,14 @@ an `nvidia-smi` used-memory sample. It shows the canary did not OOM at
 / min-free against the ≥2 GiB snapshot floor (context and other processes
 were not sampled). It is also **not** a correlated #51–#55 bundle.
 
-A later host run of the protocol should add a second row with start-free /
-min-free MiB, the Agoge git SHA and config digest, and, when ready,
-`agoge_run_id` + bundle path. Do not treat the `main` yaml URL as the pin
-for the 2026-09-11 row.
+The 2026-09-19 row replays the protocol on this host (preflight
+`wait_gpu_headroom.sh`, start/min-free `nvidia-smi` sampling during
+`uv run agoge train-qlora` with the pinned-revision overlay). Start-free
+**13503 MiB** exceeds peak+2048 (~4597 MiB implied used at peak); min-free
+**10358 MiB** stayed above the 2048 MiB floor with desktop GPU apps present.
+Still not a correlated #51–#55 bundle until `agoge_run_id` lands.
+
+Do not treat the `main` yaml URL as the pin for either row.
 
 ## Granite 4.1 — template until measured
 
