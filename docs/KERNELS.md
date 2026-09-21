@@ -16,7 +16,8 @@ stays in `agoge-forger`; its `cuda/` tree is a stub that points here.
 
 **Boundary contract:** [FORGE_BOUNDARY.md](FORGE_BOUNDARY.md).
 Training ↔ GPU sample join: [f0-correlation-schema.md](f0-correlation-schema.md)
-(CPU contract; not a kernel).
+(CPU contract; not a kernel). NVML capability discovery:
+[f0-nvml-capability.md](f0-nvml-capability.md) (CPU; live probe is NVML-only).
 
 ## Layers
 
