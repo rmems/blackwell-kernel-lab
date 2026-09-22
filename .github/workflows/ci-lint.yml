@@ -1,9 +1,9 @@
 # Lint CI — GitHub-hosted only. Never schedules work on the GPU host.
 #
-# ci-gpu.yml drives a self-hosted runner with GPU access, so a mistake in a
-# workflow file is more expensive here than in a repo that only uses hosted
-# runners. actionlint checks the workflow syntax, expression types, runner
-# labels, and (through shellcheck) every `run:` block.
+# ci-gpu.yml and ci-gpu-sanitizer.yml drive a self-hosted runner with GPU access,
+# so a mistake in a workflow file is more expensive here than in a repo that
+# only uses hosted runners. actionlint checks the workflow syntax, expression
+# types, runner labels, and (through shellcheck) every `run:` block.
 name: ci-lint
 
 on:

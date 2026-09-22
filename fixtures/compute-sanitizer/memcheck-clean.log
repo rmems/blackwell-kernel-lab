@@ -1,0 +1,4 @@
+========= COMPUTE-SANITIZER
+device0: NVIDIA GeForce RTX 5080 compute 12.0
+bkl device_hello sm_120 ok
+========= ERROR SUMMARY: 0 errors

@@ -6,7 +6,8 @@ See docs/f0-correlation-schema.md. Used by .github/workflows/ci-cpu.yml.
 Usage:
     python3 tools/check_f0_correlation.py \\
       --markers fixtures/f0-correlation/agoge-markers.jsonl \\
-      --samples fixtures/f0-correlation/bkl-gpu-samples.jsonl
+      --samples fixtures/f0-correlation/bkl-gpu-samples.jsonl \\
+      --clock-skew fixtures/f0-correlation/clock-skew.json
 """
 
 from __future__ import annotations
@@ -14,69 +15,36 @@ from __future__ import annotations
 import argparse
 import bisect
 import json
-import math
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-SCHEMA = "bkl.f0_correlation.v1"
-MARKER = "agoge_marker"
-SAMPLE = "bkl_gpu_sample"
-MEASUREMENT_STATUS = {"ok", "unavailable", "unsupported"}
+import math
 
-PHYSICAL = (
-    ("power", "W"),
-    ("temperature_gpu", "C"),
-    ("temperature_memory", "C"),
-    ("utilization_gpu", "%"),
-    ("utilization_memory", "%"),
-    ("clock_graphics", "MHz"),
-    ("clock_memory", "MHz"),
-    ("vram_used", "MiB"),
-    ("vram_free", "MiB"),
-    ("vram_total", "MiB"),
-    ("headroom", "MiB"),
+import f0_clock
+from f0_measurements import (
+    MARKER,
+    PERCENT_FIELDS,
+    PHYSICAL,
+    SAMPLE,
+    SCHEMA,
+    SchemaError,
+    check_measurement,
+    check_ok_numeric,
+    check_percent_bounds,
+    check_throttle,
+    parse_rfc3339_utc,
+    require,
+    require_capability_digest,
+    require_nonempty_str,
+    require_nonneg_int,
+    require_optional_nonempty_str,
+    require_optional_nonneg_int,
+    require_positive_int,
 )
-PERCENT_FIELDS = {"utilization_gpu", "utilization_memory"}
+
 FIXTURE_IDLE_MONOTONIC_NS = 1_500_000_000
-
-
-class SchemaError(Exception):
-    """A record or join failed validation."""
-
-
-def require(condition: object, message: str) -> None:
-    if not condition:
-        raise SchemaError(message)
-
-
-def require_nonempty_str(value: Any, message: str) -> None:
-    require(isinstance(value, str), message)
-    require(value, message)
-
-
-def require_optional_nonempty_str(value: Any, message: str) -> None:
-    if value is None:
-        return
-    require_nonempty_str(value, message)
-
-
-def require_nonneg_int(value: Any, message: str) -> None:
-    require(isinstance(value, int), message)
-    require(not isinstance(value, bool), message)
-    require(value >= 0, message)
-
-
-def require_optional_nonneg_int(value: Any, message: str) -> None:
-    if value is None:
-        return
-    require_nonneg_int(value, message)
-
-
-def require_positive_int(value: Any, message: str) -> None:
-    require_nonneg_int(value, message)
-    require(value > 0, message)
 
 
 def _reject_nonfinite_json(token: str) -> None:
@@ -100,38 +68,10 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def check_ok_numeric(value: Any, name: str) -> None:
-    require(isinstance(value, (int, float)), f"{name}: ok requires a numeric value, not {value!r}")
-    require(not isinstance(value, bool), f"{name}: ok requires a numeric value, not {value!r}")
-    require(math.isfinite(float(value)), f"{name}: ok requires a finite number, not {value!r}")
-
-
-def check_measurement(obj: Any, name: str, unit: str) -> None:
-    require(isinstance(obj, dict), f"{name} must be a measurement object")
-    require("value" in obj, f"{name}: value key required")
-    require(obj.get("unit") == unit, f"{name}: expected unit {unit}, got {obj.get('unit')}")
-    status = obj.get("status")
-    require(status in MEASUREMENT_STATUS, f"{name}: bad status {status}")
-    value = obj["value"]
-    if status == "ok":
-        check_ok_numeric(value, name)
-        return
-    require(value is None, f"{name}: missing must be null, not {value!r} (missing ≠ zero)")
-
-
 def check_host(rec: dict[str, Any]) -> None:
     host = rec.get("host")
     require(isinstance(host, dict), "host object required")
     require_nonempty_str(host.get("hostname"), "host.hostname required")
-
-
-def parse_rfc3339_utc(timestamp: Any) -> datetime:
-    require(isinstance(timestamp, str), "timestamp_utc must be UTC RFC3339 ending in Z")
-    require(timestamp.endswith("Z"), "timestamp_utc must be UTC RFC3339 ending in Z")
-    try:
-        return datetime.fromisoformat(timestamp[:-1] + "+00:00")
-    except ValueError as error:
-        raise SchemaError("timestamp_utc must be UTC RFC3339 ending in Z") from error
 
 
 def check_time(rec: dict[str, Any]) -> None:
@@ -202,31 +142,6 @@ def check_marker(rec: dict[str, Any]) -> None:
     check_marker_metrics(rec)
 
 
-def check_throttle_reasons(status: str, reasons: Any) -> None:
-    if status == "ok":
-        require(isinstance(reasons, list), "throttle.reasons must be a list when ok")
-        require(all(isinstance(item, str) for item in reasons), "throttle.reasons must be strings")
-        return
-    if reasons is None:
-        return
-    require(isinstance(reasons, list), "throttle.reasons must be null or a list when not ok")
-    require(len(reasons) == 0, "throttle.reasons must be null or empty when not ok")
-
-
-def check_throttle(obj: Any) -> None:
-    require(isinstance(obj, dict), "throttle must be an object")
-    status = obj.get("status")
-    require(status in MEASUREMENT_STATUS, f"throttle: bad status {status}")
-    check_throttle_reasons(status, obj.get("reasons"))
-
-
-def check_percent_bounds(obj: dict[str, Any], name: str) -> None:
-    if obj.get("status") != "ok":
-        return
-    value = obj["value"]
-    require(0 <= value <= 100, f"{name}: ok percent must be in 0–100, got {value!r}")
-
-
 def check_sample_physical(rec: dict[str, Any]) -> None:
     for name, unit in PHYSICAL:
         require(name in rec, f"missing physical field {name}")
@@ -257,6 +172,11 @@ def check_sample(rec: dict[str, Any]) -> None:
         "profile_window_ref must be null or a non-empty string",
     )
     check_cuda(rec)
+    if "capability_digest" in rec:
+        require_capability_digest(
+            rec.get("capability_digest"),
+            "capability_digest must be sha256:<64 lowercase hex>",
+        )
 
 
 def nonempty_id(value: Any) -> str | None:
@@ -353,6 +273,38 @@ def expect_schema_error(fn: Any) -> None:
     raise SchemaError("expected a schema error")
 
 
+def slim_record(run_id: str, hostname: str, gpu: dict[str, Any], monotonic_ns: int, timestamp_utc: str) -> dict[str, Any]:
+    return {
+        "agoge_run_id": run_id,
+        "host": {"hostname": hostname},
+        "gpu": gpu,
+        "monotonic_ns": monotonic_ns,
+        "timestamp_utc": timestamp_utc,
+    }
+
+
+def check_gpu_join_guards() -> None:
+    marker = slim_record("r", "h", {"uuid": "GPU-A"}, 1, "2026-01-01T00:00:00Z")
+    sample = slim_record("r", "h", {"uuid": "GPU-B"}, 2, "2026-01-01T00:00:00Z")
+    require(not join_samples([marker], [sample]), "mismatched GPU uuid must not join")
+    pci_marker = slim_record("r", "h", {"pci_bus_id": "0000:01:00.0"}, 1, "2026-01-01T00:00:00Z")
+    pci_sample = slim_record(
+        "r", "h", {"uuid": "GPU-B", "pci_bus_id": "0000:01:00.0"}, 2, "2026-01-01T00:00:00Z"
+    )
+    require(join_samples([pci_marker], [pci_sample]), "pci fallback must join when uuids are not both set")
+
+
+def check_clock_jump_refused() -> None:
+    marker = slim_record("r", "h", {"uuid": "GPU-A"}, 1, "2026-01-01T00:00:10Z")
+    sample = slim_record("r", "h", {"uuid": "GPU-A"}, 3, "2026-01-01T00:00:01Z")
+    pairs = join_samples([marker], [sample])
+    report = f0_clock.calibrate(f0_clock.observations_from_records([marker, sample]))
+    ok_pairs, degraded, refused = f0_clock.annotate_joins(pairs, report["discontinuities"])
+    require(report["validity"] == "refused", "backward wall jump must refuse correlation")
+    require(report["join_order"] == "monotonic", "join order must stay monotonic")
+    require(not ok_pairs and not degraded and refused, "join across backward jump must be refused")
+
+
 def check_contract_guards() -> None:
     check_missing_is_not_zero()
     expect_schema_error(lambda: check_ok_numeric(float("nan"), "loss"))
@@ -360,23 +312,8 @@ def check_contract_guards() -> None:
     expect_schema_error(lambda: parse_rfc3339_utc("not-a-dateZ"))
     expect_schema_error(lambda: check_percent_bounds({"status": "ok", "value": 150}, "utilization_gpu"))
     check_throttle({"status": "unsupported", "reasons": []})
-    marker = {
-        "agoge_run_id": "r",
-        "host": {"hostname": "h"},
-        "gpu": {"uuid": "GPU-A"},
-        "monotonic_ns": 1,
-        "timestamp_utc": "2026-01-01T00:00:00Z",
-    }
-    sample = dict(marker)
-    sample["gpu"] = {"uuid": "GPU-B"}
-    sample["monotonic_ns"] = 2
-    require(not join_samples([marker], [sample]), "mismatched GPU uuid must not join")
-    pci_marker = dict(marker)
-    pci_marker["gpu"] = {"pci_bus_id": "0000:01:00.0"}
-    pci_sample = dict(marker)
-    pci_sample["gpu"] = {"uuid": "GPU-B", "pci_bus_id": "0000:01:00.0"}
-    pci_sample["monotonic_ns"] = 2
-    require(join_samples([pci_marker], [pci_sample]), "pci fallback must join when uuids are not both set")
+    check_gpu_join_guards()
+    check_clock_jump_refused()
 
 
 def check_missing_is_not_zero() -> None:
@@ -400,7 +337,65 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=Path,
         default=Path("fixtures/f0-correlation/bkl-gpu-samples.jsonl"),
     )
+    parser.add_argument(
+        "--clock-skew",
+        type=Path,
+        default=Path("fixtures/f0-correlation/clock-skew.json"),
+    )
     return parser.parse_args(argv[1:])
+
+
+def gate_joins(
+    markers: list[dict[str, Any]], samples: list[dict[str, Any]]
+) -> tuple[
+    dict[str, Any],
+    list[tuple[dict[str, Any], dict[str, Any]]],
+    list[tuple[dict[str, Any], dict[str, Any]]],
+    list[tuple[dict[str, Any], dict[str, Any]]],
+]:
+    pairs = join_samples(markers, samples)
+    report = f0_clock.calibrate(f0_clock.observations_from_records(markers + samples))
+    ok_pairs, degraded, refused = f0_clock.annotate_joins(pairs, report["discontinuities"])
+    return report, ok_pairs, degraded, refused
+
+
+def same_optional_drift(left: Any, right: Any) -> bool:
+    if left is None or right is None:
+        return left is right
+    return math.isclose(float(left), float(right), rel_tol=0.0, abs_tol=1e-6)
+
+
+def check_recomputed_skew(rec: dict[str, Any], recomputed: dict[str, Any]) -> None:
+    require(recomputed["validity"] == rec["validity"], "clock-skew fixture validity is stale")
+    require(recomputed["offset_ns"] == rec["offset_ns"], "clock-skew fixture offset_ns is stale")
+    require(recomputed["end_offset_ns"] == rec["end_offset_ns"], "clock-skew fixture end_offset_ns is stale")
+    require(same_optional_drift(recomputed["drift_ns_per_s"], rec["drift_ns_per_s"]), "clock-skew fixture drift is stale")
+    require(
+        recomputed["correlation_across_discontinuity"] == rec["correlation_across_discontinuity"],
+        "clock-skew fixture correlation policy is stale",
+    )
+    require(recomputed["join_order"] == rec["join_order"], "clock-skew fixture join_order is stale")
+
+
+def check_derived_skew(rec: dict[str, Any], derived: dict[str, Any]) -> None:
+    require(rec["validity"] == derived["validity"], "clock-skew fixture validity disagrees with stream")
+    require(rec["offset_ns"] == derived["offset_ns"], "clock-skew fixture offset disagrees with stream")
+    rec_kinds = [item["kind"] for item in rec["discontinuities"]]
+    derived_kinds = [item["kind"] for item in derived["discontinuities"]]
+    require(rec_kinds == derived_kinds, "clock-skew fixture discontinuities disagree with stream")
+
+
+def check_clock_skew_fixture(path: Path, derived: dict[str, Any]) -> None:
+    rec = json.loads(path.read_text())
+    require(isinstance(rec, dict), f"{path}: expected object")
+    f0_clock.check_clock_skew_record(rec)
+    recomputed = f0_clock.calibrate(
+        rec["observations"],
+        assumed_utc_bound_ns=rec["assumed_utc_bound_ns"],
+        clock_resolution=rec["clock_resolution"],
+    )
+    check_recomputed_skew(rec, recomputed)
+    check_derived_skew(rec, derived)
 
 
 def main(argv: list[str]) -> int:
@@ -413,17 +408,20 @@ def main(argv: list[str]) -> int:
             check_marker(rec)
         for rec in samples:
             check_sample(rec)
-        pairs = join_samples(markers, samples)
-        require(pairs, "expected at least one join on agoge_run_id + monotonic_ns")
-        check_fixture_idle_join(pairs)
-    except (SchemaError, OSError, KeyError, TypeError) as error:
+        report, ok_pairs, degraded, refused = gate_joins(markers, samples)
+        accepted = ok_pairs + degraded
+        require(accepted, "expected at least one join on agoge_run_id + monotonic_ns")
+        check_fixture_idle_join(accepted)
+        check_clock_skew_fixture(args.clock_skew, report)
+    except (SchemaError, f0_clock.ClockError, OSError, KeyError, TypeError, json.JSONDecodeError) as error:
         print(error, file=sys.stderr)
         return 1
 
     print(
         f"{args.markers}: {len(markers)} markers; "
         f"{args.samples}: {len(samples)} samples; "
-        f"joined={len(pairs)} ok"
+        f"joined_ok={len(ok_pairs)} joined_degraded={len(degraded)} refused={len(refused)}; "
+        f"clock_validity={report['validity']}"
     )
     return 0
 

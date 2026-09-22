@@ -8,6 +8,7 @@ from collections import defaultdict
 from typing import Any
 
 import check_f0_correlation as f0corr
+from f0_measurements import MEASUREMENT_STATUS
 
 SCHEMA_OUT = "bkl.f0_efficiency.v1"
 HEADROOM_FLOOR_MIB = 2048
@@ -38,7 +39,7 @@ def measurement_status(obj: Any) -> str | None:
     if not isinstance(obj, dict):
         return None
     status = obj.get("status")
-    if status in f0corr.MEASUREMENT_STATUS:
+    if status in MEASUREMENT_STATUS:
         return status
     return None
 

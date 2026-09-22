@@ -1,0 +1,123 @@
+{
+  "agoge_run_id": "cap_fixture_device-lost",
+  "capability_digest": "sha256:d209b6047b6cfbb3de37537a7dbe9125cefd27b14506dcccae027677dae76d24",
+  "collector": {
+    "id": "bkl-nvml-capability",
+    "version": "0.1.0"
+  },
+  "device_status": "device_lost",
+  "gpu": {
+    "compute_capability": "12.0",
+    "name": "NVIDIA GeForce RTX 5080",
+    "pci_bus_id": "0000:01:00.0",
+    "uuid": "GPU-fixture-0001"
+  },
+  "host": {
+    "hostname": "ShipOfTheseus"
+  },
+  "metric_notes": {
+    "clock_graphics": "NVML_ERROR_GPU_IS_LOST",
+    "clock_memory": "NVML_ERROR_GPU_IS_LOST",
+    "headroom": "NVML_ERROR_GPU_IS_LOST",
+    "performance_state": "NVML_ERROR_GPU_IS_LOST",
+    "power": "NVML_ERROR_GPU_IS_LOST",
+    "temperature_gpu": "NVML_ERROR_GPU_IS_LOST",
+    "temperature_memory": "NVML_ERROR_GPU_IS_LOST",
+    "throttle": "NVML_ERROR_GPU_IS_LOST",
+    "utilization_gpu": "NVML_ERROR_GPU_IS_LOST",
+    "utilization_memory": "NVML_ERROR_GPU_IS_LOST",
+    "vram_free": "NVML_ERROR_GPU_IS_LOST",
+    "vram_total": "NVML_ERROR_GPU_IS_LOST",
+    "vram_used": "NVML_ERROR_GPU_IS_LOST"
+  },
+  "metrics": {
+    "clock_graphics": {
+      "capability": "device_lost",
+      "status": "device_lost",
+      "unit": "MHz",
+      "value": null
+    },
+    "clock_memory": {
+      "capability": "device_lost",
+      "status": "device_lost",
+      "unit": "MHz",
+      "value": null
+    },
+    "headroom": {
+      "capability": "device_lost",
+      "status": "device_lost",
+      "unit": "MiB",
+      "value": null
+    },
+    "performance_state": {
+      "capability": "device_lost",
+      "status": "device_lost",
+      "unit": "pstate",
+      "value": null
+    },
+    "power": {
+      "capability": "device_lost",
+      "status": "device_lost",
+      "unit": "W",
+      "value": null
+    },
+    "temperature_gpu": {
+      "capability": "device_lost",
+      "status": "device_lost",
+      "unit": "C",
+      "value": null
+    },
+    "temperature_memory": {
+      "capability": "device_lost",
+      "status": "device_lost",
+      "unit": "C",
+      "value": null
+    },
+    "throttle": {
+      "capability": "device_lost",
+      "reasons": null,
+      "status": "device_lost",
+      "unit": null,
+      "value": null
+    },
+    "utilization_gpu": {
+      "capability": "device_lost",
+      "status": "device_lost",
+      "unit": "%",
+      "value": null
+    },
+    "utilization_memory": {
+      "capability": "device_lost",
+      "status": "device_lost",
+      "unit": "%",
+      "value": null
+    },
+    "vram_free": {
+      "capability": "device_lost",
+      "status": "device_lost",
+      "unit": "MiB",
+      "value": null
+    },
+    "vram_total": {
+      "capability": "device_lost",
+      "status": "device_lost",
+      "unit": "MiB",
+      "value": null
+    },
+    "vram_used": {
+      "capability": "device_lost",
+      "status": "device_lost",
+      "unit": "MiB",
+      "value": null
+    }
+  },
+  "monotonic_ns": 0,
+  "record_kind": "bkl_gpu_capability",
+  "schema_version": "bkl.f0_capability.v1",
+  "timestamp_utc": "2026-09-14T17:59:59Z",
+  "tools": {
+    "driver_version": "610.43.03",
+    "nvidia_smi": "610.43.03",
+    "nvml_version": "13.3.58"
+  }
+}

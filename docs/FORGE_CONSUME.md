@@ -3,10 +3,14 @@
 **Audience:** `agoge-forger`, or anything else that wants to pin this repo as
 the local CUDA backend for LLM fine-tuning and training without copying `.cu`.
 
-**Cite:** `rmems/blackwell-kernel-lab@24039e6` (no release tag newer than
-`v0.1.0` exists yet; update this pointer when one is cut). See
-[`FORGE_BOUNDARY.md`](FORGE_BOUNDARY.md) for the ownership rule this contract
-implements — this doc is the consume-side API, that one is the boundary.
+**Cite:** default branch for consume pages including
+[`TRAIN_FIT_5080.md`](TRAIN_FIT_5080.md) (#44). Do not pin
+`rmems/blackwell-kernel-lab@24039e6` for train-fit — that SHA has neither
+this page nor `FORGE_CONSUME.md`. Contract revision 1 host/recipe/smoke
+text originally landed there; update the SHA when a release tag newer than
+`v0.1.0` is cut. See [`FORGE_BOUNDARY.md`](FORGE_BOUNDARY.md) for the
+ownership rule this contract implements — this doc is the consume-side API,
+that one is the boundary.
 
 ## Host facts
 
@@ -54,12 +58,17 @@ build/run is on the self-hosted `ci-gpu` runner — see
 
 Versioned JSONL contract: [`f0-correlation-schema.md`](f0-correlation-schema.md)
 (`bkl.f0_correlation.v1`). Agoge emits `agoge_marker` records (run id, phase,
-step). This lab emits `bkl_gpu_sample` records. Join is `agoge_run_id` plus
-monotonic time on one host. BKL does not infer train phases from GPU load.
-CPU fixtures live under `fixtures/f0-correlation/`. Forge issue #144 should
-emit the Agoge-owned side; the trainer is not implemented here. Derived
-tokens/s, step-time, peak VRAM / min headroom, and approximate board-power
-energy live in [`f0-efficiency-metrics.md`](f0-efficiency-metrics.md)
+step). This lab emits `bkl_gpu_sample` records and a `bkl_clock_skew` report
+that pairs UTC with monotonic time on one host. Join is `agoge_run_id` plus
+monotonic order; wall-clock jumps are refused or marked degraded. BKL does
+not infer train phases from GPU load. CPU fixtures live under
+`fixtures/f0-correlation/`. NVML capability discovery (`bkl.f0_capability.v1`,
+RM-1350) is [`f0-nvml-capability.md`](f0-nvml-capability.md); it is a
+prerequisite for the #53 sampler and does not occupy this 16 GB card in CI.
+Forge issue #144 should emit the Agoge-owned side; the trainer is not
+implemented here. Derived tokens/s, step-time, peak VRAM / min headroom, and
+approximate board-power energy live in
+[`f0-efficiency-metrics.md`](f0-efficiency-metrics.md)
 (`bkl.f0_efficiency.v1`, #55). That summary does not replace the #44
 train-fit table.
 
@@ -75,11 +84,20 @@ train-fit table.
   recipes; forge's own preflight (`uv run agoge check-torch`) already warns
   on the relevant threshold.
 - Dual-occupy this card with GPU CI. Serialize: ≥2 GiB free, then train
-  **or** `ci-gpu` (which waits up to 10 minutes then fails). See
-  [`docs/CI.md`](CI.md) and the README checklist.
+  **or** `ci-gpu` / `ci-gpu-sanitizer` (each waits up to 10 minutes then fails).
+  See [`docs/CI.md`](CI.md) and the README checklist.
+
+## QLoRA train-fit (this host)
+
+Measured MiniCPM5 canary peak VRAM and the Granite 4.1 **unmeasured
+template** live in [`TRAIN_FIT_5080.md`](TRAIN_FIT_5080.md) (#44 /
+RM-1053). Forge owns the trainer YAML; this lab does not. When #53/#55
+and Agoge #144 are ready, that page links the `bkl.f0_correlation.v1`
+bundle instead of growing a second measurement format.
 
 ## Acceptance
 
 A reader who has only this file should be able to find the host rules above,
-run one L1 recipe and one L3 smoke binary, and know that this repo is the
-CUDA backend while training orchestration stays in `agoge-forger`.
+run one L1 recipe and one L3 smoke binary, find the QLoRA train-fit notes
+(trainer-reported MiniCPM5 peak; Granite unmeasured), and know that this
+repo is the CUDA backend while training orchestration stays in `agoge-forger`.

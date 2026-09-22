@@ -1,0 +1,41 @@
+{
+  "schema_version": "bkl.f0_correlation.v1",
+  "record_kind": "bkl_clock_skew",
+  "agoge_run_id": "run_minicpm5_fixture_001",
+  "host": {"hostname": "ShipOfTheseus"},
+  "gpu": {
+    "pci_bus_id": "0000:01:00.0",
+    "uuid": "GPU-fixture-0001",
+    "name": "NVIDIA GeForce RTX 5080",
+    "compute_capability": "12.0"
+  },
+  "timestamp_utc": "2026-09-14T18:00:00Z",
+  "monotonic_ns": 1000000000,
+  "collector": {"id": "bkl-clock-calibrator", "version": "fixture"},
+  "cadence_ms": null,
+  "observations": [
+    {"role": "start", "timestamp_utc": "2026-09-14T18:00:00Z", "monotonic_ns": 1000000000, "wall_ns": 1789408800000000000},
+    {"role": "end", "timestamp_utc": "2026-09-14T18:00:02.250Z", "monotonic_ns": 3250000000, "wall_ns": 1789408802250000000}
+  ],
+  "start_observation": {
+    "role": "start",
+    "timestamp_utc": "2026-09-14T18:00:00Z",
+    "monotonic_ns": 1000000000,
+    "wall_ns": 1789408800000000000
+  },
+  "end_observation": {
+    "role": "end",
+    "timestamp_utc": "2026-09-14T18:00:02.250Z",
+    "monotonic_ns": 3250000000,
+    "wall_ns": 1789408802250000000
+  },
+  "offset_ns": 1789408799000000000,
+  "end_offset_ns": 1789408799000000000,
+  "drift_ns_per_s": 0.0,
+  "clock_resolution": {"monotonic_ns": 1, "realtime_ns": 1},
+  "assumed_utc_bound_ns": 1000000000,
+  "discontinuities": [],
+  "validity": "ok",
+  "join_order": "monotonic",
+  "correlation_across_discontinuity": "allowed"
+}
