@@ -1,0 +1,41 @@
+tools/check_gpu_ci_gate.py
+  s_22e8d5fd078f37::t_0aa66bafe41b9b 22-24,27,38
+  s_22e8d5fd078f37::t_fd488414f43f3c 36-37
+  s_22e8d5fd078f37::t_cdd1ca00e4a0cd 1-21,25-26,28-35,39-180
+AGENTS.md
+  s_22e8d5fd078f37::t_699db116f328e4 38,40-41
+docs/RELEASE_V0_2_0.md
+  s_22e8d5fd078f37::t_699db116f328e4 1-88
+tools/gpu_ci_gate.py
+  s_22e8d5fd078f37::t_02d4498ea7f6d6 1-110
+docs/CI.md
+  s_22e8d5fd078f37::t_699db116f328e4 6,25-56,66-67,104,138
+tools/check_gpu_ci_policy.py
+  s_22e8d5fd078f37::t_02d4498ea7f6d6 100-107,118
+.github/workflows/ci-gpu.yml
+  s_22e8d5fd078f37::t_02d4498ea7f6d6 26,28,30-31,33-37,39,44-49,96-114
+.github/workflows/ci-cpu.yml
+  s_22e8d5fd078f37::t_02d4498ea7f6d6 118
+README.md
+  s_22e8d5fd078f37::t_699db116f328e4 34-39,112-114,123,125-127,129-130,132-134,137-140
+docs/MISSION.md
+  s_22e8d5fd078f37::t_699db116f328e4 33-37,48-50
+docs/KERNELS.md
+  s_22e8d5fd078f37::t_699db116f328e4 22-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1ee2b8b27ccd89438e7e92346ab2785c3662a5e0",
+  "prompts": {},
+  "sessions": {
+    "s_22e8d5fd078f37": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c6bb-be2d-75d3-89da-5b2550fc4b78",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
