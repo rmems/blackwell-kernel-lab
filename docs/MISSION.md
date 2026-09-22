@@ -30,7 +30,7 @@ lands here.
 
 ## Success
 
-**Current release outcome:** [v0.2.0](RELEASE_V0_2_0.md) delivers a BKL-owned
+**Upcoming release target:** [v0.2.0](RELEASE_V0_2_0.md) must deliver a BKL-owned
 CUDA operator used by Agoge with a measured training-speed improvement on
 both MiniCPM5 and Granite 4.1. The following completed foundations do not
 by themselves establish a reusable training operator or its performance.
