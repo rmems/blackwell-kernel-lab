@@ -1,0 +1,23 @@
+tools/gpu_ci_gate.py
+  s_22e8d5fd078f37::t_04cec788337490 80-83
+tools/check_gpu_ci_gate.py
+  s_22e8d5fd078f37::t_3559f06920603b 55-56,66,152-158
+docs/CI.md
+  s_22e8d5fd078f37::t_04cec788337490 56-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "501707a6504040f856f4fa59cb066772284c3b00",
+  "prompts": {},
+  "sessions": {
+    "s_22e8d5fd078f37": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c6bb-be2d-75d3-89da-5b2550fc4b78",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
