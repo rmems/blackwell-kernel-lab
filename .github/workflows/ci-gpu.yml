@@ -2,14 +2,16 @@
 # CPU-only jobs stay on ubuntu-latest (ci-cpu.yml).
 #
 # Security: fork PRs never schedule self-hosted jobs (trust gate on GitHub-hosted).
-# Prefer main + workflow_dispatch + same-repo PRs only on the GPU host.
+# PR policy comes from the base repository's default branch, never PR code.
 name: ci-gpu
 
 on:
   push:
-    branches: [main]
+    # The delivery branch bootstraps this new required check before it is on main.
+    # Other PRs use only pull_request_target, avoiding duplicate check contexts.
+    branches: [main, codex/v020-delivery]
   workflow_dispatch:
-  pull_request:
+  pull_request_target:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
 
@@ -17,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: gpu-${{ github.workflow }}-${{ github.ref }}
+  group: gpu-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -30,11 +32,17 @@ jobs:
       required: ${{ steps.check.outputs.required }}
       trusted: ${{ steps.check.outputs.trusted }}
     steps:
-      - name: Checkout for hosted change detection
+      - name: Checkout trusted policy for hosted change detection
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
           fetch-depth: 0
+          ref: ${{ github.sha }}
+      - name: Fetch PR objects without checking out or executing PR code
+        if: github.event_name == 'pull_request_target'
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git fetch --no-tags origin "$PR_HEAD_SHA"
       - id: check
         run: python3 tools/gpu_ci_gate.py detect
 
@@ -45,7 +53,7 @@ jobs:
     if: >-
       needs.gate.outputs.required == 'true' &&
       needs.gate.outputs.trusted == 'true' &&
-      (github.event_name != 'pull_request' ||
+      (github.event_name != 'pull_request_target' ||
        github.event.pull_request.head.repo.full_name == github.repository)
     # Labels on registered runner ShipOfTheseus (see docs/CI.md).
     runs-on: [self-hosted, Linux, X64, CUDA]
@@ -56,6 +64,8 @@ jobs:
         with:
           # Self-hosted: do not leave GITHUB_TOKEN in git config for later steps.
           persist-credentials: false
+          # Only the same-repository branch passed the trusted gate above.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: GPU presence
         run: |
@@ -101,10 +111,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout for hosted result validation
+      - name: Checkout trusted policy for hosted result validation
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+          ref: ${{ github.sha }}
       - name: Require successful detection and any required GPU job
         env:
           DETECTION_RESULT: ${{ needs.gate.result }}

@@ -52,9 +52,9 @@ class GateTests(unittest.TestCase):
         head = self.commit_file(path, "changed\n")
         return self.detect(base, head, fork=fork)
 
-    def detect(self, base, head, *, fork=False, event_name="pull_request"):
+    def detect(self, base, head, *, fork=False, event_name="pull_request_target"):
         event = {"repository": {"full_name": "rmems/blackwell-kernel-lab"}}
-        if event_name == "pull_request":
+        if event_name == "pull_request_target":
             event["pull_request"] = {
                 "base": {"sha": base},
                 "head": {"sha": head, "repo": {
@@ -91,6 +91,25 @@ class GateTests(unittest.TestCase):
 
     def test_unknown_build_path_requires_gpu(self):
         self.assert_detection(self.detect_change("pyproject.toml"), True)
+
+    def test_unknown_files_inside_cpu_directories_require_gpu(self):
+        self.git("init", "-q")
+        base = self.commit_file("README.md", "base\n")
+        for path in ("tools/new_cuda_launcher.py", "tools/setup.py",
+                     "tools/custom_kernel.ptx", "tools/native_module.c",
+                     "fixtures/new_operator.py", ".qlty/new_build.sh"):
+            with self.subTest(path=path):
+                head = self.commit_file(path, "unknown executable\n")
+                self.assert_detection(self.detect(base, head), True)
+                self.output.unlink()
+                base = head
+
+    def test_fork_gate_is_data_and_cannot_change_trusted_detector(self):
+        self.git("init", "-q")
+        base = self.commit_file("README.md", "base\n")
+        self.commit_file("kernels/op.cu", "kernel\n")
+        head = self.commit_file("tools/gpu_ci_gate.py", "raise RuntimeError('untrusted')\n")
+        self.assert_detection(self.detect(base, head, fork=True), True, False)
 
     def test_gpu_workflow_requires_gpu(self):
         self.assert_detection(self.detect_change(".github/workflows/ci-gpu.yml"), True)

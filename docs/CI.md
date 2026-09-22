@@ -37,12 +37,25 @@ Enable the required-check rule only after `GPU validation` succeeds on a real
 PR. Repository rules are external configuration; this file describes the
 contract, while RM-1770 records its verified deployment state.
 
-The GPU workflow runs for every PR to main, every main push, and manual
-dispatch. The hosted gate compares the full PR diff from its merge base
-(or the entire pushed range), preserving both sides of renames. Known Markdown,
-LICENSE, CPU tools/fixtures, CPU/lint workflows, and quality configuration skip
-GPU work. CUDA/C++/CMake, bindings, GPU policy/workflows, and unknown source or
-build paths require it. Manual dispatch always requests GPU validation.
+The GPU workflow uses `pull_request_target` for every PR to main, main pushes,
+and manual dispatch. Hosted detection and verification check out the trusted
+default-branch SHA for PR events. They fetch PR Git objects only as diff data;
+they never execute the PR's gate code. Only a same-repository PR may check out
+its head in the GPU job. See GitHub's [event trust
+boundary](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request_target).
+
+The gate compares the full PR diff from its merge base (or the entire pushed
+range), preserving both sides of renames. Markdown, LICENSE, an explicit list
+of existing CPU tools/configuration, and JSON/JSONL in known F0 fixture families
+skip GPU work. CUDA/C++/CMake, bindings, GPU policy/workflows, and unknown files
+require it, including new scripts under `tools/`. Extend the CPU allowlist only
+after reviewing a new tool. Manual dispatch always requests GPU validation.
+
+The explicit `codex/v020-delivery` push trigger bootstraps this policy before it
+exists on main. Ordinary PR branches use only `pull_request_target`, avoiding
+duplicate `GPU validation` contexts. A workflow-dispatch result alone cannot
+satisfy a PR's required checks; see GitHub's [required-check
+guidance](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks).
 
 The final hosted check uses `always()` and requires successful detection. It
 passes a non-GPU change only when GPU work was skipped. Required GPU work must
@@ -56,7 +69,13 @@ result matrix. Full model training comparisons remain a
 
 ## Security (self-hosted)
 
-1. **Fork PRs never run on the GPU host** — the GitHub-hosted trust gate skips the self-hosted job when `head.repo != this repo`.
+1. **This GPU workflow never runs fork code on the host** — the default-branch
+   workflow and gate reject `head.repo != this repo`. Keep Actions approval set
+   to **all external contributors**, and do not approve fork workflows that
+   request this runner; use a maintainer-controlled branch instead. A personal
+   repository's runner is not restricted to one workflow, so reviewing other
+   fork workflow changes remains necessary. A failing job-start hook is not a
+   security boundary: later `always()` steps can still run.
 2. Actions are pinned to commit SHAs, not floating tags.
 3. Do not use secrets that untrusted PR code could exfiltrate on self-hosted infrastructure.
 4. Desktop share: GPU jobs **serialize** with training and interactive work.

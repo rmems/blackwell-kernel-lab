@@ -16,8 +16,16 @@ GPU_POLICY = {
 CPU_FILES = {
     ".gitignore", ".github/actionlint.yaml",
     ".github/workflows/ci-cpu.yml", ".github/workflows/ci-lint.yml",
+    ".qlty/qlty.toml", ".qlty/.gitignore",
+    "tools/check_f0_clock_skew.py", "tools/check_f0_correlation.py",
+    "tools/check_f0_efficiency.py", "tools/check_nvml_capability.py",
+    "tools/f0_clock.py", "tools/f0_efficiency_compare.py",
+    "tools/f0_efficiency_numbers.py", "tools/f0_efficiency_report.py",
+    "tools/f0_measurements.py", "tools/nvml_capability.py", "tools/nvml_fakes.py",
+    "tools/nvml_live.py", "tools/nvml_schema.py", "tools/summarize_f0_efficiency.py",
 }
 DEVICE_SUFFIXES = {".cu", ".cuh", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".cmake"}
+CPU_FIXTURES = {"f0-correlation", "f0-efficiency", "f0-nvml-capability"}
 
 
 def needs_gpu(path: str) -> bool:
@@ -27,7 +35,10 @@ def needs_gpu(path: str) -> bool:
         return False
     if path in GPU_POLICY or file.suffix in DEVICE_SUFFIXES or file.name == "CMakeLists.txt":
         return True
-    if path in CPU_FILES or path.startswith(("tools/", "fixtures/", ".qlty/")):
+    if path in CPU_FILES:
+        return False
+    if (len(file.parts) >= 3 and file.parts[0] == "fixtures"
+            and file.parts[1] in CPU_FIXTURES and file.suffix in {".json", ".jsonl"}):
         return False
     return True
 
@@ -39,7 +50,7 @@ def commit_sha(value: str) -> str:
 
 
 def changed_paths(event: dict, event_name: str) -> list[str]:
-    if event_name == "pull_request":
+    if event_name == "pull_request_target":
         pr = event["pull_request"]
         base, head = commit_sha(pr["base"]["sha"]), commit_sha(pr["head"]["sha"])
         revision_range = f"{base}...{head}"
@@ -64,7 +75,7 @@ def detect() -> None:
     if not repository or event["repository"]["full_name"] != repository:
         raise ValueError("event repository identity mismatch")
     trusted = True
-    if event_name == "pull_request":
+    if event_name == "pull_request_target":
         trusted = event["pull_request"]["head"]["repo"]["full_name"] == repository
     required = event_name == "workflow_dispatch" or any(
         needs_gpu(path) for path in changed_paths(event, event_name)
