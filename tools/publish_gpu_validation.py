@@ -4,11 +4,11 @@
 from __future__ import annotations
 
 import json
+from http.client import HTTPSConnection
 import os
 from pathlib import Path
 import re
 import sys
-from urllib import error, request
 
 
 SHA = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
@@ -61,19 +61,24 @@ def payload(event: dict, event_name: str, repository: str) -> dict:
 
 def publish(check: dict, repository: str) -> None:
     token = os.environ["GITHUB_TOKEN"]
-    endpoint = f"https://api.github.com/repos/{repository}/check-runs"
     body = json.dumps(check).encode("utf-8")
-    submission = request.Request(
-        endpoint, data=body, method="POST",
-        headers={
+    connection = HTTPSConnection("api.github.com", timeout=30)
+    try:
+        connection.request(
+            "POST", f"/repos/{repository}/check-runs", body=body,
+            headers={
             "Accept": "application/vnd.github+json",
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
             "X-GitHub-Api-Version": "2026-03-10",
-        },
-    )
-    with request.urlopen(submission, timeout=30) as response:
-        result = json.load(response)
+            },
+        )
+        response = connection.getresponse()
+        result = json.loads(response.read())
+    finally:
+        connection.close()
+    if response.status != 201:
+        raise OSError(f"GitHub returned HTTP {response.status}")
     if result.get("head_sha") != check["head_sha"] or result.get("name") != check["name"]:
         raise ValueError("GitHub did not create the expected GPU validation check")
     print(f"Published GPU validation check {result['id']} on {check['head_sha']}")
@@ -92,7 +97,7 @@ def main() -> int:
             print(json.dumps(check, sort_keys=True))
         else:
             publish(check, repository)
-    except (KeyError, ValueError, OSError, error.URLError) as failure:
+    except (KeyError, ValueError, OSError) as failure:
         print(f"GPU validation publication failed: {failure}", file=sys.stderr)
         return 1
     return 0

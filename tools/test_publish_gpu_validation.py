@@ -37,7 +37,7 @@ class PublisherTests(unittest.TestCase):
             result = subprocess.run(
                 ["python3", str(PUBLISHER), "--dry-run"], cwd=root,
                 env=environment, capture_output=True, text=True, check=False,
-            )
+            )  # nosec B603  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use
 
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
@@ -64,7 +64,7 @@ class PublisherTests(unittest.TestCase):
             result = subprocess.run(
                 ["python3", str(PUBLISHER), "--dry-run"], cwd=root,
                 env=environment, capture_output=True, text=True, check=False,
-            )
+            )  # nosec B603  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use
 
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)

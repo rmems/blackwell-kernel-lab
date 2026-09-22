@@ -64,7 +64,7 @@ def changed_paths(event: dict, event_name: str) -> list[str]:
     # Disabling rename detection preserves both names of a CUDA → docs rename.
     output = subprocess.check_output(
         ["git", "diff", "--name-only", "--no-renames", "-z", revision_range, "--"]
-    )
+    )  # nosec B603  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use
     return [name.decode("utf-8", errors="surrogateescape") for name in output.split(b"\0") if name]
 
 

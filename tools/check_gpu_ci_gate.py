@@ -28,7 +28,7 @@ class GateTests(unittest.TestCase):
         return subprocess.run(
             ["python3", str(GATE), mode], cwd=self.root, env=env,
             capture_output=True, text=True, check=False,
-        )
+        )  # nosec B603  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use
 
     def git(self, *args):
         return subprocess.check_output(
@@ -36,7 +36,7 @@ class GateTests(unittest.TestCase):
              "-c", "user.email=gate@example.invalid", "-c", "maintenance.auto=false",
              "-c", "gc.auto=0", "-c", "core.fsmonitor=false", *args],
             cwd=self.root, text=True, stderr=subprocess.DEVNULL, env=self.env,
-        ).strip()
+        ).strip()  # nosec B603  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use
 
     def commit_file(self, path, text):
         destination = self.root / path
