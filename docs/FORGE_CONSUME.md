@@ -66,7 +66,11 @@ not infer train phases from GPU load. CPU fixtures live under
 RM-1350) is [`f0-nvml-capability.md`](f0-nvml-capability.md); it is a
 prerequisite for the #53 sampler and does not occupy this 16 GB card in CI.
 Forge issue #144 should emit the Agoge-owned side; the trainer is not
-implemented here.
+implemented here. Derived tokens/s, step-time, peak VRAM / min headroom, and
+approximate board-power energy live in
+[`f0-efficiency-metrics.md`](f0-efficiency-metrics.md)
+(`bkl.f0_efficiency.v1`, #55). That summary does not replace the #44
+train-fit table.
 
 ## What forge must not do
 

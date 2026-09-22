@@ -123,7 +123,7 @@ for these fields is [`f0-nvml-capability.md`](f0-nvml-capability.md) (RM-1350).
 | `vram_used` | `MiB` | |
 | `vram_free` | `MiB` | |
 | `vram_total` | `MiB` | |
-| `headroom` | `MiB` | Free relative to the 2 GiB host floor is a later #55 derivation; this field is raw free-vs-total if sampled |
+| `headroom` | `MiB` | Raw free-vs-total if sampled. Peak used / min headroom vs the 2 GiB floor are derived in [#55](https://github.com/rmems/blackwell-kernel-lab/issues/55) ([`f0-efficiency-metrics.md`](f0-efficiency-metrics.md)) |
 | `throttle` | object | `reasons` (list of strings) when `status` is `ok`; else `status` + empty/`null` reasons — see fixture |
 | `profile_window_ref` | string or null | Opaque id for a #54 CUDA window; not a `.cu` dump |
 | `cuda` | object | `driver_version`, `runtime_version`, `tool` (strings; unknown → `null`) |
@@ -251,6 +251,10 @@ python3 tools/check_f0_clock_skew.py \
 ```
 
 `ci-cpu` runs the same commands.
+
+Derived tokens/s, step-time, peak VRAM, headroom, and approximate energy:
+[`f0-efficiency-metrics.md`](f0-efficiency-metrics.md)
+(`tools/summarize_f0_efficiency.py`, #55 / RM-1232).
 
 Capability snapshot (RM-1350, CPU):
 

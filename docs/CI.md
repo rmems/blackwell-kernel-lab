@@ -2,7 +2,7 @@
 
 | Workflow | Runner | Purpose |
 |---|---|---|
-| [`.github/workflows/ci-cpu.yml`](../.github/workflows/ci-cpu.yml) | **`ubuntu-latest`** | Kernel-tree checks, CUDA-disabled CMake configure, F0 correlation join (#52), clock-skew calibration (RM-1349), NVML capability self-test (RM-1350), and GPU-workflow policy / sanitizer-runner tests (RM-1351) |
+| [`.github/workflows/ci-cpu.yml`](../.github/workflows/ci-cpu.yml) | **`ubuntu-latest`** | Kernel-tree checks, CUDA-disabled CMake configure, F0 correlation join (#52), clock-skew calibration (RM-1349), F0 efficiency formulas (#55), NVML capability self-test (RM-1350), and GPU-workflow policy / sanitizer-runner tests (RM-1351) |
 | [`.github/workflows/ci-gpu.yml`](../.github/workflows/ci-gpu.yml) | **Self-hosted** `ShipOfTheseus` (`self-hosted`, `Linux`, `X64`, `CUDA`) | GPU probe plus sm_120 build, binaries, graph JSON, and Green Context capability/measurement JSON |
 | [`.github/workflows/ci-gpu-sanitizer.yml`](../.github/workflows/ci-gpu-sanitizer.yml) | **Self-hosted** `ShipOfTheseus` (same labels) | Opt-in Compute Sanitizer (`memcheck` / `initcheck`) on first-party CUDA smokes. Manual dispatch or trusted `main` kernel-path pushes only; never pull requests |
 
@@ -58,6 +58,14 @@ python3 tools/check_f0_correlation.py \
   --clock-skew fixtures/f0-correlation/clock-skew.json
 python3 tools/check_f0_clock_skew.py \
   --fixtures fixtures/f0-correlation/clock-skew
+python3 tools/check_f0_efficiency.py
+python3 tools/summarize_f0_efficiency.py \
+  --markers fixtures/f0-correlation/agoge-markers.jsonl \
+  --samples fixtures/f0-correlation/bkl-gpu-samples.jsonl \
+  --profile-windows fixtures/f0-efficiency/profile-windows.jsonl \
+  --train-fit-ref fixtures/f0-efficiency/train-fit-reference.json \
+  --out results/f0-efficiency.json \
+  --report results/f0-efficiency.md
 python3 tools/check_nvml_capability.py
 python3 tools/check_gpu_ci_policy.py
 bash kernels/tools/check_compute_sanitizer_runner.sh

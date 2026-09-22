@@ -73,10 +73,10 @@ cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON && cmake --build build/ke
 
 ```text
 docs/           Mission, hardware baseline, train-fit, kernel layering, CI, forge consume/boundary
-fixtures/       CPU JSON/JSONL fixtures (F0 correlation, clock skew, NVML capability)
+fixtures/       CPU JSON/JSONL fixtures (F0 correlation, clock skew, NVML capability, efficiency)
 recipes/        Human-run kernel measurement playbooks
 kernels/        First-party L3 CUDA workspace (sm_120) — see kernels/README.md
-tools/          CPU validators (correlation join, clock skew, NVML capability; no GPU in CI)
+tools/          CPU validators (correlation join, clock skew, NVML capability, efficiency; no GPU in CI)
 results/        Kernel measurement outputs (gitignored)
 ```
 

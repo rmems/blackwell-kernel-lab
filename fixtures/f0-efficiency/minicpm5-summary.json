@@ -1,0 +1,368 @@
+{
+  "by_phase": {
+    "train": {
+      "power": {
+        "avg_w": 112.5,
+        "invalid_count": 0,
+        "missing_count": 0,
+        "ok_count": 2,
+        "peak_w": 180.0,
+        "unavailable_count": 0,
+        "unit": "W",
+        "unsupported_count": 0
+      },
+      "sample_count": 2,
+      "temperature_gpu": {
+        "avg_c": 62.0,
+        "invalid_count": 0,
+        "missing_count": 1,
+        "ok_count": 1,
+        "peak_c": 62.0,
+        "unavailable_count": 1,
+        "unit": "C",
+        "unsupported_count": 0
+      },
+      "utilization_gpu": {
+        "avg": 48.5,
+        "invalid_count": 0,
+        "missing_count": 0,
+        "ok_count": 2,
+        "peak": 97.0,
+        "unavailable_count": 0,
+        "unit": "%",
+        "unsupported_count": 0
+      },
+      "utilization_memory": {
+        "avg": 26.0,
+        "invalid_count": 0,
+        "missing_count": 0,
+        "ok_count": 2,
+        "peak": 40.0,
+        "unavailable_count": 0,
+        "unit": "%",
+        "unsupported_count": 0
+      },
+      "vram": {
+        "min_free_mib": 6503.0,
+        "min_headroom_mib": 6503.0,
+        "missing_count": 0,
+        "ok_count": 2,
+        "peak_used_mib": 9800.0
+      }
+    }
+  },
+  "coverage": {
+    "coverage_ratio": 0.5,
+    "expected_samples": 4,
+    "joined_count": 2,
+    "long_gap_count": 1,
+    "long_gaps": [
+      {
+        "dt_ms": 1750.0,
+        "from_monotonic_ns": 1500000000,
+        "max_allowed_ms": 1500.0,
+        "reason": "dt_exceeds_max_gap_factor",
+        "to_monotonic_ns": 3250000000
+      }
+    ],
+    "marker_count": 2,
+    "missing_sample_policy": "Counts preserve unavailable/unsupported/invalid per field. Energy does not interpolate across gaps > max_gap_factor \u00d7 cadence or pairs with missing power. Missing power is never treated as 0 W. Cadence gaps are recorded even when a power endpoint is missing.",
+    "observed_median_interval_ms": 1750.0,
+    "planned_cadence_ms": [
+      500
+    ],
+    "sample_count": 2,
+    "unjoined_count": 0
+  },
+  "energy": {
+    "approximate_joules": null,
+    "approximate_joules_per_step": null,
+    "approximate_joules_per_token": null,
+    "integrated_span_s": null,
+    "label": "approximate",
+    "long_gaps": [
+      {
+        "dt_ms": 1750.0,
+        "from_monotonic_ns": 1500000000,
+        "max_allowed_ms": 1500.0,
+        "reason": "dt_exceeds_max_gap_factor",
+        "to_monotonic_ns": 3250000000
+      }
+    ],
+    "max_gap_factor": 3.0,
+    "method": "trapezoidal_board_power",
+    "note": "APPROXIMATE estimate from sampled board power (W), not laboratory-grade wall-power. Do not treat as datacenter energy efficiency.",
+    "pairs_integrated": 0,
+    "pairs_skipped_long_gap": 1,
+    "pairs_skipped_missing_power": 0,
+    "pairs_skipped_non_increasing": 0,
+    "rates_omitted_reason": "energy_window_mismatch",
+    "step_count_for_energy": 1,
+    "token_count_for_energy": 128
+  },
+  "energy_is_approximate": true,
+  "excluded_foreign_sample_count": 0,
+  "field_status_counts": {
+    "clock_graphics": {
+      "invalid": 0,
+      "ok": 2,
+      "unavailable": 0,
+      "unsupported": 0
+    },
+    "clock_memory": {
+      "invalid": 0,
+      "ok": 2,
+      "unavailable": 0,
+      "unsupported": 0
+    },
+    "headroom": {
+      "invalid": 0,
+      "ok": 2,
+      "unavailable": 0,
+      "unsupported": 0
+    },
+    "power": {
+      "invalid": 0,
+      "ok": 2,
+      "unavailable": 0,
+      "unsupported": 0
+    },
+    "temperature_gpu": {
+      "invalid": 0,
+      "ok": 1,
+      "unavailable": 1,
+      "unsupported": 0
+    },
+    "temperature_memory": {
+      "invalid": 0,
+      "ok": 0,
+      "unavailable": 0,
+      "unsupported": 2
+    },
+    "utilization_gpu": {
+      "invalid": 0,
+      "ok": 2,
+      "unavailable": 0,
+      "unsupported": 0
+    },
+    "utilization_memory": {
+      "invalid": 0,
+      "ok": 2,
+      "unavailable": 0,
+      "unsupported": 0
+    },
+    "vram_free": {
+      "invalid": 0,
+      "ok": 2,
+      "unavailable": 0,
+      "unsupported": 0
+    },
+    "vram_total": {
+      "invalid": 0,
+      "ok": 2,
+      "unavailable": 0,
+      "unsupported": 0
+    },
+    "vram_used": {
+      "invalid": 0,
+      "ok": 2,
+      "unavailable": 0,
+      "unsupported": 0
+    }
+  },
+  "hardware_note": "RTX 5080 / sm_120 / ~16 GB. Leave \u22652 GiB free. Derived measurements, not a trainer or safety controller.",
+  "power": {
+    "avg_w": 112.5,
+    "invalid_count": 0,
+    "missing_count": 0,
+    "ok_count": 2,
+    "peak_w": 180.0,
+    "unavailable_count": 0,
+    "unit": "W",
+    "unsupported_count": 0
+  },
+  "profile_windows": [
+    {
+      "compact_summary": {
+        "agoge_run_id": "run_minicpm5_fixture_001",
+        "backend": {
+          "id": "nsys-fixture",
+          "version": "fixture"
+        },
+        "d2h_ms": 0.2,
+        "h2d_ms": 0.4,
+        "kernel_count": 4,
+        "note": "Compact #54 fixture; not a live Nsight capture",
+        "profile_window_ref": "fwd-window-fixture-1",
+        "runtime_ms": 12.5,
+        "status": "ok",
+        "sync_stall_ms": 1.1,
+        "top_kernels": [
+          {
+            "duration_ms": 8.0,
+            "name": "fixture_gemm"
+          },
+          {
+            "duration_ms": 2.0,
+            "name": "fixture_elementwise"
+          }
+        ]
+      },
+      "joined_phases": [
+        "train"
+      ],
+      "note": "Window identity comes from bkl_gpu_sample.profile_window_ref. Kernel/runtime fields come from optional #54 compact summaries.",
+      "power_avg_w": 180.0,
+      "power_missing_count": 0,
+      "power_ok_count": 1,
+      "profile_window_ref": "fwd-window-fixture-1",
+      "sample_count": 1,
+      "span_s": null
+    }
+  ],
+  "run": {
+    "agoge_run_id": "run_minicpm5_fixture_001",
+    "dataset": {
+      "config_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "id": "fixture-sft",
+      "split": "train"
+    },
+    "formulas_are_model_agnostic": true,
+    "gpu": {
+      "compute_capability": "12.0",
+      "name": "NVIDIA GeForce RTX 5080",
+      "pci_bus_id": "0000:01:00.0",
+      "uuid": "GPU-fixture-0001"
+    },
+    "host": {
+      "hostname": "ShipOfTheseus"
+    },
+    "model_id": "openbmb/MiniCPM4-8B",
+    "model_revision": "fixture-rev-deadbeef"
+  },
+  "schema_version": "bkl.f0_efficiency.v1",
+  "step_time": {
+    "count": 1,
+    "max": 2.0,
+    "mean": 2.0,
+    "min": 2.0,
+    "stdev": null,
+    "unit": "s",
+    "variance": null
+  },
+  "temperature_gpu": {
+    "avg_c": 62.0,
+    "invalid_count": 0,
+    "missing_count": 1,
+    "ok_count": 1,
+    "peak_c": 62.0,
+    "unavailable_count": 1,
+    "unit": "C",
+    "unsupported_count": 0
+  },
+  "throughput": {
+    "agoge_reported_tokens_per_s": {
+      "note": "Agoge-owned optional field; not used to derive tokens/s here",
+      "status": "ok",
+      "unit": "token/s",
+      "value": 64.0
+    },
+    "elapsed_s": 2.0,
+    "examples_accepted_delta": 1,
+    "examples_per_s": 0.5,
+    "marker_count": 2,
+    "not_inferred_from_gpu_load": true,
+    "source": "agoge_counters_and_monotonic_ns",
+    "tokens_accepted_delta": 128,
+    "tokens_per_s": 64.0
+  },
+  "train_fit_comparison": {
+    "comparable_headroom": false,
+    "comparable_peak": false,
+    "derived_is_evidence_only": true,
+    "min_headroom": {
+      "agreement": null,
+      "derived_effective_min_headroom_mib": 6503.0,
+      "reason": "train_fit_min_free_not_on_sampler_basis_or_missing",
+      "reference_min_free_mib": null
+    },
+    "note": "Do not replace the #44 train-fit table with this derivation. Trainer allocated bytes and sampler vram_used are different bases.",
+    "peak_vram": {
+      "agreement": null,
+      "derived_peak_used_mib": 9800.0,
+      "reason": "different_measurement_basis",
+      "reference_basis": "torch.cuda.max_memory_allocated",
+      "reference_peak_mib": 2549
+    },
+    "reference": {
+      "config": "agoge-forger configs/minicpm5_canary.yaml",
+      "date_utc": "2026-09-11",
+      "document": "docs/TRAIN_FIT_5080.md",
+      "issue": "#44",
+      "linear": "RM-1053",
+      "min_free_basis": null,
+      "min_free_mib": null,
+      "model_family": "minicpm5",
+      "note": "Concise train-fit SoT for this host. Sampler vram_used is correlated evidence, not a replacement row.",
+      "peak_allocated_mib": 2549,
+      "peak_basis": "torch.cuda.max_memory_allocated",
+      "result": "no OOM; trainer peak only; start-free/min-free not captured",
+      "start_free_mib": null
+    },
+    "source_of_truth": "docs/TRAIN_FIT_5080.md (#44 / RM-1053)"
+  },
+  "unjoined_sample_count": 0,
+  "utilization_gpu": {
+    "avg": 48.5,
+    "invalid_count": 0,
+    "missing_count": 0,
+    "ok_count": 2,
+    "peak": 97.0,
+    "unavailable_count": 0,
+    "unit": "%",
+    "unsupported_count": 0
+  },
+  "utilization_memory": {
+    "avg": 26.0,
+    "invalid_count": 0,
+    "missing_count": 0,
+    "ok_count": 2,
+    "peak": 40.0,
+    "unavailable_count": 0,
+    "unit": "%",
+    "unsupported_count": 0
+  },
+  "vram": {
+    "effective_min_headroom_mib": 6503.0,
+    "headroom_floor_mib": 2048,
+    "invalid_count": 0,
+    "meets_host_floor": true,
+    "min_free_counts": {
+      "invalid": 0,
+      "ok": 2,
+      "unavailable": 0,
+      "unsupported": 0
+    },
+    "min_free_mib": 6503.0,
+    "min_headroom_counts": {
+      "invalid": 0,
+      "ok": 2,
+      "unavailable": 0,
+      "unsupported": 0
+    },
+    "min_headroom_mib": 6503.0,
+    "missing_count": 0,
+    "note": "Peak/min are extrema of ok samples only. Missing \u2260 zero. Effective headroom coalesces ok headroom, else ok vram_free, per sample. docs/TRAIN_FIT_5080.md (#44 / RM-1053) remains the concise train-fit summary.",
+    "ok_count": 2,
+    "peak_used_counts": {
+      "invalid": 0,
+      "ok": 2,
+      "unavailable": 0,
+      "unsupported": 0
+    },
+    "peak_used_mib": 9800.0,
+    "unavailable_count": 0,
+    "unit": "MiB",
+    "unsupported_count": 0
+  }
+}
