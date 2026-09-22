@@ -30,6 +30,11 @@ lands here.
 
 ## Success
 
+**Current release outcome:** [v0.2.0](RELEASE_V0_2_0.md) delivers a BKL-owned
+CUDA operator used by Agoge with a measured training-speed improvement on
+both MiniCPM5 and Granite 4.1. The following completed foundations do not
+by themselves establish a reusable training operator or its performance.
+
 - [x] README/epic describe the agoge-forger CUDA backend, not a Limen or agent playground.
 - [x] Hardware baseline documented for the 16 GB RTX 5080.
 - [x] L1 engine-CUDA measurement methodology documented ([kernel ablation recipe](../recipes/kernel-ablation.md)).
@@ -40,4 +45,7 @@ lands here.
 
 - Quant fit → CUDA graphs → engine Flash (not FA4/B200) → prefix reuse → optional Green Contexts.
 - Proven gap → L3 first-party kernel.
+- For v0.2.0, the gap must come from qualified **training** profiles on both
+  models. An inference-prefix or synthetic graph result cannot justify a
+  training-operator speed claim.
 - CUDA graph launch/replay measurements provide engine-measurement context, not an inference-policy claim.

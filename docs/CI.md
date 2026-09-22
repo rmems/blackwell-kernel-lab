@@ -3,7 +3,7 @@
 | Workflow | Runner | Purpose |
 |---|---|---|
 | [`.github/workflows/ci-cpu.yml`](../.github/workflows/ci-cpu.yml) | **`ubuntu-latest`** | Kernel-tree checks, CUDA-disabled CMake configure, F0 correlation join (#52), clock-skew calibration (RM-1349), F0 efficiency formulas (#55), NVML capability self-test (RM-1350), and GPU-workflow policy / sanitizer-runner tests (RM-1351) |
-| [`.github/workflows/ci-gpu.yml`](../.github/workflows/ci-gpu.yml) | **Self-hosted** `ShipOfTheseus` (`self-hosted`, `Linux`, `X64`, `CUDA`) | GPU probe plus sm_120 build, binaries, graph JSON, and Green Context capability/measurement JSON |
+| [`.github/workflows/ci-gpu.yml`](../.github/workflows/ci-gpu.yml) | Hosted detection/validation; conditional **self-hosted** `ShipOfTheseus` (`self-hosted`, `Linux`, `X64`, `CUDA`) | Always reports `GPU validation`; relevant changes require GPU probe, sm_120 build, binaries, graph JSON, and Green Context JSON |
 | [`.github/workflows/ci-gpu-sanitizer.yml`](../.github/workflows/ci-gpu-sanitizer.yml) | **Self-hosted** `ShipOfTheseus` (same labels) | Opt-in Compute Sanitizer (`memcheck` / `initcheck`) on first-party CUDA smokes. Manual dispatch or trusted `main` kernel-path pushes only; never pull requests |
 
 ## Host runner (this machine)
@@ -22,6 +22,38 @@ sudo systemctl status actions.runner.*   # or: cd ~/actions-runner && ./svc.sh s
 
 Re-register / label docs: [GitHub self-hosted runners](https://docs.github.com/en/actions/hosting-your-own-runners).
 
+## Required checks and main delivery
+
+The main-branch delivery rule requires PRs, resolved review conversations, an
+up-to-date branch, and these GitHub Actions checks:
+
+- `Kernel CMake configure (ubuntu-latest)`
+- `actionlint + shellcheck (ubuntu-latest)`
+- `GPU validation`
+
+Enforce the rule for administrators without a bypass; prohibit force pushes
+and deletion. No additional fixed human-approval count is introduced.
+Enable the required-check rule only after `GPU validation` succeeds on a real
+PR. Repository rules are external configuration; this file describes the
+contract, while RM-1770 records its verified deployment state.
+
+The GPU workflow runs for every PR to main, every main push, and manual
+dispatch. The hosted gate compares the full PR diff from its merge base
+(or the entire pushed range), preserving both sides of renames. Known Markdown,
+LICENSE, CPU tools/fixtures, CPU/lint workflows, and quality configuration skip
+GPU work. CUDA/C++/CMake, bindings, GPU policy/workflows, and unknown source or
+build paths require it. Manual dispatch always requests GPU validation.
+
+The final hosted check uses `always()` and requires successful detection. It
+passes a non-GPU change only when GPU work was skipped. Required GPU work must
+actually succeed; failure, cancellation, or unexpected skipping fails the
+check. A GPU-relevant fork PR cannot pass by skipping: a maintainer must use a
+controlled branch and PR for GPU validation. Never run fork code on this host.
+
+The behavior suite is CPU-only and exercises real Git changes plus the job
+result matrix. Full model training comparisons remain a
+[v0.2.0 release gate](RELEASE_V0_2_0.md), not a per-PR job.
+
 ## Security (self-hosted)
 
 1. **Fork PRs never run on the GPU host** — the GitHub-hosted trust gate skips the self-hosted job when `head.repo != this repo`.
@@ -31,7 +63,8 @@ Re-register / label docs: [GitHub self-hosted runners](https://docs.github.com/e
    `ci-gpu` and `ci-gpu-sanitizer` wait up to 10 minutes for ≥2048 MiB free on
    GPU 0, then fail. `ci-gpu` job timeout is **30 minutes** (wait + kernel
    smoke). `ci-gpu-sanitizer` is **45 minutes** (wait + instrumented smokes).
-   Markdown-only PRs (`**/*.md`, `LICENSE`) do not schedule the GPU host.
+   Markdown-only and known CPU-tool-only PRs do not schedule the GPU host;
+   their hosted `GPU validation` check still reports.
    Compute Sanitizer never uses `pull_request`. Keep `concurrency`
    cancel-in-progress.
 5. Do not store model weights or API keys in the runner work directory long-term.
@@ -68,6 +101,7 @@ python3 tools/summarize_f0_efficiency.py \
   --report results/f0-efficiency.md
 python3 tools/check_nvml_capability.py
 python3 tools/check_gpu_ci_policy.py
+python3 tools/check_gpu_ci_gate.py
 bash kernels/tools/check_compute_sanitizer_runner.sh
 
 # CUDA smoke and first-party measurements (#17 / #19 / #21 / #30)
@@ -101,3 +135,4 @@ under gitignored `results/`.
 - #11 / RM-182 — self-hosted GPU Actions runner.
 - #45 / #49 — train ↔ GPU CI serialize (wait for headroom; do not dual-occupy).
 - RM-1351 — opt-in Compute Sanitizer on first-party CUDA binaries.
+- [RM-1770](https://linear.app/rpd-34/issue/RM-1770) — PR-only main and always-reported conditional GPU validation.

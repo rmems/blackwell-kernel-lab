@@ -35,8 +35,10 @@ Full rules: [docs/FORGE_BOUNDARY.md](docs/FORGE_BOUNDARY.md).
 4. Linear team: **rmems (RM)**; GitHub: **rmems/blackwell-kernel-lab**. Keep GH↔Linear titles/bodies aligned when editing either side.
 5. Self-hosted GPU runner work is in scope.
 6. L3 kernels only after L1 leaves a proven gap (see KERNELS.md).
-7. Milestones include the version in the title; closing one tags that version.
+7. New release milestones include the version in the title; close only when that tag and release artifacts exist. The 2026-09-22 retirement of historical M1/M2/K0/CI/K1 tracks creates no retrospective releases. See [docs/RELEASE_V0_2_0.md](docs/RELEASE_V0_2_0.md).
 8. Every PR: assignee **rmems**, labels, milestone, Development/project when applicable, Linear RM links. Never commit unreviewed work straight to `main`.
+9. New issues originate **only in Linear**. Reuse existing GitHub mirrors; do not manually create new GitHub twins. Keep native dependencies and actual delivery evidence current.
+10. v0.2.0 requires a measured training win on **both MiniCPM5 and Granite**. Freeze the operator contract from real training profiles before writing production L3 code; existing inference and synthetic benchmarks are not substitutes.
 
 ## Primary stack defaults
 

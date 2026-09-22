@@ -8,18 +8,10 @@ name: ci-gpu
 on:
   push:
     branches: [main]
-    # Docs-only cuts do not need the GPU host (PR #48 failed this job on
-    # occupancy while changing only markdown). workflow_dispatch still runs.
-    paths-ignore:
-      - "**/*.md"
-      - LICENSE
   workflow_dispatch:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
-    paths-ignore:
-      - "**/*.md"
-      - LICENSE
 
 permissions:
   contents: read
@@ -31,25 +23,30 @@ concurrency:
 jobs:
   # Gate runs on GitHub-hosted only — never execute untrusted fork PR code on GPU host.
   gate:
-    name: Trust gate
+    name: GPU change and trust gate
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
-      allow: ${{ steps.check.outputs.allow }}
+      required: ${{ steps.check.outputs.required }}
+      trusted: ${{ steps.check.outputs.trusted }}
     steps:
+      - name: Checkout for hosted change detection
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
       - id: check
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ] && \
-             [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
-            echo "allow=false" >> "$GITHUB_OUTPUT"
-            echo "Fork PR — skip self-hosted GPU"
-          else
-            echo "allow=true" >> "$GITHUB_OUTPUT"
-          fi
+        run: python3 tools/gpu_ci_gate.py detect
 
   gpu-kernels:
     name: Host GPU probe + kernel smoke
     needs: gate
-    if: needs.gate.outputs.allow == 'true'
+    # The direct repository comparison is independent of helper-script outputs.
+    if: >-
+      needs.gate.outputs.required == 'true' &&
+      needs.gate.outputs.trusted == 'true' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     # Labels on registered runner ShipOfTheseus (see docs/CI.md).
     runs-on: [self-hosted, Linux, X64, CUDA]
     timeout-minutes: 30
@@ -96,3 +93,22 @@ jobs:
           # Recomputes the wave counts and per-invocation improvement from the
           # report's own inputs; see kernels/tools/check_green_ctx_report.py.
           python3 kernels/tools/check_green_ctx_report.py results/green-ctx-bench.json
+
+  validation:
+    name: GPU validation
+    needs: [gate, gpu-kernels]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout for hosted result validation
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Require successful detection and any required GPU job
+        env:
+          DETECTION_RESULT: ${{ needs.gate.result }}
+          GPU_REQUIRED: ${{ needs.gate.outputs.required }}
+          GPU_TRUSTED: ${{ needs.gate.outputs.trusted }}
+          GPU_RESULT: ${{ needs.gpu-kernels.result }}
+        run: python3 tools/gpu_ci_gate.py verify

@@ -68,7 +68,6 @@ def require_no_self_hosted(path: Path) -> None:
 def require_trust_gate(text: str) -> None:
     require(f"runs-on: {HOSTED}" in text, "trust gate must run on GitHub-hosted ubuntu-latest")
     require("head.repo.full_name" in text, "trust gate must compare pull_request.head.repo")
-    require("allow=false" in text, "trust gate must skip fork PRs")
     require("persist-credentials: false" in text, "self-hosted checkout must drop credentials")
 
 
@@ -98,7 +97,14 @@ def check_gpu_smoke_workflow() -> None:
     require_trust_gate(text)
     require_gpu_runner(text)
     events = event_block(text)
-    require("**/*.md" in events, "ci-gpu.yml must ignore markdown-only cuts")
+    require("paths-ignore:" not in events and "paths:" not in events,
+            "required GPU validation must report even for documentation-only changes")
+    require("if: always()" in text, "GPU validation must report after a dependency fails")
+    require("needs: [gate, gpu-kernels]" in text, "GPU validation must depend on detection and GPU work")
+    require("name: GPU validation" in text, "stable required GPU validation check is missing")
+    require("gpu_ci_gate.py detect" in text and "gpu_ci_gate.py verify" in text,
+            "GPU workflow must use the tested change/result gate")
+    require("tools/check_gpu_ci_gate.py" in load(CPU_YML), "CPU CI must exercise GPU gate behavior")
 
 
 def check_sanitizer_workflow() -> None:
@@ -109,6 +115,7 @@ def check_sanitizer_workflow() -> None:
     require("branches: [main]" in events, "automatic sanitizer runs are main-only")
     require("kernels/src/**" in events, "main-push sanitizer must be path-filtered to kernels")
     require_trust_gate(text)
+    require("allow=false" in text, "sanitizer trust gate must skip fork PRs")
     require_gpu_runner(text)
     require(UPLOAD_PIN in text, "sanitizer logs must upload with a SHA-pinned artifact action")
     require("if: always()" in text, "sanitizer logs must upload even when the job fails")
