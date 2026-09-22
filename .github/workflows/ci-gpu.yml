@@ -31,6 +31,7 @@ jobs:
     outputs:
       required: ${{ steps.check.outputs.required }}
       trusted: ${{ steps.check.outputs.trusted }}
+      deleted: ${{ steps.check.outputs.deleted }}
     steps:
       - name: Checkout trusted policy for hosted change detection
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -129,7 +130,7 @@ jobs:
     # final verdict explicitly on the candidate SHA so branch rules can require it.
     name: Publish GPU validation
     needs: [gate, gpu-kernels, validation]
-    if: always()
+    if: always() && needs.gate.outputs.deleted != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

@@ -49,6 +49,17 @@ def commit_sha(value: str) -> str:
     return value
 
 
+def deleted_push(event: dict, event_name: str) -> bool:
+    """Branch deletion has no candidate commit to validate or annotate."""
+    after = event.get("after")
+    return (
+        event_name == "push"
+        and isinstance(after, str)
+        and len(after) in (40, 64)
+        and set(after) == {"0"}
+    )
+
+
 def changed_paths(event: dict, event_name: str) -> list[str]:
     if event_name == "pull_request_target":
         pr = event["pull_request"]
@@ -77,15 +88,21 @@ def detect() -> None:
     trusted = True
     if event_name == "pull_request_target":
         trusted = event["pull_request"]["head"]["repo"]["full_name"] == repository
+    deleted = deleted_push(event, event_name)
     # Bootstrap pushes must validate the whole candidate, even when the latest
     # pushed range only updates docs after a failed GPU run on the previous head.
-    required = (event_name == "workflow_dispatch"
-                or (event_name == "push" and event["ref"] != "refs/heads/main")) or any(
-        needs_gpu(path) for path in changed_paths(event, event_name)
+    required = not deleted and (
+        event_name == "workflow_dispatch"
+        or (event_name == "push" and event["ref"] != "refs/heads/main")
+        or any(needs_gpu(path) for path in changed_paths(event, event_name))
     )
     with Path(os.environ["GITHUB_OUTPUT"]).open("a") as stream:
-        stream.write(f"required={str(required).lower()}\ntrusted={str(trusted).lower()}\n")
-    print(f"GPU required: {required}; trusted repository: {trusted}")
+        stream.write(
+            f"required={str(required).lower()}\n"
+            f"trusted={str(trusted).lower()}\n"
+            f"deleted={str(deleted).lower()}\n"
+        )
+    print(f"GPU required: {required}; trusted repository: {trusted}; branch deleted: {deleted}")
 
 
 def verify() -> None:

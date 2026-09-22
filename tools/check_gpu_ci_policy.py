@@ -87,6 +87,10 @@ def check_cpu_workflows() -> None:
         "ci-cpu.yml must run the GPU CI policy checker",
     )
     require(
+        "tools/test_publish_gpu_validation.py" in cpu,
+        "ci-cpu.yml must run GPU-validation publisher regression tests",
+    )
+    require(
         "kernels/tools/check_compute_sanitizer_runner.sh" in cpu,
         "ci-cpu.yml must run the compute-sanitizer runner tests",
     )
@@ -116,6 +120,16 @@ def check_gpu_smoke_workflow() -> None:
             "workflow must publish the required GPU check on the candidate SHA")
     require("tools/publish_gpu_validation.py --publish" in text,
             "workflow must use the tested GPU-validation publisher")
+    require("deleted: ${{ steps.check.outputs.deleted }}" in text,
+            "GPU workflow must expose whether a push deleted its branch")
+    publisher = re.search(
+        r"^  publish-validation:\n(.*?)(?=^  [A-Za-z0-9_-]+:|\Z)",
+        text,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    require(publisher, "GPU workflow must define a final GPU-validation publisher")
+    require("if: always() && needs.gate.outputs.deleted != 'true'" in publisher.group(1),
+            "GPU publisher must skip deleted branch pushes with an all-zero SHA")
     require("gpu_ci_gate.py detect" in text and "gpu_ci_gate.py verify" in text,
             "GPU workflow must use the tested change/result gate")
     require("tools/check_gpu_ci_gate.py" in load(CPU_YML), "CPU CI must exercise GPU gate behavior")

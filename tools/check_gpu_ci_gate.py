@@ -71,11 +71,12 @@ class GateTests(unittest.TestCase):
             GITHUB_REPOSITORY="rmems/blackwell-kernel-lab",
         )
 
-    def assert_detection(self, result, required, trusted=True):
+    def assert_detection(self, result, required, trusted=True, deleted=False):
         self.assertEqual(result.returncode, 0, result.stderr)
         outputs = dict(line.split("=", 1) for line in self.output.read_text().splitlines())
         self.assertEqual(outputs, {
             "required": str(required).lower(), "trusted": str(trusted).lower(),
+            "deleted": str(deleted).lower(),
         })
 
     def test_documentation_does_not_schedule_gpu(self):
@@ -156,6 +157,12 @@ class GateTests(unittest.TestCase):
         self.assert_detection(self.detect(
             base, head, event_name="push", ref="refs/heads/codex/v020-delivery"
         ), True)
+
+    def test_deleted_delivery_branch_does_not_schedule_or_publish_gpu_validation(self):
+        result = self.detect(
+            "a" * 40, "0" * 40, event_name="push", ref="refs/heads/codex/v020-delivery"
+        )
+        self.assert_detection(result, False, deleted=True)
 
     def test_missing_git_commit_does_not_publish_success(self):
         result = self.detect("1" * 40, "2" * 40)
