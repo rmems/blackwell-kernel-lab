@@ -101,15 +101,21 @@ def check_gpu_smoke_workflow() -> None:
             "required GPU validation must report even for documentation-only changes")
     require("pull_request_target:" in events and "pull_request:" not in events,
             "GPU policy must come from the trusted default branch, not PR workflows")
-    require(text.count("ref: ${{ github.sha }}") == 2,
-            "hosted detection and verification must check out trusted policy")
+    require(text.count("ref: ${{ github.sha }}") == 3,
+            "hosted detection, verification, and publication must use trusted policy")
     require('git fetch --no-tags origin "$PR_HEAD_SHA"' in text,
             "PR changes must be fetched as data without checking out untrusted code")
     require("ref: ${{ github.event.pull_request.head.sha || github.sha }}" in text,
             "trusted GPU work must test the PR head, not the policy checkout")
-    require("if: always()" in text, "GPU validation must report after a dependency fails")
+    require(text.count("if: always()") >= 2,
+            "validation and its publisher must report after a dependency fails")
     require("needs: [gate, gpu-kernels]" in text, "GPU validation must depend on detection and GPU work")
-    require("name: GPU validation" in text, "stable required GPU validation check is missing")
+    require("name: Verify GPU validation policy" in text,
+            "trusted validation job must remain distinct from the required check")
+    require("name: Publish GPU validation" in text and "checks: write" in text,
+            "workflow must publish the required GPU check on the candidate SHA")
+    require("tools/publish_gpu_validation.py --publish" in text,
+            "workflow must use the tested GPU-validation publisher")
     require("gpu_ci_gate.py detect" in text and "gpu_ci_gate.py verify" in text,
             "GPU workflow must use the tested change/result gate")
     require("tools/check_gpu_ci_gate.py" in load(CPU_YML), "CPU CI must exercise GPU gate behavior")

@@ -59,11 +59,13 @@ the bootstrap branch after this delivery PR merges. A workflow-dispatch result a
 satisfy a PR's required checks; see GitHub's [required-check
 guidance](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks).
 
-The final hosted check uses `always()` and requires successful detection. It
-passes a non-GPU change only when GPU work was skipped. Required GPU work must
-actually succeed; failure, cancellation, or unexpected skipping fails the
-check. A GPU-relevant fork PR cannot pass by skipping: a maintainer must use a
-controlled branch and PR for GPU validation. Never run fork code on this host.
+The trusted verification job uses `always()` and requires successful detection.
+It passes a non-GPU change only when GPU work was skipped. Required GPU work
+must actually succeed; failure, cancellation, or unexpected skipping fails the
+check. A final hosted publisher creates the required `GPU validation` check on
+the candidate SHA, because `pull_request_target` jobs themselves belong to the
+base SHA. A GPU-relevant fork PR cannot pass by skipping: a maintainer must use
+a controlled branch and PR for GPU validation. Never run fork code on this host.
 
 The behavior suite is CPU-only and exercises real Git changes plus the job
 result matrix. Full model training comparisons remain a

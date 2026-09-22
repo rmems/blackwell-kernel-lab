@@ -105,7 +105,7 @@ jobs:
           python3 kernels/tools/check_green_ctx_report.py results/green-ctx-bench.json
 
   validation:
-    name: GPU validation
+    name: Verify GPU validation policy
     needs: [gate, gpu-kernels]
     if: always()
     runs-on: ubuntu-latest
@@ -123,3 +123,26 @@ jobs:
           GPU_TRUSTED: ${{ needs.gate.outputs.trusted }}
           GPU_RESULT: ${{ needs.gpu-kernels.result }}
         run: python3 tools/gpu_ci_gate.py verify
+
+  publish-validation:
+    # pull_request_target checks belong to the base SHA. Publish the trusted
+    # final verdict explicitly on the candidate SHA so branch rules can require it.
+    name: Publish GPU validation
+    needs: [gate, gpu-kernels, validation]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - name: Checkout trusted policy for result publication
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Publish final GPU validation on the candidate SHA
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VALIDATION_RESULT: ${{ needs.validation.result }}
+        run: python3 tools/publish_gpu_validation.py --publish
