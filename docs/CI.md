@@ -53,7 +53,8 @@ after reviewing a new tool. Manual dispatch always requests GPU validation.
 
 The explicit `codex/v020-delivery` push trigger bootstraps this policy before it
 exists on main. Ordinary PR branches use only `pull_request_target`, avoiding
-duplicate `GPU validation` contexts. A workflow-dispatch result alone cannot
+duplicate `GPU validation` contexts. Every bootstrap push requires real GPU
+success, including a docs-only follow-up after a failed candidate. A workflow-dispatch result alone cannot
 satisfy a PR's required checks; see GitHub's [required-check
 guidance](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks).
 

@@ -77,7 +77,10 @@ def detect() -> None:
     trusted = True
     if event_name == "pull_request_target":
         trusted = event["pull_request"]["head"]["repo"]["full_name"] == repository
-    required = event_name == "workflow_dispatch" or any(
+    # Bootstrap pushes must validate the whole candidate, even when the latest
+    # pushed range only updates docs after a failed GPU run on the previous head.
+    required = (event_name == "workflow_dispatch"
+                or (event_name == "push" and event["ref"] != "refs/heads/main")) or any(
         needs_gpu(path) for path in changed_paths(event, event_name)
     )
     with Path(os.environ["GITHUB_OUTPUT"]).open("a") as stream:

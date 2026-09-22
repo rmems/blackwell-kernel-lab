@@ -52,7 +52,8 @@ class GateTests(unittest.TestCase):
         head = self.commit_file(path, "changed\n")
         return self.detect(base, head, fork=fork)
 
-    def detect(self, base, head, *, fork=False, event_name="pull_request_target"):
+    def detect(self, base, head, *, fork=False, event_name="pull_request_target",
+               ref="refs/heads/main"):
         event = {"repository": {"full_name": "rmems/blackwell-kernel-lab"}}
         if event_name == "pull_request_target":
             event["pull_request"] = {
@@ -62,7 +63,7 @@ class GateTests(unittest.TestCase):
                 }},
             }
         elif event_name == "push":
-            event.update(before=base, after=head)
+            event.update(before=base, after=head, ref=ref)
         path = self.root / "event.json"
         path.write_text(json.dumps(event))
         return self.run_gate(
@@ -147,6 +148,14 @@ class GateTests(unittest.TestCase):
 
     def test_dispatch_requires_gpu(self):
         self.assert_detection(self.detect("", "", event_name="workflow_dispatch"), True)
+
+    def test_bootstrap_push_never_skips_gpu_after_docs_only_followup(self):
+        self.git("init", "-q")
+        base = self.commit_file("kernels/op.cu", "previous unvalidated change\n")
+        head = self.commit_file("docs/note.md", "followup\n")
+        self.assert_detection(self.detect(
+            base, head, event_name="push", ref="refs/heads/codex/v020-delivery"
+        ), True)
 
     def test_missing_git_commit_does_not_publish_success(self):
         result = self.detect("1" * 40, "2" * 40)
