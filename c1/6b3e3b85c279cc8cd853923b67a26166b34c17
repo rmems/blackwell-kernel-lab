@@ -1,0 +1,23 @@
+.github/workflows/ci-cpu.yml
+  s_22e8d5fd078f37::t_adfbb2ee05c666 118
+tools/test_gpu_ci_policy.py
+  s_22e8d5fd078f37::t_7049642f76882e 1-26
+tools/check_gpu_ci_policy.py
+  s_22e8d5fd078f37::t_adfbb2ee05c666 99-100,116-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c16b3e3b85c279cc8cd853923b67a26166b34c17",
+  "prompts": {},
+  "sessions": {
+    "s_22e8d5fd078f37": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c6bb-be2d-75d3-89da-5b2550fc4b78",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Raul Cardenas Montoya <montoyaraul34@gmail.com>"
+    }
+  }
+}
