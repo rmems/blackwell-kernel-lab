@@ -96,8 +96,8 @@ def check_cpu_workflows() -> None:
     )
 
 
-def check_gpu_smoke_workflow() -> None:
-    text = load(GPU_YML)
+def check_gpu_smoke_workflow(text: str | None = None) -> None:
+    text = load(GPU_YML) if text is None else text
     require_trust_gate(text)
     require_gpu_runner(text)
     events = event_block(text)
@@ -113,6 +113,8 @@ def check_gpu_smoke_workflow() -> None:
             "trusted GPU work must test the PR head, not the policy checkout")
     require(text.count("if: always()") >= 2,
             "validation and its publisher must report after a dependency fails")
+    require("continue-on-error:" not in uncommented(text),
+            "GPU policy jobs and steps must fail closed")
     require("needs: [gate, gpu-kernels]" in text, "GPU validation must depend on detection and GPU work")
     require("name: Verify GPU validation policy" in text,
             "trusted validation job must remain distinct from the required check")

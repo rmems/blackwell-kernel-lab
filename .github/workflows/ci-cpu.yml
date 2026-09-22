@@ -115,6 +115,7 @@ jobs:
         # Does not schedule the self-hosted GPU.
         run: |
           python3 tools/check_gpu_ci_policy.py
+          python3 tools/test_gpu_ci_policy.py
           python3 tools/check_gpu_ci_gate.py
           python3 tools/test_publish_gpu_validation.py
           bash kernels/tools/check_compute_sanitizer_runner.sh
