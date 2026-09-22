@@ -51,6 +51,7 @@ from f0_efficiency_numbers import (
     field_block,
     field_inventory,
     filter_run,
+    global_step_delta_sum,
     integrate_board_power,
     ok_value,
     phase_metrics,
@@ -112,7 +113,7 @@ def summarize_run(
     energy = energy_rates(
         integrate_board_power(physical, max_gap_factor),
         throughput,
-        len(durations),
+        global_step_delta_sum(markers),
         markers=markers,
         samples=physical,
     )

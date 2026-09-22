@@ -39,7 +39,7 @@ There is no per-model branch.
 | temperature | `C` | ok `temperature_gpu` |
 | utilization | `%` | ok samples |
 | energy | `J` (approximate) | trapezoid of board power over time |
-| J/step, J/token | `J/step`, `J/token` (approximate) | energy ÷ Agoge step count or token delta |
+| J/step, J/token | `J/step`, `J/token` (approximate) | energy ÷ sum of Agoge `global_step` deltas or token delta |
 
 Physical fields keep the #52 rule: **missing ≠ zero**. `unavailable` /
 `unsupported` / `invalid` never enter min/max/mean and never become `0 W` or
@@ -56,7 +56,7 @@ summed). Extrema and means use **ok samples only**.
 | tokens/s | `(tokens_last − tokens_first) / ((t_last − t_first)/1e9)` on Agoge markers sorted by `monotonic_ns`. Requires both counters, `tokens_last ≥ tokens_first`, and `Δt > 0`. |
 | examples/s | Same with `examples_accepted`. |
 | Agoge-reported `throughput_tokens_per_s` | Copied from the last marker if present. **Not** the derived tokens/s. |
-| step-time | `Δmonotonic_ns / 1e9` between consecutive markers whose `global_step` **increases**. Report count, min, max, mean, sample variance, stdev. Variance/stdev are `null` when `n < 2`. |
+| step-time | Per optimizer step: `(Δmonotonic_ns / 1e9) / (global_step_{i+1} − global_step_i)` for consecutive markers whose `global_step` **increases**. Report count, min, max, mean, sample variance, stdev. Variance/stdev are `null` when `n < 2`. |
 | peak VRAM used | `max(vram_used)` among ok samples |
 | min VRAM free | `min(vram_free)` among ok samples |
 | min headroom | `min(headroom)` among ok samples |
@@ -85,7 +85,7 @@ PUE number.
 | No cadence | If either sample lacks a positive cadence, treat the pair as unbounded and skip. |
 | Missing power | If either `power.status != ok`, skip the pair. Do not substitute `0 W`. A pair that is also longer than the allowed cadence is recorded as a long gap **and** a missing-power skip. |
 | Result | If no pair integrates, `approximate_joules` is `null` (missing ≠ `0 J`). |
-| J/step | `approximate_joules / n` only when the energy window matches the Agoge counter window: no long-gap or missing-power skips, every sample inside the marker range, and `integrated_span_s` equals marker `elapsed_s`. Otherwise `null` with `rates_omitted_reason: energy_window_mismatch`. |
+| J/step | `approximate_joules / n` where `n` is the **sum of positive `global_step` deltas** across marker intervals (not the count of intervals). Emitted only when the energy window matches the Agoge counter window: no long-gap or missing-power skips, every sample inside the marker range, and `integrated_span_s` equals marker `elapsed_s`. Otherwise `null` with `rates_omitted_reason: energy_window_mismatch`. |
 | J/token | Same alignment rule, then `approximate_joules / tokens_accepted_delta`. |
 
 The JSON and the human report both set `energy_is_approximate: true` and
@@ -128,7 +128,11 @@ the optional `--train-fit-ref` JSON sets `peak_basis` to
 to rewrite the #44 table.
 
 The correlation fixture (`run_minicpm5_fixture_001`) is synthetic join data
-for CPU tests. It is not the 2026-09-11 canary row.
+for CPU tests. It is not the 2026-09-11 canary row. The fixture name refers to
+the Agoge **MiniCPM5 canary** config family; `model_id` is
+`openbmb/MiniCPM4-8B`, matching the normative
+[`configs/minicpm5_canary.yaml`](https://github.com/rmems/agoge-forger/blob/main/configs/minicpm5_canary.yaml)
+in agoge-forger and [`TRAIN_FIT_5080.md`](TRAIN_FIT_5080.md).
 
 ## Output
 

@@ -13,6 +13,7 @@ import copy
 import json
 import math
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -81,8 +82,7 @@ def check_minicpm5_machine_readable() -> None:
     require(summary["run"]["formulas_are_model_agnostic"] is True, "formulas must be model-agnostic")
     require(EXAMPLE.is_file(), f"missing example JSON {EXAMPLE}")
     example = json.loads(EXAMPLE.read_text())
-    require(example["run"]["agoge_run_id"] == summary["run"]["agoge_run_id"], "example run id drifted")
-    require(example["vram"]["peak_used_mib"] == summary["vram"]["peak_used_mib"], "example peak VRAM drifted")
+    require(example == summary, "example summary drifted; regenerate fixtures/f0-efficiency/minicpm5-summary.json")
 
 
 def ok_field_values(samples: list[dict[str, Any]], field: str) -> list[float]:
@@ -345,6 +345,42 @@ def check_max_gap_factor_rejects_inf() -> None:
     require(f0eff.main(argv) == 1, "non-finite max-gap-factor must be a handled CLI error")
 
 
+def check_global_step_jump_denominator() -> None:
+    markers, samples = load_minicpm5()
+    jumped = clone(markers[1], global_step=10, monotonic_ns=3_000_000_000)
+    bundle = [markers[0], jumped]
+    close(f0eff.step_durations_s(bundle)[0], 0.2, "2.0 s over 10 steps is 0.2 s/step")
+    require(f0eff.global_step_delta_sum(bundle) == 10, "energy denominator sums step deltas")
+
+
+def check_train_fit_rejects_nan() -> None:
+    bad = TRAIN_FIT.read_text().replace("2549", "NaN", 1)
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
+        handle.write(bad)
+        path = Path(handle.name)
+    try:
+        try:
+            f0eff.summarize_paths(
+                MARKERS,
+                SAMPLES,
+                profile_windows_path=PROFILE,
+                train_fit_ref_path=path,
+            )
+        except f0eff.SummaryError:
+            return
+        raise CheckError("train-fit JSON with NaN must be rejected")
+    finally:
+        path.unlink(missing_ok=True)
+
+
+def check_compare_extrema_rejects_invalid() -> None:
+    from f0_efficiency_compare import compare_extrema
+
+    result = compare_extrema(True, 100.0, 1.0)
+    require(result["agreement"] is None, "bool derived must not compare")
+    require(result["reason"] == "one_or_both_values_missing", "invalid operands are missing")
+
+
 def check_cli_minicpm5() -> None:
     argv = [
         "summarize_f0_efficiency.py",
@@ -385,6 +421,9 @@ CASES = (
     ("long_gap_recorded_when_power_missing", check_long_gap_recorded_when_power_missing),
     ("fractional_cadence_median", check_fractional_cadence_median),
     ("max_gap_factor_rejects_inf", check_max_gap_factor_rejects_inf),
+    ("global_step_jump_denominator", check_global_step_jump_denominator),
+    ("train_fit_rejects_nan", check_train_fit_rejects_nan),
+    ("compare_extrema_rejects_invalid", check_compare_extrema_rejects_invalid),
     ("phase_and_profile", check_phase_and_profile),
     ("cli_minicpm5", check_cli_minicpm5),
 )

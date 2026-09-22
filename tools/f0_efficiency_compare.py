@@ -13,6 +13,7 @@ from f0_efficiency_numbers import (
     VRAM_AGREE_MIB,
     SummaryError,
     collect_ok_values,
+    comparable_float,
     mean_or_none,
     missing_total,
     r6,
@@ -20,6 +21,10 @@ from f0_efficiency_numbers import (
     unique_run_ids,
     elapsed_s,
 )
+
+
+def _reject_nonfinite_json(token: str) -> None:
+    raise SummaryError(f"non-finite JSON number {token!r} is not allowed")
 
 
 def load_optional_jsonl(path: Path | None) -> list[dict[str, Any]]:
@@ -31,7 +36,10 @@ def load_optional_jsonl(path: Path | None) -> list[dict[str, Any]]:
 def load_optional_json(path: Path | None) -> dict[str, Any] | None:
     if path is None:
         return None
-    obj = json.loads(path.read_text())
+    try:
+        obj = json.loads(path.read_text(), parse_constant=_reject_nonfinite_json)
+    except json.JSONDecodeError as error:
+        raise SummaryError(f"{path}: {error}") from error
     if not isinstance(obj, dict):
         raise SummaryError(f"{path}: expected a JSON object")
     return obj
@@ -170,10 +178,12 @@ def profile_window_summaries(
     return summaries
 
 
-def compare_extrema(derived: float | None, reference: float | None, tol: float) -> dict[str, Any]:
-    if derived is None or reference is None:
+def compare_extrema(derived: Any, reference: Any, tol: float) -> dict[str, Any]:
+    derived_num = comparable_float(derived)
+    reference_num = comparable_float(reference)
+    if derived_num is None or reference_num is None:
         return {"agreement": None, "delta": None, "reason": "one_or_both_values_missing"}
-    delta = derived - reference
+    delta = derived_num - reference_num
     return {
         "agreement": abs(delta) <= tol,
         "delta": r6(delta),
@@ -187,9 +197,7 @@ def derived_min_for_basis(vram: dict[str, Any], basis: Any) -> float | None:
         value = vram.get("min_free_mib")
     else:
         value = vram.get("effective_min_headroom_mib")
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    return float(value)
+    return comparable_float(value)
 
 
 def train_fit_comparison(vram: dict[str, Any], reference: dict[str, Any] | None) -> dict[str, Any]:

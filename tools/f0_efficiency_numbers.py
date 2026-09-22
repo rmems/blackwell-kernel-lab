@@ -32,7 +32,19 @@ class SummaryError(Exception):
 def r6(value: float | None) -> float | None:
     if value is None:
         return None
-    return round(float(value), 6)
+    numeric = float(value)
+    if not math.isfinite(numeric):
+        return None
+    return round(numeric, 6)
+
+
+def comparable_float(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    numeric = float(value)
+    if not math.isfinite(numeric):
+        return None
+    return numeric
 
 
 def measurement_status(obj: Any) -> str | None:
@@ -169,10 +181,11 @@ def require_max_gap_factor(value: float) -> None:
 def pair_max_gap_ns(prev: dict[str, Any], cur: dict[str, Any], max_gap_factor: float) -> int | None:
     if not math.isfinite(max_gap_factor) or max_gap_factor <= 0:
         return None
-    cadences = [item for item in (cadence_ns(prev), cadence_ns(cur)) if item is not None]
-    if not cadences:
+    prev_cadence = cadence_ns(prev)
+    cur_cadence = cadence_ns(cur)
+    if prev_cadence is None or cur_cadence is None:
         return None
-    return int(max_gap_factor * min(cadences))
+    return int(max_gap_factor * min(prev_cadence, cur_cadence))
 
 
 def distribution(values: list[float], unit: str) -> dict[str, Any]:
@@ -187,16 +200,25 @@ def distribution(values: list[float], unit: str) -> dict[str, Any]:
     }
 
 
-def step_durations_s(markers: list[dict[str, Any]]) -> list[float]:
+def marker_step_intervals(markers: list[dict[str, Any]]) -> list[tuple[int, float]]:
     ordered = sorted_markers(markers)
-    durations: list[float] = []
-    for prev, cur in zip(ordered, ordered[1:]):
+    intervals: list[tuple[int, float]] = []
+    for prev, cur in zip(ordered, ordered[1:], strict=False):
         if cur["global_step"] <= prev["global_step"]:
             continue
+        step_delta = cur["global_step"] - prev["global_step"]
         seconds = elapsed_s(prev, cur)
-        if seconds is not None:
-            durations.append(seconds)
-    return durations
+        if seconds is not None and step_delta > 0:
+            intervals.append((step_delta, seconds))
+    return intervals
+
+
+def global_step_delta_sum(markers: list[dict[str, Any]]) -> int:
+    return sum(step_delta for step_delta, _seconds in marker_step_intervals(markers))
+
+
+def step_durations_s(markers: list[dict[str, Any]]) -> list[float]:
+    return [seconds / step_delta for step_delta, seconds in marker_step_intervals(markers)]
 
 
 def counter_delta(first: dict[str, Any], last: dict[str, Any], key: str) -> int | None:

@@ -66,7 +66,7 @@
       }
     ],
     "marker_count": 2,
-    "missing_sample_policy": "Counts preserve unavailable/unsupported/invalid per field. Energy does not interpolate across gaps > max_gap_factor \u00d7 cadence or pairs with missing power. Missing power is never treated as 0 W.",
+    "missing_sample_policy": "Counts preserve unavailable/unsupported/invalid per field. Energy does not interpolate across gaps > max_gap_factor \u00d7 cadence or pairs with missing power. Missing power is never treated as 0 W. Cadence gaps are recorded even when a power endpoint is missing.",
     "observed_median_interval_ms": 1750.0,
     "planned_cadence_ms": [
       500
@@ -96,10 +96,12 @@
     "pairs_skipped_long_gap": 1,
     "pairs_skipped_missing_power": 0,
     "pairs_skipped_non_increasing": 0,
+    "rates_omitted_reason": "energy_window_mismatch",
     "step_count_for_energy": 1,
     "token_count_for_energy": 128
   },
   "energy_is_approximate": true,
+  "excluded_foreign_sample_count": 0,
   "field_status_counts": {
     "clock_graphics": {
       "invalid": 0,
@@ -350,7 +352,7 @@
     },
     "min_headroom_mib": 6503.0,
     "missing_count": 0,
-    "note": "Peak/min are extrema of ok samples only. Missing \u2260 zero. docs/TRAIN_FIT_5080.md (#44 / RM-1053) remains the concise train-fit summary.",
+    "note": "Peak/min are extrema of ok samples only. Missing \u2260 zero. Effective headroom coalesces ok headroom, else ok vram_free, per sample. docs/TRAIN_FIT_5080.md (#44 / RM-1053) remains the concise train-fit summary.",
     "ok_count": 2,
     "peak_used_counts": {
       "invalid": 0,
