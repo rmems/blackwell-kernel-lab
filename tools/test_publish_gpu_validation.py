@@ -6,10 +6,15 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-import subprocess
+import sys
 import tempfile
 import unittest
 
+_TOOLS = Path(__file__).resolve().parent
+if str(_TOOLS) not in sys.path:
+    sys.path.insert(0, str(_TOOLS))
+
+from host_cli import python_script_argv, run_optional
 
 PUBLISHER = Path(__file__).with_name("publish_gpu_validation.py")
 REPOSITORY = "rmems/blackwell-kernel-lab"
@@ -17,28 +22,44 @@ BASE_SHA = "a" * 40
 HEAD_SHA = "b" * 40
 
 
+def pr_target_event() -> dict:
+    return {
+        "repository": {"full_name": REPOSITORY},
+        "pull_request": {
+            "base": {"sha": BASE_SHA},
+            "head": {"sha": HEAD_SHA, "repo": {"full_name": REPOSITORY}},
+        },
+    }
+
+
 class PublisherTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        self.event_path = self.root / "event.json"
+
+    def run_dry_run(self, validation_result: str):
+        self.event_path.write_text(json.dumps(pr_target_event()))
+        environment = dict(
+            os.environ,
+            GITHUB_EVENT_PATH=str(self.event_path),
+            GITHUB_EVENT_NAME="pull_request_target",
+            GITHUB_REPOSITORY=REPOSITORY,
+            GITHUB_RUN_ID="1234",
+            VALIDATION_RESULT=validation_result,
+        )
+        return run_optional(
+            python_script_argv(PUBLISHER, "--dry-run"),
+            cwd=self.root,
+            env=environment,
+            capture_output=True,
+            text=True,
+        )
+
     def test_pr_target_dry_run_publishes_gpu_validation_on_pr_head(self):
         """A trusted target workflow must satisfy the PR head, not its base SHA."""
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            event = root / "event.json"
-            event.write_text(json.dumps({
-                "repository": {"full_name": REPOSITORY},
-                "pull_request": {
-                    "base": {"sha": BASE_SHA},
-                    "head": {"sha": HEAD_SHA, "repo": {"full_name": REPOSITORY}},
-                },
-            }))
-            environment = dict(os.environ, GITHUB_EVENT_PATH=str(event),
-                               GITHUB_EVENT_NAME="pull_request_target",
-                               GITHUB_REPOSITORY=REPOSITORY, GITHUB_RUN_ID="1234",
-                               VALIDATION_RESULT="success")
-            result = subprocess.run(
-                ["python3", str(PUBLISHER), "--dry-run"], cwd=root,
-                env=environment, capture_output=True, text=True, check=False,
-            )  # nosec B603  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use
-
+        result = self.run_dry_run("success")
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
         self.assertEqual(payload["name"], "GPU validation")
@@ -47,25 +68,7 @@ class PublisherTests(unittest.TestCase):
 
     def test_failed_validation_publishes_a_failing_required_check(self):
         """A failed trusted validation must block the PR head instead of skipping."""
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            event = root / "event.json"
-            event.write_text(json.dumps({
-                "repository": {"full_name": REPOSITORY},
-                "pull_request": {
-                    "base": {"sha": BASE_SHA},
-                    "head": {"sha": HEAD_SHA, "repo": {"full_name": REPOSITORY}},
-                },
-            }))
-            environment = dict(os.environ, GITHUB_EVENT_PATH=str(event),
-                               GITHUB_EVENT_NAME="pull_request_target",
-                               GITHUB_REPOSITORY=REPOSITORY, GITHUB_RUN_ID="1234",
-                               VALIDATION_RESULT="failure")
-            result = subprocess.run(
-                ["python3", str(PUBLISHER), "--dry-run"], cwd=root,
-                env=environment, capture_output=True, text=True, check=False,
-            )  # nosec B603  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use
-
+        result = self.run_dry_run("failure")
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
         self.assertEqual(payload["head_sha"], HEAD_SHA)

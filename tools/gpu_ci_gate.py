@@ -7,8 +7,13 @@ import json
 import os
 from pathlib import Path
 import re
-import subprocess
 import sys
+
+_TOOLS = Path(__file__).resolve().parent
+if str(_TOOLS) not in sys.path:
+    sys.path.insert(0, str(_TOOLS))
+
+from host_cli import CalledProcessError, capture_checked, git_argv
 
 GPU_POLICY = {
     "tools/gpu_ci_gate.py", "tools/check_gpu_ci_gate.py", "tools/check_gpu_ci_policy.py",
@@ -28,17 +33,31 @@ DEVICE_SUFFIXES = {".cu", ".cuh", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".cmake"}
 CPU_FIXTURES = {"f0-correlation", "f0-efficiency", "f0-nvml-capability"}
 
 
+def _cpu_fixture_json(file: Path) -> bool:
+    return (
+        len(file.parts) >= 3
+        and file.parts[0] == "fixtures"
+        and file.parts[1] in CPU_FIXTURES
+        and file.suffix in {".json", ".jsonl"}
+    )
+
+
+def _device_or_policy_path(path: str, file: Path) -> bool:
+    return (
+        path in GPU_POLICY
+        or file.suffix in DEVICE_SUFFIXES
+        or file.name == "CMakeLists.txt"
+    )
+
+
 def needs_gpu(path: str) -> bool:
     """Only known documentation/CPU paths skip; unknown build/source paths run."""
     file = Path(path)
     if file.suffix == ".md" or path == "LICENSE":
         return False
-    if path in GPU_POLICY or file.suffix in DEVICE_SUFFIXES or file.name == "CMakeLists.txt":
+    if _device_or_policy_path(path, file):
         return True
-    if path in CPU_FILES:
-        return False
-    if (len(file.parts) >= 3 and file.parts[0] == "fixtures"
-            and file.parts[1] in CPU_FIXTURES and file.suffix in {".json", ".jsonl"}):
+    if path in CPU_FILES or _cpu_fixture_json(file):
         return False
     return True
 
@@ -60,66 +79,105 @@ def deleted_push(event: dict, event_name: str) -> bool:
     )
 
 
-def changed_paths(event: dict, event_name: str) -> list[str]:
+def _revision_range(event: dict, event_name: str) -> str:
     if event_name == "pull_request_target":
         pr = event["pull_request"]
         base, head = commit_sha(pr["base"]["sha"]), commit_sha(pr["head"]["sha"])
-        revision_range = f"{base}...{head}"
-    elif event_name == "push":
+        return f"{base}...{head}"
+    if event_name == "push":
         base, head = commit_sha(event["before"]), commit_sha(event["after"])
         if set(base) == {"0"}:
+            raise ValueError("new-branch-requires-gpu")
+        return f"{base}..{head}"
+    raise ValueError("unsupported event; cannot classify GPU changes")
+
+
+def changed_paths(event: dict, event_name: str) -> list[str]:
+    try:
+        revision_range = _revision_range(event, event_name)
+    except ValueError as error:
+        if str(error) == "new-branch-requires-gpu":
             return ["new-branch-requires-gpu"]
-        revision_range = f"{base}..{head}"
-    else:
-        raise ValueError("unsupported event; cannot classify GPU changes")
+        raise
     # Disabling rename detection preserves both names of a CUDA → docs rename.
-    output = subprocess.check_output(
-        ["git", "diff", "--name-only", "--no-renames", "-z", revision_range, "--"]
-    )  # nosec B603  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use
+    output = capture_checked(
+        git_argv("diff", "--name-only", "--no-renames", "-z", revision_range, "--"),
+    )
     return [name.decode("utf-8", errors="surrogateescape") for name in output.split(b"\0") if name]
 
 
-def detect() -> None:
-    event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
-    event_name = os.environ["GITHUB_EVENT_NAME"]
-    repository = os.environ["GITHUB_REPOSITORY"]
+def _assert_repository_identity(event: dict, repository: str) -> None:
     if not repository or event["repository"]["full_name"] != repository:
         raise ValueError("event repository identity mismatch")
-    trusted = True
-    if event_name == "pull_request_target":
-        trusted = event["pull_request"]["head"]["repo"]["full_name"] == repository
-    deleted = deleted_push(event, event_name)
-    # Bootstrap pushes must validate the whole candidate, even when the latest
-    # pushed range only updates docs after a failed GPU run on the previous head.
-    required = not deleted and (
-        event_name == "workflow_dispatch"
-        or (event_name == "push" and event["ref"] != "refs/heads/main")
-        or any(needs_gpu(path) for path in changed_paths(event, event_name))
-    )
+
+
+def _repository_trusted(event: dict, event_name: str, repository: str) -> bool:
+    if event_name != "pull_request_target":
+        return True
+    return event["pull_request"]["head"]["repo"]["full_name"] == repository
+
+
+def _gpu_required(event: dict, event_name: str, deleted: bool) -> bool:
+    if deleted:
+        return False
+    if event_name == "workflow_dispatch":
+        return True
+    if event_name == "push" and event["ref"] != "refs/heads/main":
+        return True
+    return any(needs_gpu(path) for path in changed_paths(event, event_name))
+
+
+def _write_gate_outputs(required: bool, trusted: bool, deleted: bool) -> None:
     with Path(os.environ["GITHUB_OUTPUT"]).open("a") as stream:
         stream.write(
             f"required={str(required).lower()}\n"
             f"trusted={str(trusted).lower()}\n"
             f"deleted={str(deleted).lower()}\n"
         )
+
+
+def detect() -> None:
+    event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+    event_name = os.environ["GITHUB_EVENT_NAME"]
+    repository = os.environ["GITHUB_REPOSITORY"]
+    _assert_repository_identity(event, repository)
+    trusted = _repository_trusted(event, event_name, repository)
+    deleted = deleted_push(event, event_name)
+    # Bootstrap pushes must validate the whole candidate, even when the latest
+    # pushed range only updates docs after a failed GPU run on the previous head.
+    required = _gpu_required(event, event_name, deleted)
+    _write_gate_outputs(required, trusted, deleted)
     print(f"GPU required: {required}; trusted repository: {trusted}; branch deleted: {deleted}")
 
 
-def verify() -> None:
+def _read_verify_env() -> tuple[str, str, str]:
     if os.environ.get("DETECTION_RESULT") != "success":
         raise ValueError("change detection did not succeed")
     required = os.environ.get("GPU_REQUIRED")
     trusted = os.environ.get("GPU_TRUSTED")
     if required not in ("true", "false") or trusted not in ("true", "false"):
         raise ValueError("missing or invalid gate outputs")
-    result = os.environ.get("GPU_RESULT")
-    if required == "true":
-        if trusted != "true":
-            raise ValueError("GPU changes from a fork need a maintainer-controlled branch and PR")
-        if result != "success":
-            raise ValueError(f"required GPU job did not succeed: {result!r}")
-    elif result != "skipped":
+    return required, trusted, os.environ.get("GPU_RESULT", "")
+
+
+def _verify_required_gpu(trusted: str, result: str | None) -> None:
+    if trusted != "true":
+        raise ValueError("GPU changes from a fork need a maintainer-controlled branch and PR")
+    if result != "success":
+        raise ValueError(f"required GPU job did not succeed: {result!r}")
+
+
+def _verify_optional_gpu(result: str | None) -> None:
+    if result != "skipped":
         raise ValueError(f"non-GPU change unexpectedly scheduled a GPU job: {result!r}")
+
+
+def verify() -> None:
+    required, trusted, result = _read_verify_env()
+    if required == "true":
+        _verify_required_gpu(trusted, result)
+    else:
+        _verify_optional_gpu(result)
     print("GPU validation passed")
 
 
@@ -131,7 +189,7 @@ def main() -> int:
             verify()
         else:
             raise ValueError("usage: gpu_ci_gate.py detect|verify")
-    except (KeyError, ValueError, OSError, subprocess.CalledProcessError) as error:
+    except (KeyError, ValueError, OSError, CalledProcessError) as error:
         print(f"GPU validation failed: {error}", file=sys.stderr)
         return 1
     return 0

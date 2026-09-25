@@ -31,19 +31,34 @@ def target_sha(event: dict, event_name: str) -> str:
     raise ValueError("unsupported event for GPU-validation publication")
 
 
-def payload(event: dict, event_name: str, repository: str) -> dict:
+def _assert_repository_identity(event: dict, repository: str) -> None:
     if not REPOSITORY.fullmatch(repository):
         raise ValueError("missing or invalid repository identity")
     if event["repository"]["full_name"] != repository:
         raise ValueError("event repository identity mismatch")
+
+
+def _workflow_run_id() -> str:
     run_id = os.environ["GITHUB_RUN_ID"]
     if not run_id.isdecimal():
         raise ValueError("missing or invalid workflow run identifier")
+    return run_id
+
+
+def _validation_conclusion() -> tuple[str, str]:
     validation = os.environ.get("VALIDATION_RESULT", "")
     conclusion = "success" if validation == "success" else "failure"
+    return validation, conclusion
+
+
+def payload(event: dict, event_name: str, repository: str) -> dict:
+    _assert_repository_identity(event, repository)
+    run_id = _workflow_run_id()
+    validation, conclusion = _validation_conclusion()
+    head_sha = target_sha(event, event_name)
     return {
         "name": "GPU validation",
-        "head_sha": target_sha(event, event_name),
+        "head_sha": head_sha,
         "status": "completed",
         "conclusion": conclusion,
         "external_id": f"gpu-validation:{run_id}",
