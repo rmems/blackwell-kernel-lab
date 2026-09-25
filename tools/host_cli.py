@@ -35,21 +35,3 @@ def capture_git(
     )
 
 
-def run_python_script(
-    script: Path,
-    *args: str,
-    check: bool,
-    cwd: Path | None = None,
-    env: Mapping[str, str] | None = None,
-    timeout: float = DEFAULT_TIMEOUT_SECONDS,
-    **kwargs: Any,
-) -> subprocess.CompletedProcess[str]:
-    _require_on_path("python3")
-    return subprocess.run(  # nosec B603 B607 — python3 on PATH verified; fixed argv
-        ["python3", str(script.resolve()), *args],
-        cwd=cwd,
-        env=env,
-        check=check,
-        timeout=timeout,
-        **kwargs,
-    )

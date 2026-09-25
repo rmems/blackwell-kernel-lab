@@ -14,7 +14,7 @@ _TOOLS = Path(__file__).resolve().parent
 if str(_TOOLS) not in sys.path:
     sys.path.insert(0, str(_TOOLS))
 
-from host_cli import run_python_script
+from script_runner import run_python_main
 
 PUBLISHER = Path(__file__).with_name("publish_gpu_validation.py")
 REPOSITORY = "rmems/blackwell-kernel-lab"
@@ -49,13 +49,8 @@ class PublisherTests(unittest.TestCase):
             GITHUB_RUN_ID="1234",
             VALIDATION_RESULT=validation_result,
         )
-        return run_python_script(
-            PUBLISHER, "--dry-run",
-            check=False,
-            cwd=self.root,
-            env=environment,
-            capture_output=True,
-            text=True,
+        return run_python_main(
+            PUBLISHER, "--dry-run", env=environment, cwd=self.root,
         )
 
     def test_pr_target_dry_run_publishes_gpu_validation_on_pr_head(self):
