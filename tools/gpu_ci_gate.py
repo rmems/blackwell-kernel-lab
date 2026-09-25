@@ -13,7 +13,7 @@ _TOOLS = Path(__file__).resolve().parent
 if str(_TOOLS) not in sys.path:
     sys.path.insert(0, str(_TOOLS))
 
-from host_cli import CalledProcessError, capture_checked, git_argv
+from host_cli import CalledProcessError, capture_git
 
 GPU_POLICY = {
     "tools/gpu_ci_gate.py", "tools/check_gpu_ci_gate.py", "tools/check_gpu_ci_policy.py",
@@ -100,8 +100,8 @@ def changed_paths(event: dict, event_name: str) -> list[str]:
             return ["new-branch-requires-gpu"]
         raise
     # Disabling rename detection preserves both names of a CUDA → docs rename.
-    output = capture_checked(
-        git_argv("diff", "--name-only", "--no-renames", "-z", revision_range, "--"),
+    output = capture_git(
+        "diff", "--name-only", "--no-renames", "-z", revision_range, "--",
     )
     return [name.decode("utf-8", errors="surrogateescape") for name in output.split(b"\0") if name]
 

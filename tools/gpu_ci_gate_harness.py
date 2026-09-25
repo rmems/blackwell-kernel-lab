@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from host_cli import STDERR_DEVNULL, capture_checked, git_argv, python_script_argv, run_optional
+from host_cli import STDERR_DEVNULL, capture_git, run_python_script
 
 GATE = Path(__file__).with_name("gpu_ci_gate.py")
 
@@ -24,8 +24,9 @@ class GateHarness:
 
     def run_gate(self, mode: str, **values: str):
         env = dict(self.env, GITHUB_OUTPUT=str(self.output), **values)
-        return run_optional(
-            python_script_argv(GATE, mode),
+        return run_python_script(
+            GATE, mode,
+            check=False,
             cwd=self.root,
             env=env,
             capture_output=True,
@@ -33,16 +34,14 @@ class GateHarness:
         )
 
     def git(self, *args: str) -> str:
-        output = capture_checked(
-            git_argv(
-                "-c", "core.hooksPath=/dev/null",
-                "-c", "user.name=Gate test",
-                "-c", "user.email=gate@example.invalid",
-                "-c", "maintenance.auto=false",
-                "-c", "gc.auto=0",
-                "-c", "core.fsmonitor=false",
-                *args,
-            ),
+        output = capture_git(
+            "-c", "core.hooksPath=/dev/null",
+            "-c", "user.name=Gate test",
+            "-c", "user.email=gate@example.invalid",
+            "-c", "maintenance.auto=false",
+            "-c", "gc.auto=0",
+            "-c", "core.fsmonitor=false",
+            *args,
             cwd=self.root,
             text=True,
             stderr=STDERR_DEVNULL,
