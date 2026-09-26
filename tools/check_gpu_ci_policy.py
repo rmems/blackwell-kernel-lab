@@ -68,7 +68,6 @@ def require_no_self_hosted(path: Path) -> None:
 def require_trust_gate(text: str) -> None:
     require(f"runs-on: {HOSTED}" in text, "trust gate must run on GitHub-hosted ubuntu-latest")
     require("head.repo.full_name" in text, "trust gate must compare pull_request.head.repo")
-    require("allow=false" in text, "trust gate must skip fork PRs")
     require("persist-credentials: false" in text, "self-hosted checkout must drop credentials")
 
 
@@ -88,17 +87,54 @@ def check_cpu_workflows() -> None:
         "ci-cpu.yml must run the GPU CI policy checker",
     )
     require(
+        "tools/test_publish_gpu_validation.py" in cpu,
+        "ci-cpu.yml must run GPU-validation publisher regression tests",
+    )
+    require(
         "kernels/tools/check_compute_sanitizer_runner.sh" in cpu,
         "ci-cpu.yml must run the compute-sanitizer runner tests",
     )
 
 
-def check_gpu_smoke_workflow() -> None:
-    text = load(GPU_YML)
+def check_gpu_smoke_workflow(text: str | None = None) -> None:
+    text = load(GPU_YML) if text is None else text
     require_trust_gate(text)
     require_gpu_runner(text)
     events = event_block(text)
-    require("**/*.md" in events, "ci-gpu.yml must ignore markdown-only cuts")
+    require("paths-ignore:" not in events and "paths:" not in events,
+            "required GPU validation must report even for documentation-only changes")
+    require("pull_request_target:" in events and "pull_request:" not in events,
+            "GPU policy must come from the trusted default branch, not PR workflows")
+    require(text.count("ref: ${{ github.sha }}") == 3,
+            "hosted detection, verification, and publication must use trusted policy")
+    require('git fetch --no-tags origin "$PR_HEAD_SHA"' in text,
+            "PR changes must be fetched as data without checking out untrusted code")
+    require("ref: ${{ github.event.pull_request.head.sha || github.sha }}" in text,
+            "trusted GPU work must test the PR head, not the policy checkout")
+    require(text.count("if: always()") >= 2,
+            "validation and its publisher must report after a dependency fails")
+    require("continue-on-error:" not in uncommented(text),
+            "GPU policy jobs and steps must fail closed")
+    require("needs: [gate, gpu-kernels]" in text, "GPU validation must depend on detection and GPU work")
+    require("name: Verify GPU validation policy" in text,
+            "trusted validation job must remain distinct from the required check")
+    require("name: Publish GPU validation" in text and "checks: write" in text,
+            "workflow must publish the required GPU check on the candidate SHA")
+    require("tools/publish_gpu_validation.py --publish" in text,
+            "workflow must use the tested GPU-validation publisher")
+    require("deleted: ${{ steps.check.outputs.deleted }}" in text,
+            "GPU workflow must expose whether a push deleted its branch")
+    publisher = re.search(
+        r"^  publish-validation:\n(.*?)(?=^  [A-Za-z0-9_-]+:|\Z)",
+        text,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    require(publisher, "GPU workflow must define a final GPU-validation publisher")
+    require("if: always() && needs.gate.outputs.deleted != 'true'" in publisher.group(1),
+            "GPU publisher must skip deleted branch pushes with an all-zero SHA")
+    require("gpu_ci_gate.py detect" in text and "gpu_ci_gate.py verify" in text,
+            "GPU workflow must use the tested change/result gate")
+    require("tools/check_gpu_ci_gate.py" in load(CPU_YML), "CPU CI must exercise GPU gate behavior")
 
 
 def check_sanitizer_workflow() -> None:
@@ -109,6 +145,7 @@ def check_sanitizer_workflow() -> None:
     require("branches: [main]" in events, "automatic sanitizer runs are main-only")
     require("kernels/src/**" in events, "main-push sanitizer must be path-filtered to kernels")
     require_trust_gate(text)
+    require("allow=false" in text, "sanitizer trust gate must skip fork PRs")
     require_gpu_runner(text)
     require(UPLOAD_PIN in text, "sanitizer logs must upload with a SHA-pinned artifact action")
     require("if: always()" in text, "sanitizer logs must upload even when the job fails")

@@ -19,6 +19,12 @@ Training ↔ GPU sample join: [f0-correlation-schema.md](f0-correlation-schema.m
 (CPU contract; not a kernel). NVML capability discovery:
 [f0-nvml-capability.md](f0-nvml-capability.md) (CPU; live probe is NVML-only).
 
+**v0.2.0 delivery gate:** [RELEASE_V0_2_0.md](RELEASE_V0_2_0.md). Profile qualified
+MiniCPM5 and Granite training, freeze one justified operator contract, then
+implement/package and integrate it in Agoge. The historical L1 inference and
+synthetic L2/L3 results below are useful context, not proof of a training gap
+or of v0.2.0 completion.
+
 ## Layers
 
 | Layer | Meaning | First work |
