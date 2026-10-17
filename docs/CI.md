@@ -2,7 +2,7 @@
 
 | Workflow | Runner | Purpose |
 |---|---|---|
-| [`.github/workflows/ci-cpu.yml`](../.github/workflows/ci-cpu.yml) | **`ubuntu-latest`** | Kernel-tree checks, CUDA-disabled CMake configure, F0 correlation join (#52), clock-skew calibration (RM-1349), F0 efficiency formulas (#55), NVML capability self-test (RM-1350), and GPU-workflow policy / sanitizer-runner tests (RM-1351) |
+| [`.github/workflows/ci-cpu.yml`](../.github/workflows/ci-cpu.yml) | **`ubuntu-latest`** | Kernel-tree checks, CUDA-disabled CMake configure, F0 correlation join (#52), clock-skew calibration (RM-1349), F0 efficiency formulas (#55), NVML capability self-test (RM-1350), F0 GPU sampler fakes (#53 / RM-1230), and GPU-workflow policy / sanitizer-runner tests (RM-1351) |
 | [`.github/workflows/ci-gpu.yml`](../.github/workflows/ci-gpu.yml) | Hosted detection/validation; conditional **self-hosted** `ShipOfTheseus` (`self-hosted`, `Linux`, `X64`, `CUDA`) | Always reports `GPU validation`; relevant changes require GPU probe, sm_120 build, binaries, graph JSON, and Green Context JSON |
 | [`.github/workflows/ci-gpu-sanitizer.yml`](../.github/workflows/ci-gpu-sanitizer.yml) | **Self-hosted** `ShipOfTheseus` (same labels) | Opt-in Compute Sanitizer (`memcheck` / `initcheck`) on first-party CUDA smokes. Manual dispatch or trusted `main` kernel-path pushes only; never pull requests |
 
@@ -123,6 +123,7 @@ python3 tools/summarize_f0_efficiency.py \
   --out results/f0-efficiency.json \
   --report results/f0-efficiency.md
 python3 tools/check_nvml_capability.py
+python3 tools/check_f0_gpu_sampler.py
 python3 tools/check_gpu_ci_policy.py
 python3 tools/check_gpu_ci_gate.py
 bash kernels/tools/check_compute_sanitizer_runner.sh

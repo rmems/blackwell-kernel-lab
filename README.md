@@ -82,7 +82,7 @@ docs/           Mission, hardware baseline, train-fit, kernel layering, CI, forg
 fixtures/       CPU JSON/JSONL fixtures (F0 correlation, clock skew, NVML capability, efficiency)
 recipes/        Human-run kernel measurement playbooks
 kernels/        First-party L3 CUDA workspace (sm_120) — see kernels/README.md
-tools/          CPU validators (correlation join, clock skew, NVML capability, efficiency; no GPU in CI)
+tools/          CPU validators (correlation join, clock skew, NVML capability, efficiency, GPU sampler; no GPU in CI)
 results/        Kernel measurement outputs (gitignored)
 ```
 

@@ -40,9 +40,10 @@ BKL **must not** infer `phase`, `global_step`, or other Agoge semantics from
 GPU load, clocks, or power. If a marker is missing, the join leaves Agoge
 fields unset; it does not guess them.
 
-There is no permanent collector process in this contract. A train wrapper
-(#53) and Agoge (#144) may write append-only JSONL for the life of one run
-and exit.
+There is no permanent collector process in this contract. The per-run
+sampler ([#53](https://github.com/rmems/blackwell-kernel-lab/issues/53),
+[`f0-gpu-sampler.md`](f0-gpu-sampler.md)) and Agoge (#144) write append-only
+JSONL for the life of one run and exit.
 
 ## Envelope (all kinds)
 
@@ -215,7 +216,7 @@ preceding marker by monotonic time.
   integer `wall_ns` for exact offset; RFC 3339 is the portable form.
 - No training-phase inference from GPU load. This file only calibrates time.
 - CPU-only. It does not run on the RTX 5080 and does not consume the 16 GB
-  VRAM budget; leave ≥2 GiB free when a later #53/#54 GPU capture runs.
+  VRAM budget; leave ≥2 GiB free when a #53 sampler or later #54 GPU capture runs.
 
 Scenario fixtures: `fixtures/f0-correlation/clock-skew/` (`stable`,
 `bounded_drift`, `backward_jump`, `forward_jump`, `sparse_markers`,
@@ -260,4 +261,10 @@ Capability snapshot (RM-1350, CPU):
 
 ```bash
 python3 tools/check_nvml_capability.py
+```
+
+Per-run sampler (RM-1230, CPU):
+
+```bash
+python3 tools/check_f0_gpu_sampler.py
 ```

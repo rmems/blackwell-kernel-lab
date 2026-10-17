@@ -18,6 +18,37 @@ def _require_on_path(name: str) -> None:
         raise FileNotFoundError(f"host executable not found: {name}")
 
 
+def execute(
+    argv: list[str],
+    *,
+    cwd: Path | None = None,
+    timeout: float | None = None,
+    capture: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    """Run a list argv. ``capture`` keeps stdio for callers that check it."""
+    return subprocess.run(  # nosec B603 — list argv, never a shell string
+        argv,
+        check=False,
+        cwd=cwd,
+        timeout=timeout,
+        capture_output=capture,
+        text=True,
+    )
+
+
+def spawn(
+    argv: list[str],
+    *,
+    cwd: Path,
+) -> subprocess.Popen[bytes]:
+    """Start a list argv in its own session so the parent can exit."""
+    return subprocess.Popen(  # nosec B603 — list argv, new session, no shell
+        argv,
+        cwd=cwd,
+        start_new_session=True,
+    )
+
+
 def capture_git(
     *args: str,
     cwd: Path | None = None,

@@ -23,10 +23,12 @@ CPU_FILES = {
     ".github/workflows/ci-cpu.yml", ".github/workflows/ci-lint.yml",
     ".qlty/qlty.toml", ".qlty/.gitignore",
     "tools/check_f0_clock_skew.py", "tools/check_f0_correlation.py",
-    "tools/check_f0_efficiency.py", "tools/check_nvml_capability.py",
+    "tools/check_f0_efficiency.py", "tools/check_f0_gpu_sampler.py",
+    "tools/check_nvml_capability.py",
     "tools/f0_clock.py", "tools/f0_efficiency_compare.py",
+    "tools/f0_gpu_sample.py", "tools/f0_gpu_sampler.py",
     "tools/f0_efficiency_numbers.py", "tools/f0_efficiency_report.py",
-    "tools/f0_measurements.py", "tools/nvml_capability.py", "tools/nvml_fakes.py",
+    "tools/f0_measurements.py", "tools/host_cli.py", "tools/nvml_capability.py", "tools/nvml_fakes.py",
     "tools/nvml_live.py", "tools/nvml_schema.py", "tools/summarize_f0_efficiency.py",
 }
 DEVICE_SUFFIXES = {".cu", ".cuh", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".cmake"}
