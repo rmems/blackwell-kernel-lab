@@ -24,9 +24,9 @@ and actionlint 1.7.12 (Linux, no GPU, no CUDA toolkit). CI installs no Python pa
 | `python3 tools/test_publish_gpu_validation.py` | verified |
 | `bash kernels/tools/check_compute_sanitizer_runner.sh` | verified |
 | `shellcheck --format=gcc recipes/scripts/*.sh kernels/tools/*.sh` | verified |
-| `./actionlint -oneline -shellcheck "$(command -v shellcheck)"` | verified (binary pinned by version and SHA-256 in `ci-lint.yml`) |
+| `./actionlint -oneline -shellcheck "$(command -v shellcheck)"` | verified (download the release tarball first; the "Install actionlint" step in `ci-lint.yml` pins the version and SHA-256) |
 | `cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON && cmake --build build/kernels -j` | not run (needs nvcc, CUDA 13.3, and the RTX 5080) |
-| `./build/kernels/src/bkl_device_hello`, `bkl_graph_launch_bench --out results/graph-launch-bench.json`, `bkl_green_ctx_bench --out results/green-ctx-bench.json` | not run (need the GPU build above) |
+| `./build/kernels/src/bkl_device_hello`, `./build/kernels/src/bkl_graph_launch_bench --out results/graph-launch-bench.json`, `./build/kernels/src/bkl_green_ctx_bench --out results/green-ctx-bench.json` | not run (need the GPU build above) |
 | `python3 kernels/tools/check_green_ctx_report.py results/green-ctx-bench.json` | not run (needs the GPU benchmark's JSON output) |
 | `bash kernels/tools/run_compute_sanitizer.sh --suite --bin-dir build/kernels/src --out-dir results/sanitizer` | not run (needs GPU binaries and `compute-sanitizer`) |
 
