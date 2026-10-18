@@ -32,7 +32,7 @@ and actionlint 1.7.12 (Linux, no GPU, no CUDA toolkit). CI installs no Python pa
 
 `ci-cpu.yml` also has a "Kernel tree is complete" shell step (every `add_executable` source and every recipe linked from
 `kernels/README.md` must exist); its script was run by hand and passes. There is no repo-wide formatter or Python linter.
-Before pushing, run the CPU rows that match the files you touched; `ci-gpu.yml` and `ci-gpu-sanitizer.yml` run on the self-hosted runner only.
+Before pushing, run the CPU rows that match the files you touched; the GPU jobs in `ci-gpu.yml` and `ci-gpu-sanitizer.yml` use the self-hosted runner, while their other jobs use hosted `ubuntu-latest` runners.
 
 ## Architecture map
 
