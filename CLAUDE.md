@@ -25,7 +25,7 @@ and actionlint 1.7.12 (Linux, no GPU, no CUDA toolkit). CI installs no Python pa
 | `bash kernels/tools/check_compute_sanitizer_runner.sh` | verified |
 | `shellcheck --format=gcc recipes/scripts/*.sh kernels/tools/*.sh` | verified |
 | `./actionlint -oneline -shellcheck "$(command -v shellcheck)"` | verified (download the release tarball first; the "Install actionlint" step in `ci-lint.yml` pins the version and SHA-256) |
-| `cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON && cmake --build build/kernels -j` | not run (needs nvcc, CUDA 13.3, and the RTX 5080) |
+| `cmake -S kernels -B build/kernels -DBKL_ENABLE_CUDA=ON && cmake --build build/kernels -j` | not run (needs nvcc and CUDA 13.3; running the result needs the RTX 5080) |
 | `./build/kernels/src/bkl_device_hello`, `./build/kernels/src/bkl_graph_launch_bench --out results/graph-launch-bench.json`, `./build/kernels/src/bkl_green_ctx_bench --out results/green-ctx-bench.json` | not run (need the GPU build above) |
 | `python3 kernels/tools/check_green_ctx_report.py results/green-ctx-bench.json` | not run (needs the GPU benchmark's JSON output) |
 | `bash kernels/tools/run_compute_sanitizer.sh --suite --bin-dir build/kernels/src --out-dir results/sanitizer` | not run (needs GPU binaries and `compute-sanitizer`) |
@@ -45,7 +45,7 @@ Before pushing, run the CPU rows that match the files you touched; `ci-gpu.yml` 
 ## Invariants and non-goals
 
 - A new `.cu` file needs an L1 gap first (`docs/FORGE_BOUNDARY.md`); do not add a second CUDA tree under `agoge-forger/cuda/`.
-- Workflows and tools must never run fork or PR code on the self-hosted GPU runner. `ci-gpu.yml` uses `pull_request_target` and reads policy from the base branch; keep `persist-credentials: false` and the commit-SHA-pinned actions.
+- Workflows and tools must never run fork code on the self-hosted GPU runner. `ci-gpu.yml` uses `pull_request_target`: detection and verification run the trusted base SHA, and only a same-repository PR head that the gate marks GPU-relevant is checked out on the GPU runner. Keep `persist-credentials: false`, the same-repository check, and the commit-SHA-pinned actions.
 - `tools/gpu_ci_gate.py` keeps a CPU-only allowlist; new files under `tools/` count as GPU-relevant until a reviewer extends it (`docs/CI.md`).
 - GPU workflows wait for at least 2 GiB free VRAM (`kernels/tools/wait_gpu_headroom.sh 2048 600 30`); keep that floor.
 - NVML capability checks treat missingness as distinct from zero (`ci-cpu.yml`: "missingness != zero"); keep "missing" distinct from `0`.
