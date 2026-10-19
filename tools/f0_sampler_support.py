@@ -487,8 +487,8 @@ def separate_child_group(pid: int) -> None:
 
 def forward_signal(pid: int, signum: int) -> None:
     try:
-        os.kill(pid, signum)
-    except ProcessLookupError:
+        os.killpg(pid, signum)
+    except OSError:
         return
 
 
