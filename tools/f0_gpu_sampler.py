@@ -324,8 +324,16 @@ def write_session(armed: ArmResult, opts: SampleOptions, pid: int | None, status
 
 def spawn_loop(session_path: Path) -> int:
     script = str(Path(__file__).resolve())
-    argv = ["python3", script, "loop", "--session", str(session_path)]
-    return os.posix_spawnp("python3", argv, os.environ, setsid=True)
+    pid = os.spawnvp(
+        os.P_NOWAIT,
+        "python3",
+        ["python3", script, "loop", "--session", str(session_path)],
+    )
+    try:
+        os.setpgid(pid, pid)
+    except OSError:
+        return pid
+    return pid
 
 
 def start_session(opts: SampleOptions) -> int:
@@ -425,8 +433,10 @@ def take_first_sample(state: LoopState) -> None:
 
 
 def run_argv(argv: list[str]) -> int:
+    launch = "import os, sys; os.execvp(sys.argv[1], sys.argv[1:])"
+    command = ["python3", "-c", launch, *argv]
     try:
-        pid = os.posix_spawnp(argv[0], argv, os.environ)
+        pid = os.spawnvp(os.P_NOWAIT, "python3", command)
     except OSError as error:
         print(error, file=sys.stderr)
         return 127
