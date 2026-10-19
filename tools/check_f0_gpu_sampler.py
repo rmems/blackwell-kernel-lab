@@ -17,15 +17,13 @@ from typing import Any
 import check_f0_correlation as f0corr
 import f0_clock
 import f0_gpu_sampler as sampler
-from host_cli import execute
+from f0_sampler_support import free_mib, stat_state
 from f0_efficiency_numbers import HEADROOM_FLOOR_MIB, field_block
 from f0_gpu_sample import COLLECTOR_ID
 from f0_measurements import PHYSICAL, SchemaError
 from nvml_fakes import FakeNvmlBackend
 from nvml_schema import bind_samples, check_capability_snapshot
 
-ROOT = Path(__file__).resolve().parents[1]
-CHECKER = ROOT / "tools" / "check_f0_correlation.py"
 WALL0 = 1_789_408_800_000_000_000
 MONO0 = 1_000_000_000
 
@@ -123,20 +121,18 @@ def marker_from(sample: dict[str, Any], *, step: int, tokens: int) -> dict[str, 
 def assert_checker(directory: Path, samples: list[dict[str, Any]]) -> None:
     markers = directory / "markers.jsonl"
     write_markers(markers, samples)
-    proc = execute(
+    code = f0corr.main(
         [
-            sys.executable,
-            str(CHECKER),
+            "check_f0_correlation.py",
             "--markers",
             str(markers),
             "--samples",
             str(directory / "samples.jsonl"),
             "--clock-skew",
             str(directory / "clock-skew.json"),
-        ],
-        capture=True,
+        ]
     )
-    require(proc.returncode == 0, proc.stderr or proc.stdout)
+    require(code == 0, "correlation checker rejected the sampler bundle")
 
 
 def assert_bundle(directory: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -159,6 +155,13 @@ def sample_scenario(tmp: Path, name: str, **updates: Any) -> tuple[dict[str, Any
     code = sampler.sample_run(opts, clock=clock())
     require(code == 0, f"{name} exit {code}")
     return assert_bundle(run_dir(tmp, name))
+
+
+def check_stat_state_and_missing_headroom() -> None:
+    require(stat_state("malformed") is None, "stat without a comm paren is not a state")
+    require(stat_state("1 (python (x)) Z 0") == "Z", "state is the field after the comm")
+    status, value = free_mib({"metrics": {}})
+    require(status == "unavailable" and value is None, "missing headroom is unavailable, not a crash")
 
 
 def check_floor_constant() -> None:
@@ -507,6 +510,7 @@ def check_join_phase_from_marker(tmp: Path) -> None:
 
 
 CASES = (
+    ("stat_state_and_missing_headroom", check_stat_state_and_missing_headroom),
     ("floor_constant", check_floor_constant),
     ("full_support", check_full_support),
     ("partial_support", check_partial_support),
@@ -535,7 +539,7 @@ def main(argv: list[str]) -> int:
         tmp = Path(raw)
         for name, fn in CASES:
             try:
-                if name == "floor_constant":
+                if name in {"floor_constant", "stat_state_and_missing_headroom"}:
                     fn()
                 else:
                     fn(tmp)

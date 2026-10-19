@@ -7,6 +7,7 @@ value. This module does not loop, sleep, or start a CUDA context.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from f0_measurements import (
@@ -102,35 +103,39 @@ def read_performance_state(backend: Any, index: int) -> dict[str, Any]:
     return read_named(backend, index, PSTATE_METRIC, PSTATE_UNIT)
 
 
+@dataclass(frozen=True)
+class SampleMoment:
+    cadence_ms: int
+    timestamp_utc: str
+    monotonic_ns: int
+    collect_duration_ns: int
+    previous_ns: int | None
+
+
 def build_gpu_sample(
     snapshot: dict[str, Any],
-    *,
-    cadence_ms: int,
-    timestamp_utc: str,
-    monotonic_ns: int,
     physical: dict[str, dict[str, Any]],
     throttle: dict[str, Any],
     performance_state: dict[str, Any],
-    collect_duration_ns: int,
-    previous_ns: int | None,
+    moment: SampleMoment,
 ) -> dict[str, Any]:
-    observed, jitter = interval_ns(monotonic_ns, previous_ns, cadence_ms)
+    observed, jitter = interval_ns(moment.monotonic_ns, moment.previous_ns, moment.cadence_ms)
     sample: dict[str, Any] = {
         "schema_version": SCHEMA,
         "record_kind": SAMPLE,
         "agoge_run_id": snapshot["agoge_run_id"],
         "host": {"hostname": snapshot["host"]["hostname"]},
         "gpu": copy_gpu(snapshot["gpu"]),
-        "timestamp_utc": timestamp_utc,
-        "monotonic_ns": monotonic_ns,
+        "timestamp_utc": moment.timestamp_utc,
+        "monotonic_ns": moment.monotonic_ns,
         "collector": {"id": COLLECTOR_ID, "version": COLLECTOR_VERSION},
-        "cadence_ms": cadence_ms,
+        "cadence_ms": moment.cadence_ms,
         "throttle": throttle,
         "profile_window_ref": None,
         "cuda": cuda_from_snapshot(snapshot),
         "capability_digest": snapshot["capability_digest"],
         "performance_state": performance_state,
-        "collect_duration_ns": collect_duration_ns,
+        "collect_duration_ns": moment.collect_duration_ns,
         "observed_interval_ns": observed,
         "jitter_ns": jitter,
     }
