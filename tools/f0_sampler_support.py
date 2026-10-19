@@ -462,11 +462,27 @@ def escalate_stop(pid: int, timeout: float) -> None:
     wait_until_dead(pid, 2.0)
 
 
+def silence_stdio() -> None:
+    null_fd = os.open(os.devnull, os.O_RDWR)
+    os.dup2(null_fd, 0)
+    os.dup2(null_fd, 1)
+    os.dup2(null_fd, 2)
+    if null_fd > 2:
+        os.close(null_fd)
+
+
 def exec_python(command: list[str]) -> None:
     try:
         os.execvp("python3", command)  # nosec B606 — literal interpreter, not a shell
     except OSError:
         os._exit(127)
+
+
+def separate_child_group(pid: int) -> None:
+    try:
+        os.setpgid(pid, pid)
+    except OSError:
+        return
 
 
 def forward_signal(pid: int, signum: int) -> None:

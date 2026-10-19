@@ -413,12 +413,15 @@ _SIGNAL_CHILD = (
     "from pathlib import Path\n"
     "path, name = Path(sys.argv[1]), sys.argv[2]\n"
     "signum = signal.SIGINT if name == 'INT' else signal.SIGTERM\n"
+    "seen = 0\n"
     "def on_signal(_signum, _frame):\n"
-    "    path.write_text('got')\n"
+    "    global seen\n"
+    "    seen += 1\n"
+    "    path.write_text(f'got {seen} {os.getpgrp()}')\n"
     "    signal.signal(signum, signal.SIG_DFL)\n"
     "    os.kill(os.getpid(), signum)\n"
     "signal.signal(signum, on_signal)\n"
-    "path.write_text('ready')\n"
+    "path.write_text(f'ready {os.getpgrp()}')\n"
     "time.sleep(30)\n"
 )
 
@@ -426,7 +429,7 @@ _SIGNAL_CHILD = (
 def signal_when_ready(path: Path, signum: int) -> None:
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
-        if path.is_file() and path.read_text(encoding="utf-8") == "ready":
+        if path.is_file() and path.read_text(encoding="utf-8").startswith("ready "):
             os.kill(os.getpid(), signum)
             return
         time.sleep(0.02)
@@ -449,7 +452,10 @@ def run_signaled(tmp: Path, run_id: str, signum: int, expected: int) -> None:
     threading.Thread(target=signal_when_ready, args=(marker, signum), daemon=True).start()
     code = run_cli(tmp, run_id, sys.executable, "-c", _SIGNAL_CHILD, str(marker), name)
     require(code == expected, f"{name} exit {code}, expected {expected}")
-    require(marker.read_text(encoding="utf-8") == "got", f"{name} was not delivered to the child")
+    recorded = marker.read_text(encoding="utf-8")
+    count, child_group = recorded.split()[1:]
+    require(count == "1", f"{name} was delivered {count} times")
+    require(int(child_group) != os.getpgrp(), f"{name} child stayed in the sampler process group")
     directory = run_dir(tmp, run_id)
     require((directory / "clock-skew.json").is_file(), f"{name} run wrote no clock skew")
     require((directory / "overhead.json").is_file(), f"{name} run wrote no overhead")

@@ -69,6 +69,8 @@ from f0_sampler_support import (
     refusal_reason,
     request_exit,
     run_paths,
+    separate_child_group,
+    silence_stdio,
     wait_child,
     write_json,
     write_refusal,
@@ -326,15 +328,6 @@ def write_session(armed: ArmResult, opts: SampleOptions, pid: int | None, status
     return body
 
 
-def silence_stdio() -> None:
-    null_fd = os.open(os.devnull, os.O_RDWR)
-    os.dup2(null_fd, 0)
-    os.dup2(null_fd, 1)
-    os.dup2(null_fd, 2)
-    if null_fd > 2:
-        os.close(null_fd)
-
-
 def spawn_loop(session_path: Path) -> int:
     script = str(Path(__file__).resolve())
     argv = ["python3", script, "loop", "--session", str(session_path)]
@@ -453,7 +446,9 @@ def run_argv(argv: list[str]) -> int:
     try:
         pid = os.fork()
         if pid == 0:
+            os.setpgid(0, 0)
             exec_python(command)
+        separate_child_group(pid)
         pid_box[0] = pid
         return wait_child(pid)
     finally:
