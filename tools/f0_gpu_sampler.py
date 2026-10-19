@@ -56,16 +56,20 @@ from f0_sampler_support import (
     check_run_id,
     duration_ns,
     ensure_new_run,
+    exec_python,
     make_overhead,
     make_skew,
     observation_from,
     pid_alive,
     read_json,
+    install_child_forwarders,
     read_jsonl,
     refusal_code,
+    restore_signals,
     refusal_reason,
     request_exit,
     run_paths,
+    wait_child,
     write_json,
     write_refusal,
 )
@@ -444,14 +448,16 @@ def take_first_sample(state: LoopState) -> None:
 def run_argv(argv: list[str]) -> int:
     launch = "import os, sys; os.execvp(sys.argv[1], sys.argv[1:])"
     command = ["python3", "-c", launch, *argv]
-    pid = os.fork()
-    if pid == 0:
-        try:
-            os.execvp("python3", command)  # nosec B606 — literal interpreter, not a shell
-        except OSError:
-            os._exit(127)
-    _child, status = os.waitpid(pid, 0)
-    return os.waitstatus_to_exitcode(status)
+    pid_box: list[int | None] = [None]
+    previous = install_child_forwarders(pid_box)
+    try:
+        pid = os.fork()
+        if pid == 0:
+            exec_python(command)
+        pid_box[0] = pid
+        return wait_child(pid)
+    finally:
+        restore_signals(previous)
 
 
 def join_timeout(opts: SampleOptions) -> float:

@@ -7,6 +7,8 @@ See docs/f0-gpu-sampler.md. Used by .github/workflows/ci-cpu.yml.
 from __future__ import annotations
 
 import json
+import os
+import signal
 import sys
 import tempfile
 import threading
@@ -406,29 +408,65 @@ def check_second_start_rejected(tmp: Path) -> None:
     raise CheckError("a second start for the same run id must fail")
 
 
-def check_run_command_exit(tmp: Path) -> None:
-    code = sampler.main(
+_SIGNAL_CHILD = (
+    "import os,signal,sys,time\n"
+    "from pathlib import Path\n"
+    "path, name = Path(sys.argv[1]), sys.argv[2]\n"
+    "signum = signal.SIGINT if name == 'INT' else signal.SIGTERM\n"
+    "def on_signal(_signum, _frame):\n"
+    "    path.write_text('got')\n"
+    "    signal.signal(signum, signal.SIG_DFL)\n"
+    "    os.kill(os.getpid(), signum)\n"
+    "signal.signal(signum, on_signal)\n"
+    "path.write_text('ready')\n"
+    "time.sleep(30)\n"
+)
+
+
+def signal_when_ready(path: Path, signum: int) -> None:
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if path.is_file() and path.read_text(encoding="utf-8") == "ready":
+            os.kill(os.getpid(), signum)
+            return
+        time.sleep(0.02)
+    raise CheckError(f"child did not become ready for signal {signum}")
+
+
+def run_cli(tmp: Path, run_id: str, *command: str) -> int:
+    return sampler.main(
         [
-            "f0_gpu_sampler.py",
-            "run",
-            "--run-id",
-            "boom",
-            "--out",
-            str(tmp),
-            "--fake",
-            "full-support",
-            "--hostname",
-            "ShipOfTheseus",
-            "--cadence-ms",
-            "50",
-            "--max-duration-s",
-            "3",
-            "--",
-            sys.executable,
-            "-c",
-            "import sys; sys.exit(9)",
+            "f0_gpu_sampler.py", "run", "--run-id", run_id, "--out", str(tmp),
+            "--fake", "full-support", "--hostname", "ShipOfTheseus",
+            "--cadence-ms", "50", "--max-duration-s", "8", "--", *command,
         ]
     )
+
+
+def run_signaled(tmp: Path, run_id: str, signum: int, expected: int) -> None:
+    marker = tmp / f"{run_id}.txt"
+    name = "INT" if signum == signal.SIGINT else "TERM"
+    threading.Thread(target=signal_when_ready, args=(marker, signum), daemon=True).start()
+    code = run_cli(tmp, run_id, sys.executable, "-c", _SIGNAL_CHILD, str(marker), name)
+    require(code == expected, f"{name} exit {code}, expected {expected}")
+    require(marker.read_text(encoding="utf-8") == "got", f"{name} was not delivered to the child")
+    directory = run_dir(tmp, run_id)
+    require((directory / "clock-skew.json").is_file(), f"{name} run wrote no clock skew")
+    require((directory / "overhead.json").is_file(), f"{name} run wrote no overhead")
+    session = json.loads((directory / "session.json").read_text(encoding="utf-8"))
+    require(session["status"] == "stopped", f"{name} sampler session was not stopped")
+
+
+def check_forward_sigint(tmp: Path) -> None:
+    run_signaled(tmp, "sigint", signal.SIGINT, 128 + signal.SIGINT)
+
+
+def check_forward_sigterm(tmp: Path) -> None:
+    run_signaled(tmp, "sigterm", signal.SIGTERM, 128 + signal.SIGTERM)
+
+
+def check_run_command_exit(tmp: Path) -> None:
+    code = run_cli(tmp, "boom", sys.executable, "-c", "import sys; sys.exit(9)")
     require(code == 9, f"command exit code must propagate, got {code}")
     directory = run_dir(tmp, "boom")
     samples = load_samples(directory)
@@ -526,6 +564,8 @@ CASES = (
     ("vram_cache_resets", check_vram_cache_resets),
     ("bad_run_id", check_bad_run_id),
     ("second_start_rejected", check_second_start_rejected),
+    ("forward_sigint", check_forward_sigint),
+    ("forward_sigterm", check_forward_sigterm),
     ("run_command_exit", check_run_command_exit),
     ("start_stop_process", check_start_stop_process),
     ("join_phase_from_marker", check_join_phase_from_marker),

@@ -462,6 +462,52 @@ def escalate_stop(pid: int, timeout: float) -> None:
     wait_until_dead(pid, 2.0)
 
 
+def exec_python(command: list[str]) -> None:
+    try:
+        os.execvp("python3", command)  # nosec B606 — literal interpreter, not a shell
+    except OSError:
+        os._exit(127)
+
+
+def forward_signal(pid: int, signum: int) -> None:
+    try:
+        os.kill(pid, signum)
+    except ProcessLookupError:
+        return
+
+
+def exit_code_from_status(status: int) -> int:
+    if os.WIFSIGNALED(status):
+        return 128 + int(os.WTERMSIG(status))
+    return int(os.WEXITSTATUS(status))
+
+
+def wait_child(pid: int) -> int:
+    while True:
+        try:
+            _child, status = os.waitpid(pid, 0)
+        except InterruptedError:
+            continue
+        return exit_code_from_status(status)
+
+
+def install_child_forwarders(pid_box: list[int | None]) -> tuple[Any, Any]:
+    def handle(signum: int, _frame: Any) -> None:
+        child = pid_box[0]
+        if isinstance(child, int):
+            forward_signal(child, signum)
+
+    return (
+        signal.signal(signal.SIGINT, handle),
+        signal.signal(signal.SIGTERM, handle),
+    )
+
+
+def restore_signals(previous: tuple[Any, Any]) -> None:
+    signal.signal(signal.SIGINT, previous[0])
+    signal.signal(signal.SIGTERM, previous[1])
+
+
 def request_exit(session: dict[str, Any]) -> None:
     Path(str(session["stop_path"])).write_text("stop\n", encoding="utf-8")
     pid = session.get("pid")
