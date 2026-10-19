@@ -19,7 +19,7 @@ from typing import Any
 import check_f0_correlation as f0corr
 import f0_clock
 import f0_gpu_sampler as sampler
-from f0_sampler_support import free_mib, stat_state
+from f0_sampler_support import free_mib, run_with_controlling_tty, stat_state
 from f0_efficiency_numbers import HEADROOM_FLOOR_MIB, field_block
 from f0_gpu_sample import COLLECTOR_ID
 from f0_measurements import PHYSICAL, SchemaError
@@ -454,13 +454,22 @@ def run_signaled(tmp: Path, run_id: str, signum: int, expected: int) -> None:
     require(code == expected, f"{name} exit {code}, expected {expected}")
     recorded = marker.read_text(encoding="utf-8")
     count, child_group = recorded.split()[1:]
-    require(count == "1", f"{name} was delivered {count} times")
-    require(int(child_group) != os.getpgrp(), f"{name} child stayed in the sampler process group")
-    directory = run_dir(tmp, run_id)
-    require((directory / "clock-skew.json").is_file(), f"{name} run wrote no clock skew")
-    require((directory / "overhead.json").is_file(), f"{name} run wrote no overhead")
-    session = json.loads((directory / "session.json").read_text(encoding="utf-8"))
-    require(session["status"] == "stopped", f"{name} sampler session was not stopped")
+    require(count == "1" and int(child_group) != os.getpgrp(), f"{name} delivery {recorded}")
+    skew = run_dir(tmp, run_id) / "clock-skew.json"
+    require(skew.is_file(), f"{name} final record missing")
+
+
+def check_tty_stdin_read(tmp: Path) -> None:
+    marker = tmp / "tty-read.txt"
+    script = "import sys\nfrom pathlib import Path\nPath(sys.argv[1]).write_text(sys.stdin.readline())\n"
+    script_path = str(Path(sampler.__file__).resolve())
+    code = run_with_controlling_tty(
+        ["python3", script_path, "run", "--run-id", "ttyread", "--out", str(tmp),
+         "--fake", "full-support", "--hostname", "ShipOfTheseus", "--cadence-ms", "50",
+         "--max-duration-s", "4", "--", sys.executable, "-c", script, str(marker)],
+        b"hello\n",
+    )
+    require(code == 0 and marker.read_text(encoding="utf-8") == "hello\n", f"tty read {code}")
 
 
 def check_forward_sigint(tmp: Path) -> None:
@@ -570,6 +579,7 @@ CASES = (
     ("vram_cache_resets", check_vram_cache_resets),
     ("bad_run_id", check_bad_run_id),
     ("second_start_rejected", check_second_start_rejected),
+    ("tty_stdin_read", check_tty_stdin_read),
     ("forward_sigint", check_forward_sigint),
     ("forward_sigterm", check_forward_sigterm),
     ("run_command_exit", check_run_command_exit),

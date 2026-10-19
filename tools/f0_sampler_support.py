@@ -6,11 +6,14 @@ No CUDA context and no trainer process.
 
 from __future__ import annotations
 
+import fcntl
 import json
 import math
 import os
+import pty
 import signal
 import statistics
+import termios
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -478,6 +481,62 @@ def exec_python(command: list[str]) -> None:
         os._exit(127)
 
 
+def controlling_tty() -> int | None:
+    try:
+        attached = os.isatty(0)
+    except OSError:
+        return None
+    if attached:
+        return 0
+    return None
+
+
+def ignore_stop_signals() -> tuple[Any, Any]:
+    return (
+        signal.signal(signal.SIGTTIN, signal.SIG_IGN),
+        signal.signal(signal.SIGTTOU, signal.SIG_IGN),
+    )
+
+
+def restore_stop_signals(previous: tuple[Any, Any]) -> None:
+    signal.signal(signal.SIGTTIN, previous[0])
+    signal.signal(signal.SIGTTOU, previous[1])
+
+
+def give_foreground(tty_fd: int | None, pgrp: int) -> int | None:
+    if tty_fd is None:
+        return None
+    try:
+        previous = os.tcgetpgrp(tty_fd)
+        os.tcsetpgrp(tty_fd, pgrp)
+    except OSError:
+        return None
+    return previous
+
+
+def restore_foreground(tty_fd: int | None, pgrp: int | None) -> None:
+    if tty_fd is None or pgrp is None:
+        return
+    try:
+        os.tcsetpgrp(tty_fd, pgrp)
+    except OSError:
+        return
+
+
+def run_in_foreground(command: list[str], pid_box: list[int | None], tty_fd: int | None) -> int:
+    pid = os.fork()
+    if pid == 0:
+        os.setpgid(0, 0)
+        exec_python(command)
+    separate_child_group(pid)
+    pid_box[0] = pid
+    saved = give_foreground(tty_fd, pid)
+    try:
+        return wait_child(pid)
+    finally:
+        restore_foreground(tty_fd, saved)
+
+
 def separate_child_group(pid: int) -> None:
     try:
         os.setpgid(pid, pid)
@@ -522,6 +581,46 @@ def install_child_forwarders(pid_box: list[int | None]) -> tuple[Any, Any]:
 def restore_signals(previous: tuple[Any, Any]) -> None:
     signal.signal(signal.SIGINT, previous[0])
     signal.signal(signal.SIGTERM, previous[1])
+
+
+def enter_controlling_tty(slave: int, master: int, command: list[str]) -> None:
+    os.setsid()
+    os.close(master)
+    try:
+        fcntl.ioctl(slave, termios.TIOCSCTTY, 0)
+    except OSError:
+        os._exit(127)
+    os.dup2(slave, 0)
+    os.dup2(slave, 1)
+    os.dup2(slave, 2)
+    if slave > 2:
+        os.close(slave)
+    exec_python(command)
+
+
+def wait_bounded(pid: int, seconds: float) -> int:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        child, status = os.waitpid(pid, os.WNOHANG)
+        if child == pid:
+            return exit_code_from_status(status)
+        time.sleep(0.05)
+    os.kill(pid, signal.SIGKILL)
+    _child, status = os.waitpid(pid, 0)
+    return exit_code_from_status(status)
+
+
+def run_with_controlling_tty(command: list[str], payload: bytes, seconds: float = 3.0) -> int:
+    master, slave = pty.openpty()
+    pid = os.fork()
+    if pid == 0:
+        enter_controlling_tty(slave, master, command)
+    os.close(slave)
+    os.write(master, payload)
+    try:
+        return wait_bounded(pid, seconds)
+    finally:
+        os.close(master)
 
 
 def request_exit(session: dict[str, Any]) -> None:

@@ -54,11 +54,12 @@ from f0_sampler_support import (
     check_gpu_index,
     check_max_samples,
     check_run_id,
+    controlling_tty,
     duration_ns,
     ensure_new_run,
-    exec_python,
     make_overhead,
     make_skew,
+    ignore_stop_signals,
     observation_from,
     pid_alive,
     read_json,
@@ -68,10 +69,10 @@ from f0_sampler_support import (
     restore_signals,
     refusal_reason,
     request_exit,
+    restore_stop_signals,
+    run_in_foreground,
     run_paths,
-    separate_child_group,
     silence_stdio,
-    wait_child,
     write_json,
     write_refusal,
 )
@@ -442,17 +443,13 @@ def run_argv(argv: list[str]) -> int:
     launch = "import os, sys; os.execvp(sys.argv[1], sys.argv[1:])"
     command = ["python3", "-c", launch, *argv]
     pid_box: list[int | None] = [None]
-    previous = install_child_forwarders(pid_box)
+    forwarded = install_child_forwarders(pid_box)
+    stopped = ignore_stop_signals()
     try:
-        pid = os.fork()
-        if pid == 0:
-            os.setpgid(0, 0)
-            exec_python(command)
-        separate_child_group(pid)
-        pid_box[0] = pid
-        return wait_child(pid)
+        return run_in_foreground(command, pid_box, controlling_tty())
     finally:
-        restore_signals(previous)
+        restore_stop_signals(stopped)
+        restore_signals(forwarded)
 
 
 def join_timeout(opts: SampleOptions) -> float:
