@@ -324,16 +324,13 @@ def write_session(armed: ArmResult, opts: SampleOptions, pid: int | None, status
 
 def spawn_loop(session_path: Path) -> int:
     script = str(Path(__file__).resolve())
-    pid = os.spawnvp(
-        os.P_NOWAIT,
-        "python3",
-        ["python3", script, "loop", "--session", str(session_path)],
-    )
-    try:
-        os.setpgid(pid, pid)
-    except OSError:
+    argv = ["python3", script, "loop", "--session", str(session_path)]
+    pid = os.fork()
+    if pid != 0:
         return pid
-    return pid
+    os.setsid()
+    os.execvp("python3", argv)  # nosec B606 — literal interpreter, not a shell
+    raise SystemExit(127)
 
 
 def start_session(opts: SampleOptions) -> int:
@@ -435,11 +432,10 @@ def take_first_sample(state: LoopState) -> None:
 def run_argv(argv: list[str]) -> int:
     launch = "import os, sys; os.execvp(sys.argv[1], sys.argv[1:])"
     command = ["python3", "-c", launch, *argv]
-    try:
-        pid = os.spawnvp(os.P_NOWAIT, "python3", command)
-    except OSError as error:
-        print(error, file=sys.stderr)
-        return 127
+    pid = os.fork()
+    if pid == 0:
+        os.execvp("python3", command)  # nosec B606 — literal interpreter, not a shell
+        raise SystemExit(127)
     _child, status = os.waitpid(pid, 0)
     return os.waitstatus_to_exitcode(status)
 
