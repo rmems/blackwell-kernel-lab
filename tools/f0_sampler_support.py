@@ -1,7 +1,7 @@
 """Clocks, session files, and overhead math for the per-run GPU sampler.
 
 Kept separate so the sampler module stays under the file-length limit.
-No CUDA context and no trainer process.
+No CUDA context. The trainer fork lives here so the sampler file stays short.
 """
 
 from __future__ import annotations
@@ -481,74 +481,21 @@ def exec_python(command: list[str]) -> None:
         os._exit(127)
 
 
-def controlling_tty() -> int | None:
-    try:
-        attached = os.isatty(0)
-    except OSError:
-        return None
-    if attached:
-        return 0
-    return None
+_CHILD_SIGNALS = (
+    signal.SIGPIPE, signal.SIGTTIN, signal.SIGTTOU, signal.SIGXFSZ, signal.SIGINT, signal.SIGTERM,
+)
+
+# python3 -c ignores SIGPIPE and SIGXFSZ. Reset again immediately before the trainer exec.
+TRAINER_LAUNCH = (
+    "import os,signal,sys\n"
+    "for sig in (signal.SIGPIPE,signal.SIGTTIN,signal.SIGTTOU,signal.SIGXFSZ,signal.SIGINT,signal.SIGTERM):\n"
+    " signal.signal(sig, signal.SIG_DFL)\nos.execvp(sys.argv[1], sys.argv[1:])\n"
+)
 
 
-def ignore_stop_signals() -> tuple[Any, Any]:
-    return (
-        signal.signal(signal.SIGTTIN, signal.SIG_IGN),
-        signal.signal(signal.SIGTTOU, signal.SIG_IGN),
-    )
-
-
-def restore_stop_signals(previous: tuple[Any, Any]) -> None:
-    signal.signal(signal.SIGTTIN, previous[0])
-    signal.signal(signal.SIGTTOU, previous[1])
-
-
-def give_foreground(tty_fd: int | None, pgrp: int) -> int | None:
-    if tty_fd is None:
-        return None
-    try:
-        previous = os.tcgetpgrp(tty_fd)
-        os.tcsetpgrp(tty_fd, pgrp)
-    except OSError:
-        return None
-    return previous
-
-
-def restore_foreground(tty_fd: int | None, pgrp: int | None) -> None:
-    if tty_fd is None or pgrp is None:
-        return
-    try:
-        os.tcsetpgrp(tty_fd, pgrp)
-    except OSError:
-        return
-
-
-def run_in_foreground(command: list[str], pid_box: list[int | None], tty_fd: int | None) -> int:
-    pid = os.fork()
-    if pid == 0:
-        os.setpgid(0, 0)
-        exec_python(command)
-    separate_child_group(pid)
-    pid_box[0] = pid
-    saved = give_foreground(tty_fd, pid)
-    try:
-        return wait_child(pid)
-    finally:
-        restore_foreground(tty_fd, saved)
-
-
-def separate_child_group(pid: int) -> None:
-    try:
-        os.setpgid(pid, pid)
-    except OSError:
-        return
-
-
-def forward_signal(pid: int, signum: int) -> None:
-    try:
-        os.killpg(pid, signum)
-    except OSError:
-        return
+def reset_child_signals() -> None:
+    for signum in _CHILD_SIGNALS:
+        signal.signal(signum, signal.SIG_DFL)
 
 
 def exit_code_from_status(status: int) -> int:
@@ -558,22 +505,28 @@ def exit_code_from_status(status: int) -> int:
 
 
 def wait_child(pid: int) -> int:
+    killed_stop = False
     while True:
         try:
-            _child, status = os.waitpid(pid, 0)
+            _child, status = os.waitpid(pid, os.WUNTRACED)
         except InterruptedError:
             continue
-        return exit_code_from_status(status)
+        if not os.WIFSTOPPED(status):
+            return exit_code_from_status(status)
+        if killed_stop:
+            return 128 + int(os.WSTOPSIG(status))
+        killed_stop = True
+        signal_pid(pid, signal.SIGKILL)
 
 
-def install_child_forwarders(pid_box: list[int | None]) -> tuple[Any, Any]:
-    def handle(signum: int, _frame: Any) -> None:
+def install_term_forwarder(pid_box: list[int | None]) -> tuple[Any, Any]:
+    def handle(_signum: int, _frame: Any) -> None:
         child = pid_box[0]
         if isinstance(child, int):
-            forward_signal(child, signum)
+            signal_pid(child, signal.SIGTERM)
 
     return (
-        signal.signal(signal.SIGINT, handle),
+        signal.signal(signal.SIGINT, signal.SIG_IGN),
         signal.signal(signal.SIGTERM, handle),
     )
 
@@ -581,6 +534,22 @@ def install_child_forwarders(pid_box: list[int | None]) -> tuple[Any, Any]:
 def restore_signals(previous: tuple[Any, Any]) -> None:
     signal.signal(signal.SIGINT, previous[0])
     signal.signal(signal.SIGTERM, previous[1])
+
+
+def run_trainer(argv: list[str]) -> int:
+    """Run argv in this process group. Ignore SIGINT; forward only SIGTERM."""
+    command = ["python3", "-c", TRAINER_LAUNCH, *argv]
+    pid_box: list[int | None] = [None]
+    forwarded = install_term_forwarder(pid_box)
+    try:
+        pid = os.fork()
+        if pid == 0:
+            reset_child_signals()
+            exec_python(command)
+        pid_box[0] = pid
+        return wait_child(pid)
+    finally:
+        restore_signals(forwarded)
 
 
 def enter_controlling_tty(slave: int, master: int, command: list[str]) -> None:
@@ -621,6 +590,60 @@ def run_with_controlling_tty(command: list[str], payload: bytes, seconds: float 
         return wait_bounded(pid, seconds)
     finally:
         os.close(master)
+
+
+def _exec_head(read_fd: int, write_fd: int) -> None:
+    os.dup2(read_fd, 0)
+    os.close(read_fd)
+    os.close(write_fd)
+    null_fd = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(null_fd, 1)
+    os.dup2(null_fd, 2)
+    os.close(null_fd)
+    try:
+        os.execvp("head", ["head", "-n", "1"])  # nosec B606 — literal head, not a shell
+    except OSError:
+        os._exit(127)
+
+
+def _restore_fd(target: int, saved: int) -> None:
+    os.dup2(saved, target)
+    os.close(saved)
+
+
+def _reap_pid(pid: int) -> None:
+    signal_pid(pid, signal.SIGKILL)
+    try:
+        os.waitpid(pid, 0)
+    except ChildProcessError:
+        return
+
+
+def run_writing_to_head(invoke: Any) -> tuple[int, bytes]:
+    """Run invoke with stdout piped to ``head -n 1`` and capture stderr."""
+    read_fd, write_fd = os.pipe()
+    err_read, err_write = os.pipe()
+    head = os.fork()
+    if head == 0:
+        os.close(err_read)
+        os.close(err_write)
+        _exec_head(read_fd, write_fd)
+    os.close(read_fd)
+    saved_out = os.dup(1)
+    saved_err = os.dup(2)
+    os.dup2(write_fd, 1)
+    os.dup2(err_write, 2)
+    os.close(write_fd)
+    os.close(err_write)
+    try:
+        code = int(invoke())
+    finally:
+        _restore_fd(1, saved_out)
+        _restore_fd(2, saved_err)
+        _reap_pid(head)
+        err = os.read(err_read, 65536)
+        os.close(err_read)
+    return code, err
 
 
 def request_exit(session: dict[str, Any]) -> None:

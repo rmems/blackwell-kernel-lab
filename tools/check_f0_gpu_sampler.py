@@ -19,7 +19,7 @@ from typing import Any
 import check_f0_correlation as f0corr
 import f0_clock
 import f0_gpu_sampler as sampler
-from f0_sampler_support import free_mib, run_with_controlling_tty, stat_state
+from f0_sampler_support import free_mib, run_with_controlling_tty, run_writing_to_head, stat_state
 from f0_efficiency_numbers import HEADROOM_FLOOR_MIB, field_block
 from f0_gpu_sample import COLLECTOR_ID
 from f0_measurements import PHYSICAL, SchemaError
@@ -421,19 +421,23 @@ _SIGNAL_CHILD = (
     "    signal.signal(signum, signal.SIG_DFL)\n"
     "    os.kill(os.getpid(), signum)\n"
     "signal.signal(signum, on_signal)\n"
-    "path.write_text(f'ready {os.getpgrp()}')\n"
+    "path.write_text(f'ready {os.getpid()} {os.getpgrp()}')\n"
     "time.sleep(30)\n"
 )
 
 
 def signal_when_ready(path: Path, signum: int) -> None:
     deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        if path.is_file() and path.read_text(encoding="utf-8").startswith("ready "):
-            os.kill(os.getpid(), signum)
-            return
+    text = ""
+    while time.monotonic() < deadline and not text.startswith("ready "):
+        text = path.read_text(encoding="utf-8") if path.is_file() else ""
         time.sleep(0.02)
-    raise CheckError(f"child did not become ready for signal {signum}")
+    if not text.startswith("ready "):
+        raise CheckError(f"child did not become ready for signal {signum}")
+    if signum == signal.SIGINT:
+        os.killpg(os.getpgrp(), signum)
+        return
+    os.kill(os.getpid(), signum)
 
 
 def run_cli(tmp: Path, run_id: str, *command: str) -> int:
@@ -454,7 +458,7 @@ def run_signaled(tmp: Path, run_id: str, signum: int, expected: int) -> None:
     require(code == expected, f"{name} exit {code}, expected {expected}")
     recorded = marker.read_text(encoding="utf-8")
     count, child_group = recorded.split()[1:]
-    require(count == "1" and int(child_group) != os.getpgrp(), f"{name} delivery {recorded}")
+    require(count == "1" and int(child_group) == os.getpgrp(), f"{name} delivery {recorded}")
     skew = run_dir(tmp, run_id) / "clock-skew.json"
     require(skew.is_file(), f"{name} final record missing")
 
@@ -473,11 +477,26 @@ def check_tty_stdin_read(tmp: Path) -> None:
 
 
 def check_forward_sigint(tmp: Path) -> None:
+    if os.getpgrp() != os.getpid():
+        os.setpgrp()
     run_signaled(tmp, "sigint", signal.SIGINT, 128 + signal.SIGINT)
 
 
 def check_forward_sigterm(tmp: Path) -> None:
     run_signaled(tmp, "sigterm", signal.SIGTERM, 128 + signal.SIGTERM)
+
+
+def check_sigpipe_head(tmp: Path) -> None:
+    code, err = run_writing_to_head(lambda: run_cli(tmp, "sigpipe", "yes"))
+    quiet = code == 128 + signal.SIGPIPE and b"Traceback" not in err and b"Broken pipe" not in err
+    require(quiet and (run_dir(tmp, "sigpipe") / "clock-skew.json").is_file(), f"sigpipe {code} {err!r}")
+
+
+def check_stopped_child(tmp: Path) -> None:
+    script = "import os,signal; os.kill(os.getpid(), signal.SIGSTOP)"
+    code = run_cli(tmp, "stopped", sys.executable, "-c", script)
+    saved = (run_dir(tmp, "stopped") / "clock-skew.json").is_file()
+    require(code == 128 + signal.SIGKILL and saved, f"stopped child exit {code}")
 
 
 def check_run_command_exit(tmp: Path) -> None:
@@ -504,26 +523,11 @@ def wait_for_sample(path: Path) -> None:
 
 
 def check_start_stop_process(tmp: Path) -> None:
-    code = sampler.main(
-        [
-            "f0_gpu_sampler.py",
-            "start",
-            "--run-id",
-            "proc",
-            "--out",
-            str(tmp),
-            "--fake",
-            "full-support",
-            "--hostname",
-            "ShipOfTheseus",
-            "--cadence-ms",
-            "30",
-            "--max-duration-s",
-            "4",
-            "--max-samples",
-            "40",
-        ]
-    )
+    base = [
+        "f0_gpu_sampler.py", "--run-id", "proc", "--out", str(tmp), "--fake", "full-support",
+        "--hostname", "ShipOfTheseus", "--cadence-ms", "30", "--max-duration-s", "4", "--max-samples", "40",
+    ]
+    code = sampler.main([base[0], "start", *base[1:]])
     directory = run_dir(tmp, "proc")
     try:
         require(code == 0, "start exit")
@@ -531,11 +535,10 @@ def check_start_stop_process(tmp: Path) -> None:
         pid = session["pid"]
         require(isinstance(pid, int) and sampler.pid_alive(pid), "sampler process is running")
         wait_for_sample(directory / "samples.jsonl")
-        stopped = sampler.main(["f0_gpu_sampler.py", "stop", "--run-id", "proc", "--out", str(tmp)])
-        require(stopped == 0, "stop exit")
-        require(not sampler.pid_alive(pid), "stop exits the sampler process")
+        stopped = sampler.main([base[0], "stop", "--run-id", "proc", "--out", str(tmp)])
+        require(stopped == 0 and not sampler.pid_alive(pid), "stop exits the sampler process")
     finally:
-        sampler.main(["f0_gpu_sampler.py", "stop", "--run-id", "proc", "--out", str(tmp)])
+        sampler.main([base[0], "stop", "--run-id", "proc", "--out", str(tmp)])
     samples = load_samples(directory)
     require(samples, "process wrote samples")
     for sample in samples:
@@ -543,11 +546,10 @@ def check_start_stop_process(tmp: Path) -> None:
         assert_null_when_missing(sample)
     skew = json.loads((directory / "clock-skew.json").read_text(encoding="utf-8"))
     f0_clock.check_clock_skew_record(skew)
-    again = sampler.main(["f0_gpu_sampler.py", "stop", "--run-id", "proc", "--out", str(tmp)])
+    again = sampler.main([base[0], "stop", "--run-id", "proc", "--out", str(tmp)])
     require(again == 0, "second stop is safe")
     session = json.loads((directory / "session.json").read_text(encoding="utf-8"))
-    require(session["status"] == "stopped", "session stopped")
-    require(session["pid"] is None, "pid cleared")
+    require(session["status"] == "stopped" and session["pid"] is None, "session stopped")
 
 
 def check_join_phase_from_marker(tmp: Path) -> None:
@@ -582,6 +584,8 @@ CASES = (
     ("tty_stdin_read", check_tty_stdin_read),
     ("forward_sigint", check_forward_sigint),
     ("forward_sigterm", check_forward_sigterm),
+    ("sigpipe_head", check_sigpipe_head),
+    ("stopped_child", check_stopped_child),
     ("run_command_exit", check_run_command_exit),
     ("start_stop_process", check_start_stop_process),
     ("join_phase_from_marker", check_join_phase_from_marker),

@@ -54,24 +54,19 @@ from f0_sampler_support import (
     check_gpu_index,
     check_max_samples,
     check_run_id,
-    controlling_tty,
     duration_ns,
     ensure_new_run,
     make_overhead,
     make_skew,
-    ignore_stop_signals,
     observation_from,
     pid_alive,
     read_json,
-    install_child_forwarders,
     read_jsonl,
     refusal_code,
-    restore_signals,
     refusal_reason,
     request_exit,
-    restore_stop_signals,
-    run_in_foreground,
     run_paths,
+    run_trainer,
     silence_stdio,
     write_json,
     write_refusal,
@@ -440,16 +435,7 @@ def take_first_sample(state: LoopState) -> None:
 
 
 def run_argv(argv: list[str]) -> int:
-    launch = "import os, sys; os.execvp(sys.argv[1], sys.argv[1:])"
-    command = ["python3", "-c", launch, *argv]
-    pid_box: list[int | None] = [None]
-    forwarded = install_child_forwarders(pid_box)
-    stopped = ignore_stop_signals()
-    try:
-        return run_in_foreground(command, pid_box, controlling_tty())
-    finally:
-        restore_stop_signals(stopped)
-        restore_signals(forwarded)
+    return run_trainer(argv)
 
 
 def join_timeout(opts: SampleOptions) -> float:

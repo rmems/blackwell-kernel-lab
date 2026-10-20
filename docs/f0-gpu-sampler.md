@@ -44,6 +44,13 @@ python3 tools/f0_gpu_sampler.py run --run-id <id> -- <command...>
 then stops, including when the command exits non-zero. It does not parse
 Agoge configs or own the trainer. The recipe uses `start` / `stop`.
 
+The trainer stays in `run`'s process group. There is no `setpgid` and no
+terminal handover. While `run` waits it ignores SIGINT, so a terminal
+Ctrl+C reaches the trainer once. It forwards only SIGTERM, to that child.
+Before exec, the child restores SIGPIPE, SIGTTIN, SIGTTOU, SIGXFSZ, SIGINT,
+and SIGTERM to `SIG_DFL`. A stopped child is killed so the bracket can
+still write `clock-skew.json` and `overhead.json`.
+
 Samples copy `capability_digest`, host, and GPU identity from the snapshot.
 `profile_window_ref` stays null. Phase, step, and token counters are not
 inferred from utilization. Join them from Agoge's
