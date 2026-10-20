@@ -20,6 +20,13 @@ Ensure the Actions runner is online before expecting `ci-gpu` to pick jobs:
 sudo systemctl status actions.runner.*   # or: cd ~/actions-runner && ./svc.sh status
 ```
 
+The same labels are what a WSL2 Ubuntu 24.04 install on this RTX 5080 must
+register. Setup is [`scripts/setup-wsl-gpu-runner.sh`](../scripts/setup-wsl-gpu-runner.sh)
+and [`recipes/wsl-gpu-runner.md`](../recipes/wsl-gpu-runner.md). That path
+does not change the labels or the GPU gate. `nvcc`, a GCC 6–15 host
+compiler, and (for the sanitizer workflow) `compute-sanitizer` are still
+required inside the distro; the Windows driver does not provide them.
+
 Re-register / label docs: [GitHub self-hosted runners](https://docs.github.com/en/actions/hosting-your-own-runners).
 
 ## Required checks and main delivery
