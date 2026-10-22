@@ -137,9 +137,12 @@ refuse_repo_root() {
 }
 
 download_runner() {
-  local archive url stamp
+  local archive url stamp deps
   stamp="${RUNNER_ROOT}/.bkl-runner-version"
-  if [[ -x "${RUNNER_ROOT}/config.sh" && -f "$stamp" ]] && [[ "$(tr -d '[:space:]' <"$stamp")" == "$RUNNER_VERSION" ]]; then
+  deps="${RUNNER_ROOT}/.bkl-runner-deps"
+  if [[ -x "${RUNNER_ROOT}/config.sh" && -f "$stamp" && -f "$deps" ]] \
+    && [[ "$(tr -d '[:space:]' <"$stamp")" == "$RUNNER_VERSION" ]] \
+    && [[ "$(tr -d '[:space:]' <"$deps")" == "$RUNNER_VERSION" ]]; then
     echo "actions/runner ${RUNNER_VERSION} already extracted in ${RUNNER_ROOT}"
     return 0
   fi
@@ -160,23 +163,26 @@ install_runner_libraries() {
   # installdependencies.sh lives in a directory the runner user (and therefore
   # any GPU job) can write. Only run it as root straight after a verified
   # extraction; never re-run a reused copy with sudo.
+  # .bkl-runner-deps is separate from the version stamp. A failed install
+  # leaves it absent, and the next run re-extracts the verified archive first.
   if [[ "$RUNNER_FRESH" != "1" ]]; then
     echo "skipping installdependencies.sh: runner files were reused, not freshly verified"
     return 0
   fi
   echo "installing actions/runner library dependencies (not an NVIDIA driver)"
   as_root "${RUNNER_ROOT}/bin/installdependencies.sh"
+  printf '%s\n' "$RUNNER_VERSION" >"${RUNNER_ROOT}/.bkl-runner-deps"
 }
 
 drop_local_registration() {
   # config.sh refuses an already-configured directory even with --replace.
-  # Stop the unit, then remove only the local registration files; --replace
-  # then takes over the server-side runner with the same name.
+  # Stop and uninstall the unit first. Registration files are removed only
+  # after that succeeds, so a live service is not left pointing at deleted files.
   (
     cd "$RUNNER_ROOT"
     if [[ -f .service && -x ./svc.sh ]] && systemd_booted; then
-      as_root ./svc.sh stop || true
-      as_root ./svc.sh uninstall || true
+      as_root ./svc.sh stop
+      as_root ./svc.sh uninstall
     fi
     rm -f .runner .credentials .credentials_rsaparams .service
   )

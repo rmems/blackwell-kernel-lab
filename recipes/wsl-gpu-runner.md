@@ -50,10 +50,14 @@ process only. The script unsets it after `config.sh` and never writes it
 into the repo. The runner files live in `$HOME/actions-runner` unless
 `RUNNER_ROOT` points somewhere else **outside** the git checkout.
 
-Re-running the script is safe. It skips download when
-`.bkl-runner-version` matches, and it skips registration when `.runner`
-already exists. Set `RUNNER_REPLACE=1` plus a new token to replace the
-registration. `RUNNER_NAME` defaults to `ShipOfTheseus`.
+Re-running the script is safe. It skips download when both
+`.bkl-runner-version` and `.bkl-runner-deps` match this release. A failed
+`installdependencies.sh` leaves the deps stamp absent, so the next run
+verifies the archive again, extracts it, and retries that install.
+Registration is skipped when `.runner` already exists. Set `RUNNER_REPLACE=1`
+plus a new token to replace it. Replacement stops if `svc.sh stop` or
+`svc.sh uninstall` fails, and it does not delete the local registration
+files until both succeed. `RUNNER_NAME` defaults to `ShipOfTheseus`.
 
 ### systemd
 
