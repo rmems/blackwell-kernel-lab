@@ -84,6 +84,25 @@ sets `overhead_ok` when the median `collect_duration_ns` is at most
 `overhead_ratio` and `overhead_ok` null. CPU fakes measure this accounting;
 they are not the ShipOfTheseus overhead number.
 
+### Live NVML smoke on ShipOfTheseus (no training)
+
+2026-10-21, WSL2 Ubuntu 24.04, RTX 5080 (`12.0`), Windows driver 617.14.
+`run --run-id live-smoke-20261021 --cadence-ms 1000 -- sleep 15`, so the
+GPU was near idle. This shows the live backend works and what one read
+costs. It is **not** the training-load overhead number; that still comes
+from the MiniCPM5 canary in `recipes/f0-gpu-sampler.md`.
+
+| Field | Value |
+|---|---|
+| samples | 16 |
+| median / max `collect_duration_ns` | 3.02 ms / 249 ms (first read, NVML init) |
+| `overhead_ratio` | 0.0030 (`overhead_ok: true`) |
+| median / max `jitter_ns` | 4.7 µs / 0.50 ms |
+| min headroom | 11357 MiB (`floor_held: true`) |
+
+Every physical metric read `ok` except `temperature_memory`, which this
+driver reports as `unsupported` and the sample keeps as null.
+
 ## Headroom
 
 The host floor is **2048 MiB** free (`docs/HOST_BASELINE.md`). `start`

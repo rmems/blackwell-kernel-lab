@@ -27,6 +27,7 @@ CPU_FILES = {
     "tools/check_nvml_capability.py",
     "tools/f0_clock.py", "tools/f0_efficiency_compare.py",
     "tools/f0_gpu_sample.py", "tools/f0_gpu_sampler.py", "tools/f0_sampler_support.py",
+    "tools/f0_sampler_harness.py",
     "tools/f0_efficiency_numbers.py", "tools/f0_efficiency_report.py",
     "tools/f0_measurements.py", "tools/nvml_capability.py", "tools/nvml_fakes.py",
     "tools/nvml_live.py", "tools/nvml_schema.py", "tools/summarize_f0_efficiency.py",

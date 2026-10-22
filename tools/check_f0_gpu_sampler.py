@@ -19,7 +19,8 @@ from typing import Any
 import check_f0_correlation as f0corr
 import f0_clock
 import f0_gpu_sampler as sampler
-from f0_sampler_support import bash_stop_and_fg, free_mib, run_with_controlling_tty, run_writing_to_head, stat_state
+from f0_sampler_harness import CachingFree, StopsMidRead, bash_stop_and_fg, run_with_controlling_tty, run_writing_to_head
+from f0_sampler_support import free_mib, stat_state
 from f0_efficiency_numbers import HEADROOM_FLOOR_MIB, field_block
 from f0_gpu_sample import COLLECTOR_ID
 from f0_measurements import PHYSICAL, SchemaError
@@ -339,33 +340,6 @@ def check_max_duration(tmp: Path) -> None:
     require(len(samples) == 2, f"duration bound should stop at 2 samples, got {len(samples)}")
 
 
-class CachingFree:
-    """Returns a new free-MiB reading only after begin_reading."""
-
-    def __init__(self) -> None:
-        self.inner = FakeNvmlBackend("full-support")
-        self.cached: int | None = None
-        self.generation = 14000
-
-    def begin_reading(self) -> None: self.cached = None
-
-    def gpu_count(self) -> int: return self.inner.gpu_count()
-
-    def identity(self, index: int) -> Any: return self.inner.identity(index)
-
-    def versions(self) -> Any: return self.inner.versions()
-
-    def read_throttle(self, index: int) -> list[str]: return self.inner.read_throttle(index)
-
-    def read_numeric(self, index: int, metric: str) -> int | float:
-        if metric != "vram_free":
-            return self.inner.read_numeric(index, metric)
-        if self.cached is None:
-            self.generation -= 10
-            self.cached = self.generation
-        return self.cached
-
-
 def check_vram_cache_resets(tmp: Path) -> None:
     opts = options(tmp, "cache", fake=None, max_samples=3)
     code = sampler.sample_run(opts, backend=CachingFree(), clock=clock())
@@ -555,29 +529,6 @@ def check_join_phase_from_marker(tmp: Path) -> None:
     pairs = f0corr.join_samples(markers, samples)
     require(len(pairs) == len(samples), "every sample joins a marker")
     require(all(marker["phase"] == "train" for marker, _sample in pairs), "phase comes from the marker")
-
-
-
-class StopsMidRead:
-    """Sets the stop event during the first physical read, as a stop racing a slow NVML call would."""
-
-    def __init__(self, event: threading.Event) -> None:
-        self.inner = FakeNvmlBackend("full-support")
-        self.event = event
-        self.armed = False
-
-    def gpu_count(self) -> int: return self.inner.gpu_count()
-
-    def identity(self, index: int) -> Any: return self.inner.identity(index)
-
-    def versions(self) -> Any: return self.inner.versions()
-
-    def read_throttle(self, index: int) -> list[str]: return self.inner.read_throttle(index)
-
-    def read_numeric(self, index: int, metric: str) -> int | float:
-        if self.armed:
-            self.event.set()
-        return self.inner.read_numeric(index, metric)
 
 
 def check_stop_during_read_drops_sample(tmp: Path) -> None:
