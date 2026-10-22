@@ -160,8 +160,11 @@ def run_paths(directory: Path) -> dict[str, Path]:
 
 
 def write_json(path: Path, obj: dict[str, Any]) -> None:
+    """Write a sibling temp file and rename it, so a concurrent reader never sees a partial object."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, indent=2, sort_keys=True) + "\n")
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(obj, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def append_jsonl(path: Path, obj: dict[str, Any]) -> None:
@@ -653,17 +656,37 @@ def _drain_pty(master: int, seconds: float, chunks: list[bytes], marker: bytes |
         if marker is not None and marker in b"".join(chunks): return
 
 
-def bash_stop_and_fg(line: bytes) -> bytes:
+def _drain_until_file(master: int, seconds: float, chunks: list[bytes], ready: Path) -> None:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline and not ready.exists():
+        _drain_pty(master, 0.05, chunks, None)
+
+
+def bash_stop_and_fg(line: bytes, ready: Path | None = None) -> bytes:
+    """Run line in an interactive job shell, Ctrl+Z it, then ``fg``.
+
+    With ``ready``, Ctrl+Z waits until that file exists (the trainer has
+    started) instead of a fixed delay, so the stop lands in ``wait_child``.
+    """
     master, slave = pty.openpty()
     pid = os.fork()
     if pid == 0:
         _exec_job_shell(slave, master)
     os.close(slave)
     chunks: list[bytes] = []
-    os.write(master, line); _drain_pty(master, 0.7, chunks, None)
-    os.write(master, b"\x1a"); _drain_pty(master, 2.0, chunks, b"Stopped")
-    os.write(master, b"fg\n"); _drain_pty(master, 5.0, chunks, b"\nSURVIVED")
-    os.kill(pid, signal.SIGKILL); os.waitpid(pid, 0); os.close(master)
+    os.write(master, line)
+    if ready is None:
+        _drain_pty(master, 0.7, chunks, None)
+    else:
+        _drain_until_file(master, 10.0, chunks, ready)
+        _drain_pty(master, 0.1, chunks, None)
+    os.write(master, b"\x1a")
+    _drain_pty(master, 2.0, chunks, b"Stopped")
+    os.write(master, b"fg\n")
+    _drain_pty(master, 5.0, chunks, b"\nSURVIVED")
+    os.kill(pid, signal.SIGKILL)
+    os.waitpid(pid, 0)
+    os.close(master)
     return b"".join(chunks)
 
 

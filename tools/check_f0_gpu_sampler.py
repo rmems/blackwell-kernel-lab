@@ -475,13 +475,18 @@ def check_sigpipe_head(tmp: Path) -> None:
 def check_ctrl_z_fg(tmp: Path) -> None:
     # The AND list has to be one job. An interactive shell treats a stop as status
     # 148 and would skip a top-level `&& echo`.
+    # The trainer touches a ready file before sleeping, so Ctrl+Z lands while
+    # `run` is in wait_child rather than during Python startup.
     tool = str(Path(sampler.__file__).resolve())
+    ready = tmp / "sigtstp.ready"
     command = (
         "bash -c '"
         f"python3 {tool} run --run-id sigtstp --out {tmp} --fake full-support "
-        "--hostname ShipOfTheseus --cadence-ms 50 --max-duration-s 12 -- sleep 2 && echo SURVIVED'\n"
+        "--hostname ShipOfTheseus --cadence-ms 50 --max-duration-s 12 -- "
+        f'sh -c "touch {ready}; exec sleep 2" && echo SURVIVED\'\n'
     )
-    output = bash_stop_and_fg(command.encode())
+    output = bash_stop_and_fg(command.encode(), ready)
+    require(ready.exists(), "trainer never reached its ready point")
     lines = [line.strip() for line in output.replace(b"\r\n", b"\n").replace(b"\r", b"\n").split(b"\n")]
     require(b"Stopped" in output and b"SURVIVED" in lines, f"ctrl-z fg {output!r}")
     require((run_dir(tmp, "sigtstp") / "clock-skew.json").is_file(), "ctrl-z final record")
@@ -593,7 +598,11 @@ def check_stop_during_read_drops_sample(tmp: Path) -> None:
 def check_atomic_session_write(tmp: Path) -> None:
     target = tmp / "atomic" / "session.json"
     sampler.write_json(target, {"status": "running", "pid": None})
-    sampler.write_json(target, {"status": "running", "pid": 4242})
+    # A reader that opened the file before the rewrite must still see the whole
+    # old object. An in-place truncate+write would hand it an empty or new body.
+    with target.open(encoding="utf-8") as early_reader:
+        sampler.write_json(target, {"status": "running", "pid": 4242})
+        require(json.loads(early_reader.read())["pid"] is None, "rewrite must replace, not truncate in place")
     require(sampler.read_json(target)["pid"] == 4242, "rewrite must land")
     leftovers = [path.name for path in target.parent.iterdir() if path.name != "session.json"]
     require(not leftovers, f"atomic write left temp files: {leftovers}")
