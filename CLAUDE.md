@@ -50,7 +50,7 @@ Before pushing, run the CPU rows that match the files you touched; the GPU jobs 
 - GPU workflows wait for at least 2 GiB free VRAM (`kernels/tools/wait_gpu_headroom.sh 2048 600 30`); keep that floor.
 - NVML capability checks treat missingness as distinct from zero (`ci-cpu.yml`: "missingness != zero"); keep "missing" distinct from `0`.
 - Source files here do not use SPDX headers; do not add them.
-- No manifest or publish list exists (no `Cargo.toml`, `pyproject.toml`, or `package.json`), so there is nothing to exclude `CLAUDE.md` from.
+- No manifest or publish list exists (no `Cargo.toml`, `pyproject.toml`, or `package.json`). `.codacy.yml` excludes `CLAUDE.md` from Codacy only; it is not in `CPU_FILES` in `tools/gpu_ci_gate.py`, so `needs_gpu('.codacy.yml')` is `True` and a PR that touches it is treated as GPU-relevant.
 
 ## Gotchas
 
