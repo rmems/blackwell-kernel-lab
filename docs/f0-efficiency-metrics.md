@@ -43,7 +43,8 @@ There is no per-model branch.
 
 Physical fields keep the #52 rule: **missing ≠ zero**. `unavailable` /
 `unsupported` / `invalid` never enter min/max/mean and never become `0 W` or
-`0 MiB`.
+`0 MiB`. `permission_denied`, `transient_failure`, and `device_lost` count
+as `invalid` in these blocks.
 
 ## Aggregation rules
 

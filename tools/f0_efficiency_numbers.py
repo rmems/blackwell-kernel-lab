@@ -71,15 +71,18 @@ def empty_status_counts() -> dict[str, int]:
     return {"ok": 0, "unavailable": 0, "unsupported": 0, "invalid": 0}
 
 
+def tally_bucket(status: str) -> str:
+    if status in ("ok", "unavailable", "unsupported"):
+        return status
+    return "invalid"
+
+
 def tally_status(counts: dict[str, int], obj: Any) -> None:
     status = measurement_status(obj)
-    if status is None:
+    if status is None or (status == "ok" and ok_value(obj) is None):
         counts["invalid"] += 1
         return
-    if status == "ok" and ok_value(obj) is None:
-        counts["invalid"] += 1
-        return
-    counts[status] += 1
+    counts[tally_bucket(status)] += 1
 
 
 def collect_ok_values(samples: list[dict[str, Any]], field: str) -> tuple[list[float], dict[str, int]]:

@@ -64,7 +64,8 @@ monotonic order; wall-clock jumps are refused or marked degraded. BKL does
 not infer train phases from GPU load. CPU fixtures live under
 `fixtures/f0-correlation/`. NVML capability discovery (`bkl.f0_capability.v1`,
 RM-1350) is [`f0-nvml-capability.md`](f0-nvml-capability.md); it is a
-prerequisite for the #53 sampler and does not occupy this 16 GB card in CI.
+prerequisite for the #53 sampler ([`f0-gpu-sampler.md`](f0-gpu-sampler.md)).
+Discovery and the sampler's CPU tests do not occupy this 16 GB card in CI.
 Forge issue #144 should emit the Agoge-owned side; the trainer is not
 implemented here. Derived tokens/s, step-time, peak VRAM / min headroom, and
 approximate board-power energy live in
