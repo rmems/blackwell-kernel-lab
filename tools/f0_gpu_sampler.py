@@ -215,6 +215,9 @@ def sample_loop(state: LoopState) -> int:
         if loop_should_stop(state, count):
             break
         sample = capture_sample(state)
+        if stopped(state):
+            # Stop arrived during the read; finalize may already own the stream.
+            break
         append_jsonl(state.samples_path, sample)
         state.previous_ns = sample["monotonic_ns"]
         count += 1
@@ -449,9 +452,16 @@ def finish_bracket(
     backend: NvmlBackend,
     thread: threading.Thread | None,
 ) -> None:
+    hung = False
     if thread is not None:
         thread.join(timeout=join_timeout(opts))
-    close_backend(backend)
+        hung = thread.is_alive()
+    if hung:
+        # A blocked NVML read must not hold the wrapper open past the trainer.
+        # Leave the backend to process exit rather than closing it under the reader.
+        print("warning: sampler thread did not stop; finalizing without it", file=sys.stderr)
+    else:
+        close_backend(backend)
     session_path = run_paths(directory)["session"]
     if not session_path.is_file():
         return
@@ -482,7 +492,7 @@ def run_bracket(opts: SampleOptions, argv: list[str]) -> int:
             return armed.code
         state = loop_state_for(armed, opts, backend, clock, event)
         take_first_sample(state)
-        thread = threading.Thread(target=sample_loop, args=(state,), name="bkl-gpu-sampler", daemon=False)
+        thread = threading.Thread(target=sample_loop, args=(state,), name="bkl-gpu-sampler", daemon=True)
         thread.start()
         return run_argv(argv)
     finally:

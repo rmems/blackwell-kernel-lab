@@ -521,16 +521,26 @@ def restore_signals(previous: tuple[Any, Any]) -> None:
 
 
 def run_trainer(argv: list[str]) -> int:
-    """Run argv in this process group. Ignore SIGINT; forward only SIGTERM."""
+    """Run argv in this process group. Ignore SIGINT; forward only SIGTERM.
+
+    SIGTERM is blocked across fork() so a signal that lands before the child
+    pid is known stays pending and is forwarded once the pid is recorded.
+    """
     command = ["python3", "-c", TRAINER_LAUNCH, *argv]
     pid_box: list[int | None] = [None]
     forwarded = install_term_forwarder(pid_box)
+    term = {signal.SIGTERM}
     try:
-        pid = os.fork()
-        if pid == 0:
-            reset_child_signals()
-            exec_python(command)
-        pid_box[0] = pid
+        signal.pthread_sigmask(signal.SIG_BLOCK, term)
+        try:
+            pid = os.fork()
+            if pid == 0:
+                reset_child_signals()
+                signal.pthread_sigmask(signal.SIG_UNBLOCK, term)
+                exec_python(command)
+            pid_box[0] = pid
+        finally:
+            signal.pthread_sigmask(signal.SIG_UNBLOCK, term)
         return wait_child(pid)
     finally:
         restore_signals(forwarded)
@@ -620,12 +630,16 @@ def run_writing_to_head(invoke: Any) -> tuple[int, bytes]:
 
 
 def _exec_job_shell(slave: int, master: int) -> None:
-    os.setsid(); os.close(master)
-    fcntl.ioctl(slave, termios.TIOCSCTTY, 0)
-    os.dup2(slave, 0); os.dup2(slave, 1); os.dup2(slave, 2)
-    if slave > 2: os.close(slave)
-    os.environ["PS1"] = "$ "
     try:
+        os.setsid()
+        os.close(master)
+        fcntl.ioctl(slave, termios.TIOCSCTTY, 0)
+        os.dup2(slave, 0)
+        os.dup2(slave, 1)
+        os.dup2(slave, 2)
+        if slave > 2:
+            os.close(slave)
+        os.environ["PS1"] = "$ "
         os.execvp("bash", ["bash", "--noprofile", "--norc", "-im"])  # nosec B606 — literal bash
     except OSError:
         os._exit(127)

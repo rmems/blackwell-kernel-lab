@@ -26,6 +26,8 @@ RUNNER_LABELS=self-hosted,Linux,X64,CUDA
 RUNNER_ROOT="${RUNNER_ROOT:-${HOME}/actions-runner}"
 NVSMI=/usr/lib/wsl/lib/nvidia-smi
 NVSMI_ON_PATH=/usr/local/bin/nvidia-smi
+# Set to 1 by download_runner only after a checksum-verified extraction.
+RUNNER_FRESH=0
 
 refuse() {
   echo "error: $*" >&2
@@ -123,6 +125,9 @@ refuse_repo_root() {
   if git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1; then
     repo_root=$(git -C "$repo_root" rev-parse --show-toplevel)
   fi
+  # Canonicalize so ".", "./actions-runner", or symlinks cannot bypass the guard.
+  RUNNER_ROOT=$(realpath -m -- "$RUNNER_ROOT")
+  repo_root=$(realpath -m -- "$repo_root")
   case "$RUNNER_ROOT" in
     "$repo_root" | "$repo_root"/*)
       refuse "RUNNER_ROOT (${RUNNER_ROOT}) is inside the git checkout (${repo_root}). Use a directory outside the repo, for example \$HOME/actions-runner."
@@ -148,11 +153,33 @@ download_runner() {
   mkdir -p "$RUNNER_ROOT"
   tar -xzf "$archive" -C "$RUNNER_ROOT"
   printf '%s\n' "$RUNNER_VERSION" >"${RUNNER_ROOT}/.bkl-runner-version"
+  RUNNER_FRESH=1
 }
 
 install_runner_libraries() {
+  # installdependencies.sh lives in a directory the runner user (and therefore
+  # any GPU job) can write. Only run it as root straight after a verified
+  # extraction; never re-run a reused copy with sudo.
+  if [[ "$RUNNER_FRESH" != "1" ]]; then
+    echo "skipping installdependencies.sh: runner files were reused, not freshly verified"
+    return 0
+  fi
   echo "installing actions/runner library dependencies (not an NVIDIA driver)"
   as_root "${RUNNER_ROOT}/bin/installdependencies.sh"
+}
+
+drop_local_registration() {
+  # config.sh refuses an already-configured directory even with --replace.
+  # Stop the unit, then remove only the local registration files; --replace
+  # then takes over the server-side runner with the same name.
+  (
+    cd "$RUNNER_ROOT"
+    if [[ -f .service && -x ./svc.sh ]] && systemd_booted; then
+      as_root ./svc.sh stop || true
+      as_root ./svc.sh uninstall || true
+    fi
+    rm -f .runner .credentials .credentials_rsaparams .service
+  )
 }
 
 read_token() {
@@ -182,7 +209,10 @@ configure_runner() {
     --labels "$RUNNER_LABELS"
     --work _work
   )
-  if [[ "${RUNNER_REPLACE:-}" == "1" || -f "${RUNNER_ROOT}/.runner" ]]; then
+  if [[ "${RUNNER_REPLACE:-}" == "1" ]]; then
+    if [[ -f "${RUNNER_ROOT}/.runner" ]]; then
+      drop_local_registration
+    fi
     args+=(--replace)
   fi
   echo "configuring ${RUNNER_NAME} for ${RUNNER_REPO} with labels ${RUNNER_LABELS}"

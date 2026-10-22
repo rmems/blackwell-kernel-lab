@@ -552,6 +552,53 @@ def check_join_phase_from_marker(tmp: Path) -> None:
     require(all(marker["phase"] == "train" for marker, _sample in pairs), "phase comes from the marker")
 
 
+
+class StopsMidRead:
+    """Sets the stop event during the first physical read, as a stop racing a slow NVML call would."""
+
+    def __init__(self, event: threading.Event) -> None:
+        self.inner = FakeNvmlBackend("full-support")
+        self.event = event
+        self.armed = False
+
+    def gpu_count(self) -> int: return self.inner.gpu_count()
+
+    def identity(self, index: int) -> Any: return self.inner.identity(index)
+
+    def versions(self) -> Any: return self.inner.versions()
+
+    def read_throttle(self, index: int) -> list[str]: return self.inner.read_throttle(index)
+
+    def read_numeric(self, index: int, metric: str) -> int | float:
+        if self.armed:
+            self.event.set()
+        return self.inner.read_numeric(index, metric)
+
+
+def check_stop_during_read_drops_sample(tmp: Path) -> None:
+    event = threading.Event()
+    backend = StopsMidRead(event)
+    opts = options(tmp, "stop-mid-read", max_samples=5)
+    directory = run_dir(tmp, "stop-mid-read")
+    sampler.ensure_new_run(directory)
+    armed = sampler.arm(opts, backend, clock(), directory)
+    require(armed.refused is None, f"arm refused: {armed.refused}")
+    state = sampler.loop_state_for(armed, opts, backend, clock(), event)
+    backend.armed = True
+    count = sampler.sample_loop(state)
+    require(count == 0, f"sample read across a stop must be dropped, loop counted {count}")
+    require(load_samples(directory) == [], "no sample may be appended after stop was requested")
+
+
+def check_atomic_session_write(tmp: Path) -> None:
+    target = tmp / "atomic" / "session.json"
+    sampler.write_json(target, {"status": "running", "pid": None})
+    sampler.write_json(target, {"status": "running", "pid": 4242})
+    require(sampler.read_json(target)["pid"] == 4242, "rewrite must land")
+    leftovers = [path.name for path in target.parent.iterdir() if path.name != "session.json"]
+    require(not leftovers, f"atomic write left temp files: {leftovers}")
+
+
 CASES = (
     ("stat_state_and_missing_headroom", check_stat_state_and_missing_headroom),
     ("floor_constant", check_floor_constant),
@@ -577,6 +624,8 @@ CASES = (
     ("run_command_exit", check_run_command_exit),
     ("start_stop_process", check_start_stop_process),
     ("join_phase_from_marker", check_join_phase_from_marker),
+    ("stop_during_read_drops_sample", check_stop_during_read_drops_sample),
+    ("atomic_session_write", check_atomic_session_write),
 )
 
 
