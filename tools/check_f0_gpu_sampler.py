@@ -19,7 +19,7 @@ from typing import Any
 import check_f0_correlation as f0corr
 import f0_clock
 import f0_gpu_sampler as sampler
-from f0_sampler_support import free_mib, run_with_controlling_tty, run_writing_to_head, stat_state
+from f0_sampler_support import bash_stop_and_fg, free_mib, run_with_controlling_tty, run_writing_to_head, stat_state
 from f0_efficiency_numbers import HEADROOM_FLOOR_MIB, field_block
 from f0_gpu_sample import COLLECTOR_ID
 from f0_measurements import PHYSICAL, SchemaError
@@ -251,17 +251,13 @@ class LowFree:
     def __init__(self) -> None:
         self.inner = FakeNvmlBackend("full-support")
 
-    def gpu_count(self) -> int:
-        return self.inner.gpu_count()
+    def gpu_count(self) -> int: return self.inner.gpu_count()
 
-    def identity(self, index: int) -> Any:
-        return self.inner.identity(index)
+    def identity(self, index: int) -> Any: return self.inner.identity(index)
 
-    def versions(self) -> Any:
-        return self.inner.versions()
+    def versions(self) -> Any: return self.inner.versions()
 
-    def read_throttle(self, index: int) -> list[str]:
-        return self.inner.read_throttle(index)
+    def read_throttle(self, index: int) -> list[str]: return self.inner.read_throttle(index)
 
     def read_numeric(self, index: int, metric: str) -> int | float:
         if metric in ("vram_free", "headroom"):
@@ -294,17 +290,13 @@ class Costly:
         self.clock = scripted
         self.cost_ns = cost_ns
 
-    def gpu_count(self) -> int:
-        return self.inner.gpu_count()
+    def gpu_count(self) -> int: return self.inner.gpu_count()
 
-    def identity(self, index: int) -> Any:
-        return self.inner.identity(index)
+    def identity(self, index: int) -> Any: return self.inner.identity(index)
 
-    def versions(self) -> Any:
-        return self.inner.versions()
+    def versions(self) -> Any: return self.inner.versions()
 
-    def read_throttle(self, index: int) -> list[str]:
-        return self.inner.read_throttle(index)
+    def read_throttle(self, index: int) -> list[str]: return self.inner.read_throttle(index)
 
     def read_numeric(self, index: int, metric: str) -> int | float:
         self.clock.sleep_ns(self.cost_ns)
@@ -327,8 +319,7 @@ def check_overhead_budget(tmp: Path) -> None:
 
 
 class LateClock(sampler.ScriptedClock):
-    def sleep_ns(self, amount: int) -> None:
-        super().sleep_ns(amount + 2_000_000)
+    def sleep_ns(self, amount: int) -> None: super().sleep_ns(amount + 2_000_000)
 
 
 def check_jitter_recorded(tmp: Path) -> None:
@@ -356,20 +347,15 @@ class CachingFree:
         self.cached: int | None = None
         self.generation = 14000
 
-    def begin_reading(self) -> None:
-        self.cached = None
+    def begin_reading(self) -> None: self.cached = None
 
-    def gpu_count(self) -> int:
-        return self.inner.gpu_count()
+    def gpu_count(self) -> int: return self.inner.gpu_count()
 
-    def identity(self, index: int) -> Any:
-        return self.inner.identity(index)
+    def identity(self, index: int) -> Any: return self.inner.identity(index)
 
-    def versions(self) -> Any:
-        return self.inner.versions()
+    def versions(self) -> Any: return self.inner.versions()
 
-    def read_throttle(self, index: int) -> list[str]:
-        return self.inner.read_throttle(index)
+    def read_throttle(self, index: int) -> list[str]: return self.inner.read_throttle(index)
 
     def read_numeric(self, index: int, metric: str) -> int | float:
         if metric != "vram_free":
@@ -409,20 +395,14 @@ def check_second_start_rejected(tmp: Path) -> None:
 
 
 _SIGNAL_CHILD = (
-    "import os,signal,sys,time\n"
-    "from pathlib import Path\n"
+    "import os,signal,sys,time\nfrom pathlib import Path\n"
     "path, name = Path(sys.argv[1]), sys.argv[2]\n"
-    "signum = signal.SIGINT if name == 'INT' else signal.SIGTERM\n"
-    "seen = 0\n"
-    "def on_signal(_signum, _frame):\n"
-    "    global seen\n"
-    "    seen += 1\n"
-    "    path.write_text(f'got {seen} {os.getpgrp()}')\n"
-    "    signal.signal(signum, signal.SIG_DFL)\n"
-    "    os.kill(os.getpid(), signum)\n"
+    "signum = signal.SIGINT if name == 'INT' else signal.SIGTERM\nseen = 0\n"
+    "def on_signal(_signum, _frame):\n global seen\n seen += 1\n"
+    " path.write_text(f'got {seen} {os.getpgrp()}')\n"
+    " signal.signal(signum, signal.SIG_DFL)\n os.kill(os.getpid(), signum)\n"
     "signal.signal(signum, on_signal)\n"
-    "path.write_text(f'ready {os.getpid()} {os.getpgrp()}')\n"
-    "time.sleep(30)\n"
+    "path.write_text(f'ready {os.getpid()} {os.getpgrp()}')\ntime.sleep(30)\n"
 )
 
 
@@ -492,11 +472,19 @@ def check_sigpipe_head(tmp: Path) -> None:
     require(quiet and (run_dir(tmp, "sigpipe") / "clock-skew.json").is_file(), f"sigpipe {code} {err!r}")
 
 
-def check_stopped_child(tmp: Path) -> None:
-    script = "import os,signal; os.kill(os.getpid(), signal.SIGSTOP)"
-    code = run_cli(tmp, "stopped", sys.executable, "-c", script)
-    saved = (run_dir(tmp, "stopped") / "clock-skew.json").is_file()
-    require(code == 128 + signal.SIGKILL and saved, f"stopped child exit {code}")
+def check_ctrl_z_fg(tmp: Path) -> None:
+    # The AND list has to be one job. An interactive shell treats a stop as status
+    # 148 and would skip a top-level `&& echo`.
+    tool = str(Path(sampler.__file__).resolve())
+    command = (
+        "bash -c '"
+        f"python3 {tool} run --run-id sigtstp --out {tmp} --fake full-support "
+        "--hostname ShipOfTheseus --cadence-ms 50 --max-duration-s 12 -- sleep 2 && echo SURVIVED'\n"
+    )
+    output = bash_stop_and_fg(command.encode())
+    lines = [line.strip() for line in output.replace(b"\r\n", b"\n").replace(b"\r", b"\n").split(b"\n")]
+    require(b"Stopped" in output and b"SURVIVED" in lines, f"ctrl-z fg {output!r}")
+    require((run_dir(tmp, "sigtstp") / "clock-skew.json").is_file(), "ctrl-z final record")
 
 
 def check_run_command_exit(tmp: Path) -> None:
@@ -585,7 +573,7 @@ CASES = (
     ("forward_sigint", check_forward_sigint),
     ("forward_sigterm", check_forward_sigterm),
     ("sigpipe_head", check_sigpipe_head),
-    ("stopped_child", check_stopped_child),
+    ("ctrl_z_fg", check_ctrl_z_fg),
     ("run_command_exit", check_run_command_exit),
     ("start_stop_process", check_start_stop_process),
     ("join_phase_from_marker", check_join_phase_from_marker),

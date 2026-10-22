@@ -11,6 +11,7 @@ import json
 import math
 import os
 import pty
+import select
 import signal
 import statistics
 import termios
@@ -329,10 +330,8 @@ def floor_held(readings: list[int]) -> bool | None:
 def headroom_summary(samples: list[dict[str, Any]]) -> dict[str, Any]:
     readings = headroom_readings(samples)
     return {
-        "headroom_floor_mib": HEADROOM_FLOOR_MIB,
-        "samples_below_floor": count_below_floor(readings),
-        "min_headroom_mib": min(readings) if readings else None,
-        "floor_held": floor_held(readings),
+        "headroom_floor_mib": HEADROOM_FLOOR_MIB, "samples_below_floor": count_below_floor(readings),
+        "min_headroom_mib": min(readings) if readings else None, "floor_held": floor_held(readings),
     }
 
 
@@ -353,16 +352,12 @@ def overhead_ratio(median_collect: float | None, cadence_ms: int) -> float | Non
 
 def make_overhead(run_id: str, cadence_ms: int, samples: list[dict[str, Any]]) -> dict[str, Any]:
     collect = _ints(samples, "collect_duration_ns")
-    intervals = _ints(samples, "observed_interval_ns")
-    jitter = _ints(samples, "jitter_ns")
+    intervals, jitter = _ints(samples, "observed_interval_ns"), _ints(samples, "jitter_ns")
     median_collect = median_number(collect)
     report = {
-        "schema_version": OVERHEAD_SCHEMA,
-        "record_kind": "bkl_sampler_overhead",
-        "agoge_run_id": run_id,
+        "schema_version": OVERHEAD_SCHEMA, "record_kind": "bkl_sampler_overhead", "agoge_run_id": run_id,
         "collector": {"id": COLLECTOR_ID, "version": COLLECTOR_VERSION},
-        "cadence_ms": cadence_ms,
-        "sample_count": len(samples),
+        "cadence_ms": cadence_ms, "sample_count": len(samples),
         "collect_duration_ns": {"median": median_collect, "max": max(collect) if collect else None},
         "observed_interval_ns": {"median": median_number(intervals), "max": max(intervals) if intervals else None},
         "jitter_ns": {"median": median_number(jitter), "max": max(jitter) if jitter else None},
@@ -376,18 +371,13 @@ def make_overhead(run_id: str, cadence_ms: int, samples: list[dict[str, Any]]) -
 
 
 def write_refusal(directory: Path, snapshot: dict[str, Any], reason: str) -> None:
-    write_json(
-        run_paths(directory)["refusal"],
-        {
-            "schema_version": OVERHEAD_SCHEMA,
-            "record_kind": "bkl_sampler_refusal",
-            "agoge_run_id": snapshot["agoge_run_id"],
-            "reason": reason,
-            "capability_digest": snapshot.get("capability_digest"),
-            "headroom_floor_mib": HEADROOM_FLOOR_MIB,
-            "collector": {"id": COLLECTOR_ID, "version": COLLECTOR_VERSION},
-        },
-    )
+    write_json(run_paths(directory)["refusal"], {
+        "schema_version": OVERHEAD_SCHEMA, "record_kind": "bkl_sampler_refusal",
+        "agoge_run_id": snapshot["agoge_run_id"], "reason": reason,
+        "capability_digest": snapshot.get("capability_digest"),
+        "headroom_floor_mib": HEADROOM_FLOOR_MIB,
+        "collector": {"id": COLLECTOR_ID, "version": COLLECTOR_VERSION},
+    })
 
 
 def stat_state(text: str) -> str | None:
@@ -505,18 +495,12 @@ def exit_code_from_status(status: int) -> int:
 
 
 def wait_child(pid: int) -> int:
-    killed_stop = False
     while True:
         try:
-            _child, status = os.waitpid(pid, os.WUNTRACED)
+            _child, status = os.waitpid(pid, 0)
         except InterruptedError:
             continue
-        if not os.WIFSTOPPED(status):
-            return exit_code_from_status(status)
-        if killed_stop:
-            return 128 + int(os.WSTOPSIG(status))
-        killed_stop = True
-        signal_pid(pid, signal.SIGKILL)
+        return exit_code_from_status(status)
 
 
 def install_term_forwarder(pid_box: list[int | None]) -> tuple[Any, Any]:
@@ -553,15 +537,12 @@ def run_trainer(argv: list[str]) -> int:
 
 
 def enter_controlling_tty(slave: int, master: int, command: list[str]) -> None:
-    os.setsid()
-    os.close(master)
+    os.setsid(); os.close(master)
     try:
         fcntl.ioctl(slave, termios.TIOCSCTTY, 0)
     except OSError:
         os._exit(127)
-    os.dup2(slave, 0)
-    os.dup2(slave, 1)
-    os.dup2(slave, 2)
+    os.dup2(slave, 0); os.dup2(slave, 1); os.dup2(slave, 2)
     if slave > 2:
         os.close(slave)
     exec_python(command)
@@ -625,25 +606,51 @@ def run_writing_to_head(invoke: Any) -> tuple[int, bytes]:
     err_read, err_write = os.pipe()
     head = os.fork()
     if head == 0:
-        os.close(err_read)
-        os.close(err_write)
-        _exec_head(read_fd, write_fd)
+        os.close(err_read); os.close(err_write); _exec_head(read_fd, write_fd)
     os.close(read_fd)
-    saved_out = os.dup(1)
-    saved_err = os.dup(2)
-    os.dup2(write_fd, 1)
-    os.dup2(err_write, 2)
-    os.close(write_fd)
-    os.close(err_write)
+    saved_out, saved_err = os.dup(1), os.dup(2)
+    os.dup2(write_fd, 1); os.dup2(err_write, 2)
+    os.close(write_fd); os.close(err_write)
     try:
         code = int(invoke())
     finally:
-        _restore_fd(1, saved_out)
-        _restore_fd(2, saved_err)
-        _reap_pid(head)
-        err = os.read(err_read, 65536)
-        os.close(err_read)
+        _restore_fd(1, saved_out); _restore_fd(2, saved_err); _reap_pid(head)
+        err = os.read(err_read, 65536); os.close(err_read)
     return code, err
+
+
+def _exec_job_shell(slave: int, master: int) -> None:
+    os.setsid(); os.close(master)
+    fcntl.ioctl(slave, termios.TIOCSCTTY, 0)
+    os.dup2(slave, 0); os.dup2(slave, 1); os.dup2(slave, 2)
+    if slave > 2: os.close(slave)
+    os.environ["PS1"] = "$ "
+    try:
+        os.execvp("bash", ["bash", "--noprofile", "--norc", "-im"])  # nosec B606 — literal bash
+    except OSError:
+        os._exit(127)
+
+
+def _drain_pty(master: int, seconds: float, chunks: list[bytes], marker: bytes | None) -> None:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        ready, _, _ = select.select([master], [], [], 0.05)
+        if ready: chunks.append(os.read(master, 4096))
+        if marker is not None and marker in b"".join(chunks): return
+
+
+def bash_stop_and_fg(line: bytes) -> bytes:
+    master, slave = pty.openpty()
+    pid = os.fork()
+    if pid == 0:
+        _exec_job_shell(slave, master)
+    os.close(slave)
+    chunks: list[bytes] = []
+    os.write(master, line); _drain_pty(master, 0.7, chunks, None)
+    os.write(master, b"\x1a"); _drain_pty(master, 2.0, chunks, b"Stopped")
+    os.write(master, b"fg\n"); _drain_pty(master, 5.0, chunks, b"\nSURVIVED")
+    os.kill(pid, signal.SIGKILL); os.waitpid(pid, 0); os.close(master)
+    return b"".join(chunks)
 
 
 def request_exit(session: dict[str, Any]) -> None:
