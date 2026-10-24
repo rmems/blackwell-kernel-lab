@@ -19,6 +19,7 @@ GPU_POLICY = {
     "tools/gpu_ci_gate.py", "tools/check_gpu_ci_gate.py", "tools/check_gpu_ci_policy.py",
 }
 CPU_FILES = {
+    ".coderabbit.yaml",
     ".gitignore", ".github/actionlint.yaml",
     ".github/workflows/ci-cpu.yml", ".github/workflows/ci-lint.yml",
     ".qlty/qlty.toml", ".qlty/.gitignore",

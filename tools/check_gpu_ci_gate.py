@@ -32,6 +32,9 @@ class GateTests(unittest.TestCase):
     def test_cpu_tool_does_not_schedule_gpu(self):
         self.assert_detection(self.harness.detect_change("tools/check_f0_efficiency.py"), False)
 
+    def test_review_config_does_not_schedule_gpu(self):
+        self.assert_detection(self.harness.detect_change(".coderabbit.yaml"), False)
+
     def test_cuda_change_requires_gpu(self):
         self.assert_detection(self.harness.detect_change("kernels/src/operator.cu"), True)
 
