@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
-# Draft CodeRabbit config for rmems/blackwell-kernel-lab (generated locally, not pushed).
+# CodeRabbit config for rmems/blackwell-kernel-lab.
 language: en-US
 reviews:
   profile: chill
@@ -12,17 +12,55 @@ reviews:
   - '!results/**'
   path_instructions:
   - path: kernels/**/*.cu
-    instructions: CUDA kernels (Blackwell sm_120 target). Check every device allocation, copy, launch and stream call for error checking; bounds and grid/block math; races and missing `__syncthreads()`; host/device pointer confusion; and that timing code synchronizes before reading events. These only build on the self-hosted GPU runner, so reason about correctness carefully rather than assuming CI caught it.
+    instructions: >-
+      CUDA kernels (Blackwell sm_120 target). Check every device allocation,
+      copy, launch, and stream call for error checking; bounds and grid/block
+      math; races and a missing __syncthreads(); host/device pointer confusion;
+      and that timing code synchronizes before reading events. These only build
+      on the self-hosted GPU runner, so reason about correctness carefully
+      rather than assuming CI caught it.
   - path: kernels/**/CMakeLists.txt
-    instructions: CMake must keep configuring on a CPU-only host with `cmake -S kernels -B build/kernels-cpu -DBKL_ENABLE_CUDA=OFF`; every CUDA-only target or `find_package(CUDAToolkit)` must sit behind `BKL_ENABLE_CUDA`.
+    instructions: >-
+      CMake must keep configuring on a CPU-only host with
+      cmake -S kernels -B build/kernels-cpu -DBKL_ENABLE_CUDA=OFF.
+      Every CUDA-only target or find_package(CUDAToolkit) must sit behind
+      BKL_ENABLE_CUDA.
   - path: '{tools,kernels/tools}/**/*.py'
-    instructions: 'Python 3 (system python3 in CI). CI gate: `python3 tools/check_*.py` and `tools/test_*.py`. Keep code compatible with the declared Python floor. The NVML/f0 tooling must run without a GPU using the fakes in `tools/nvml_fakes.py`; do not make hosted checks depend on live hardware.'
+    instructions: >-
+      Python 3, using the system python3 on the hosted ubuntu-latest runner.
+      Hosted CI invokes each checker on its own; a shell glob such as
+      python3 tools/check_*.py runs only the first expanded script and passes
+      the rest as arguments. The individual commands are
+      python3 tools/check_f0_correlation.py (with --markers, --samples, and
+      --clock-skew), python3 tools/check_f0_clock_skew.py (with --fixtures),
+      python3 tools/check_f0_efficiency.py, python3 tools/summarize_f0_efficiency.py
+      (with marker, sample, profile-window, and train-fit inputs),
+      python3 tools/check_nvml_capability.py, python3 tools/check_f0_gpu_sampler.py,
+      python3 tools/check_gpu_ci_policy.py, python3 tools/test_gpu_ci_policy.py,
+      python3 tools/check_gpu_ci_gate.py, and
+      python3 tools/test_publish_gpu_validation.py.
+      Argument lists live in .github/workflows/ci-cpu.yml.
+      NVML and f0 tooling must run without a GPU using the fakes in
+      tools/nvml_fakes.py; do not make hosted checks depend on live hardware.
   - path: '**/*.sh'
-    instructions: Shell scripts. Must pass shellcheck; quote expansions and never echo secrets or tokens. `kernels/tools/check_compute_sanitizer_runner.sh` runs in CPU CI; keep it runnable without CUDA.
+    instructions: >-
+      Shell scripts. Must pass shellcheck; quote expansions and never echo
+      secrets or tokens. kernels/tools/check_compute_sanitizer_runner.sh runs
+      in CPU CI; keep it runnable without CUDA.
   - path: fixtures/**
-    instructions: Recorded measurement fixtures consumed by the tools/ checkers. Changes must be explained by a schema or tool change in the same PR; never hand-edit numbers to make a check pass.
+    instructions: >-
+      Recorded measurement fixtures consumed by the tools/ checkers. Changes
+      must be explained by a schema or tool change in the same PR; never
+      hand-edit numbers to make a check pass.
   - path: .github/workflows/**
-    instructions: GitHub Actions workflows. Keep `permissions:` least-privilege and job commands in sync with the local gates documented in the repo. Every `uses:` is pinned to a full commit SHA today; new or bumped actions must be too. GPU and compute-sanitizer jobs run on `[self-hosted, Linux, X64, CUDA]`; they must stay behind the trust gate / fork skip so fork PRs can never reach the self-hosted runner. actionlint 1.7.12 is pinned in CI (`.github/actionlint.yaml`).
+    instructions: >-
+      GitHub Actions workflows. Keep the permissions block least-privilege and
+      job commands in sync with the local gates documented in the repo. Every
+      uses action is pinned to a full commit SHA today; new or bumped actions
+      must be too. GPU and compute-sanitizer jobs run on the self-hosted Linux
+      X64 CUDA labels; they must stay behind the trust gate and fork skip so
+      fork PRs can never reach the self-hosted runner. actionlint 1.7.12 is
+      pinned in CI (.github/actionlint.yaml).
   tools:
     ruff:
       enabled: true
