@@ -23,6 +23,7 @@ if str(_TOOLS_DIR) not in sys.path:
 
 import check_f0_correlation as f0corr
 import summarize_f0_efficiency as f0eff
+from f0_efficiency_numbers import field_block
 
 ROOT = Path(__file__).resolve().parents[1]
 MARKERS = ROOT / "fixtures/f0-correlation/agoge-markers.jsonl"
@@ -404,6 +405,17 @@ def check_cli_minicpm5() -> None:
     require(args.train_fit_ref == TRAIN_FIT, "parse train-fit ref")
 
 
+def check_permission_denied_counts_as_invalid() -> None:
+    """NVML permission/lost/transient readings stay out of peaks (missing ≠ zero)."""
+    for status in ("permission_denied", "device_lost", "transient_failure"):
+        sample = {"power": {"value": None, "unit": "W", "status": status}}
+        block = field_block([sample], "power", avg_key="avg_w", peak_key="peak_w", min_key=None, unit="W")
+        require(block["peak_w"] is None, f"{status} power must not become a peak")
+        require(block["avg_w"] is None, f"{status} power must not become an average")
+        require(block["ok_count"] == 0, f"{status} is not an ok reading")
+        require(block["invalid_count"] == 1, f"{status} counts as invalid")
+
+
 CASES = (
     ("minicpm5_machine_readable", check_minicpm5_machine_readable),
     ("peak_vram_matches_samples", check_peak_vram_matches_samples),
@@ -411,6 +423,7 @@ CASES = (
     ("energy_skips_long_gap", check_energy_skips_long_gap),
     ("energy_trapezoid_regular", check_energy_trapezoid_regular),
     ("missing_power_is_not_zero", check_missing_power_is_not_zero),
+    ("permission_denied_counts_as_invalid", check_permission_denied_counts_as_invalid),
     ("missing_counts", check_missing_counts),
     ("granite_same_formulas", check_granite_same_formulas),
     ("train_fit_not_overwritten", check_train_fit_not_overwritten),

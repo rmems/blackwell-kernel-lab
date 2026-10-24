@@ -4,7 +4,8 @@ Discovers which F0 sampler metrics a backend can expose and encodes
 missingness without substituting zeroes. Fake backends live in nvml_fakes.py;
 schema checks live in nvml_schema.py. Live NVML is optional.
 
-This is not a sampler loop (#53), a daemon, or a safety controller.
+The per-run loop is ``f0_gpu_sampler.py`` (#53). This module only discovers
+capability. It is not a daemon or a safety controller.
 """
 
 from __future__ import annotations
