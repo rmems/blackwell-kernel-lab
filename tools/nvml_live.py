@@ -1,7 +1,9 @@
 """Optional live NVML backend via ctypes. Not imported by CPU CI self-tests.
 
-Used by the RTX 5080 evidence recipe. Does not estimate unsupported sensors
-and does not sample in a loop (#53).
+Used by capability discovery and by the per-run sampler
+(``f0_gpu_sampler.py``). Does not estimate unsupported sensors.
+``begin_reading`` clears the per-sample VRAM cache so a later sample cannot
+reuse an earlier ``nvmlDeviceGetMemoryInfo`` result.
 """
 
 from __future__ import annotations
@@ -80,6 +82,11 @@ class LiveNvmlBackend:
             return
         self._lib.nvmlShutdown()
         self._lib = None
+
+    def begin_reading(self) -> None:
+        """Drop cached memory info so the next sample reads NVML again."""
+        self._vram = None
+        self._vram_error = None
 
     def gpu_count(self) -> int:
         lib = self._require_lib()

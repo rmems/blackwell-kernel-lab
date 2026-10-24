@@ -8,7 +8,8 @@ sampler.
 the bound digest). Discovery is a CPU contract plus an optional one-shot NVML
 probe. It does not occupy the RTX 5080 in CI.
 
-This is **not** the #53 sampler loop, a daemon, a safety controller, or a
+This is **not** the per-run sampler loop
+([`f0-gpu-sampler.md`](f0-gpu-sampler.md)), a daemon, a safety controller, or a
 cross-vendor GPU abstraction. Unsupported sensors stay `unsupported`; they are
 not estimated.
 

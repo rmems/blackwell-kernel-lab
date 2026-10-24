@@ -99,9 +99,13 @@ emits markers).
 [#52](https://github.com/rmems/blackwell-kernel-lab/issues/52) / RM-1229 defined
 [`f0-correlation-schema.md`](f0-correlation-schema.md)
 (`bkl.f0_correlation.v1`). When [#53](https://github.com/rmems/blackwell-kernel-lab/issues/53)
-(sampler), Agoge [#144](https://github.com/rmems/agoge-forger/issues/144)
-(markers), and [#55](https://github.com/rmems/blackwell-kernel-lab/issues/55)
-(derived peak VRAM / min headroom) are ready:
+(sampler, [`f0-gpu-sampler.md`](f0-gpu-sampler.md) /
+[`recipes/f0-gpu-sampler.md`](../recipes/f0-gpu-sampler.md)), Agoge
+[#144](https://github.com/rmems/agoge-forger/issues/144)
+(markers, emitted by [agoge-forger#147](https://github.com/rmems/agoge-forger/pull/147)),
+and [#55](https://github.com/rmems/blackwell-kernel-lab/issues/55)
+(derived peak VRAM / min headroom) are ready. The dated rows below stay
+pending until a ShipOfTheseus canary writes a real bundle:
 
 - Stamp a stable Agoge `agoge_run_id` on the canary.
 - Link the BKL JSONL bundle + #55 summary from the table’s **Bundle** column.
